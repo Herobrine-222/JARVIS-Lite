@@ -6,7 +6,6 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.BatteryManager;
 import android.os.Bundle;
-import android.os.SystemClock;
 import android.speech.RecognizerIntent;
 import android.widget.Button;
 import android.widget.LinearLayout;
@@ -113,9 +112,33 @@ public class MainActivity extends Activity {
 
     private boolean ehComandoBateria(String texto) {
 
+        return normalizar(texto).contains("bateria");
+    }
+
+    private boolean ehPerguntaEstadoBateria(String texto) {
+
         String normalizado = normalizar(texto);
 
-        return normalizado.contains("bateria");
+        return normalizado.contains("estado") ||
+               normalizado.contains("como esta") ||
+               normalizado.contains("como ta") ||
+               normalizado.contains("saude") ||
+               normalizado.contains("vida") ||
+               normalizado.contains("condicao") ||
+               normalizado.contains("temperatura") ||
+               normalizado.contains("carregando");
+    }
+
+    private boolean ehPerguntaPorcentagem(String texto) {
+
+        String normalizado = normalizar(texto);
+
+        return normalizado.contains("porcentagem") ||
+               normalizado.contains("percent") ||
+               normalizado.contains("quantos por cento") ||
+               normalizado.contains("quanto resta") ||
+               normalizado.contains("quanto tem") ||
+               normalizado.contains("%");
     }
 
     private String obterEstadoBateria() {
@@ -127,27 +150,46 @@ public class MainActivity extends Activity {
                 BatteryManager.BATTERY_PROPERTY_CAPACITY
         );
 
-        int status = bateria.getIntProperty(
-                BatteryManager.BATTERY_PROPERTY_STATUS
+        Intent intentBateria = registerReceiver(
+                null,
+                new android.content.IntentFilter(
+                        Intent.ACTION_BATTERY_CHANGED
+                )
         );
 
         String estado;
 
+        int status = -1;
+
+        if (intentBateria != null) {
+            status = intentBateria.getIntExtra(
+                    BatteryManager.EXTRA_STATUS,
+                    -1
+            );
+        }
+
         if (status == BatteryManager.BATTERY_STATUS_CHARGING) {
-            estado = "carregando";
+            estado = "está carregando";
         } else if (status == BatteryManager.BATTERY_STATUS_FULL) {
-            estado = "com carga completa";
+            estado = "está com carga completa";
         } else if (status == BatteryManager.BATTERY_STATUS_DISCHARGING) {
             estado = "não está carregando";
         } else {
-            estado = "sem carregamento ativo";
+            estado = "não está em carregamento ativo";
         }
+
+        String temperatura = obterTemperaturaBateria(intentBateria);
+        String saude = obterSaudeBateria(intentBateria);
 
         return "Sua bateria está em " +
                 porcentagem +
-                "% e " +
+                "%. " +
+                "Ela " +
                 estado +
-                ".";
+                ". " +
+                temperatura +
+                " " +
+                saude;
     }
 
     private String obterPorcentagemBateria() {
@@ -164,86 +206,87 @@ public class MainActivity extends Activity {
                 "%.";
     }
 
+    private String obterTemperaturaBateria(Intent intentBateria) {
+
+        if (intentBateria == null) {
+            return "Não foi possível obter a temperatura da bateria.";
+        }
+
+        int temperatura = intentBateria.getIntExtra(
+                BatteryManager.EXTRA_TEMPERATURE,
+                Integer.MIN_VALUE
+        );
+
+        if (temperatura == Integer.MIN_VALUE) {
+            return "Não foi possível obter a temperatura da bateria.";
+        }
+
+        double temperaturaCelsius = temperatura / 10.0;
+
+        return "A temperatura da bateria é de " +
+                String.format(
+                        Locale.US,
+                        "%.1f",
+                        temperaturaCelsius
+                ) +
+                " graus Celsius.";
+    }
+
+    private String obterSaudeBateria(Intent intentBateria) {
+
+        if (intentBateria == null) {
+            return "Não foi possível determinar a saúde da bateria.";
+        }
+
+        int saude = intentBateria.getIntExtra(
+                BatteryManager.EXTRA_HEALTH,
+                BatteryManager.BATTERY_HEALTH_UNKNOWN
+        );
+
+        switch (saude) {
+
+            case BatteryManager.BATTERY_HEALTH_GOOD:
+                return "O sistema reporta a saúde da bateria como normal.";
+
+            case BatteryManager.BATTERY_HEALTH_OVERHEAT:
+                return "O sistema reporta um alerta de superaquecimento.";
+
+            case BatteryManager.BATTERY_HEALTH_DEAD:
+                return "O sistema reporta uma falha grave na bateria.";
+
+            case BatteryManager.BATTERY_HEALTH_OVER_VOLTAGE:
+                return "O sistema reporta um alerta de sobretensão.";
+
+            case BatteryManager.BATTERY_HEALTH_UNSPECIFIED_FAILURE:
+                return "O sistema reporta uma falha não especificada na bateria.";
+
+            case BatteryManager.BATTERY_HEALTH_COLD:
+                return "O sistema reporta que a bateria está muito fria.";
+
+            default:
+                return "Não foi possível determinar a saúde da bateria.";
+        }
+    }
+
     private void processarComando(String comando) {
 
-        String normalizado = normalizar(comando);
+        if (!ehComandoBateria(comando)) {
+            resposta.setText(
+                    "Comando não reconhecido.\n\n" +
+                    "Aguardando ativação..."
+            );
+            return;
+        }
 
-        if (ehComandoBateria(comando)) {
+        if (ehPerguntaPorcentagem(comando) &&
+            !ehPerguntaEstadoBateria(comando)) {
 
-            if (normalizado.contains("estado") ||
-                normalizado.contains("como esta") ||
-                normalizado.contains("como ta")) {
-
-                resposta.setText(
-                        obterEstadoBateria()
-                );
-
-            } else {
-
-                resposta.setText(
-                        obterPorcentagemBateria()
-                );
-            }
+            resposta.setText(
+                    obterPorcentagemBateria()
+            );
 
             return;
         }
 
         resposta.setText(
-                "Comando não reconhecido.\n\n" +
-                "Aguardando ativação..."
-        );
-    }
-
-    @Override
-    protected void onActivityResult(
-            int requestCode,
-            int resultCode,
-            Intent data) {
-
-        super.onActivityResult(
-                requestCode,
-                resultCode,
-                data
-        );
-
-        if (requestCode == RECONHECER_VOZ &&
-                resultCode == RESULT_OK &&
-                data != null) {
-
-            ArrayList<String> resultados =
-                    data.getStringArrayListExtra(
-                            RecognizerIntent.EXTRA_RESULTS
-                    );
-
-            if (resultados != null &&
-                    !resultados.isEmpty()) {
-
-                String comando = resultados.get(0);
-
-                if (ehAtivacao(comando)) {
-
-                    resposta.setText(
-                            "À sua disposição.\n\n" +
-                            "Sistemas online.\n" +
-                            "O que deseja?"
-                    );
-
-                    // Abre uma segunda escuta para receber o comando.
-                    ouvir();
-
-                } else if (ehComandoBateria(comando)) {
-
-                    processarComando(comando);
-
-                } else {
-
-                    resposta.setText(
-                            "Aguardando ativação...\n\n" +
-                            "Frase de ativação:\n" +
-                            "\"JARVIS, está aí?\""
-                    );
-                }
-            }
-        }
-    }
-            }
+                obter
