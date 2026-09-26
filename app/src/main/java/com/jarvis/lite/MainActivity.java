@@ -2,7 +2,6 @@ package com.jarvis.lite;
 
 import android.Manifest;
 import android.app.Activity;
-import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
@@ -52,11 +51,14 @@ public class MainActivity extends Activity {
 
         if (android.os.Build.VERSION.SDK_INT >= 23) {
 
-            if (checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+            if (checkSelfPermission(
+                    Manifest.permission.RECORD_AUDIO)
                     != PackageManager.PERMISSION_GRANTED) {
 
                 requestPermissions(
-                        new String[]{Manifest.permission.RECORD_AUDIO},
+                        new String[]{
+                                Manifest.permission.RECORD_AUDIO
+                        },
                         REQUEST_AUDIO
                 );
             }
@@ -72,6 +74,11 @@ public class MainActivity extends Activity {
                 "Modo OFFLINE ativo. Digite ou fale um comando."
         );
 
+        /*
+         * Se o serviço Stage 7 abrir o aplicativo depois de
+         * detectar "JARVIS", podemos iniciar o reconhecimento
+         * manual depois que a Activity estiver pronta.
+         */
         if (getIntent().getBooleanExtra(
                 "JARVIS_WAKE",
                 false)) {
@@ -94,83 +101,7 @@ public class MainActivity extends Activity {
 
     /*
      * ============================================================
-     * STAGE 7
-     * ============================================================
-     *
-     * Quando o aplicativo está visível:
-     * - serviço automático pausado
-     * - somente o botão manual usa o microfone
-     *
-     * Quando o aplicativo deixa de estar visível:
-     * - serviço automático pode voltar a escutar JARVIS
-     */
-
-    @Override
-    protected void onStart() {
-        super.onStart();
-
-        pausarEscutaAutomatica();
-    }
-
-    @Override
-    protected void onStop() {
-        super.onStop();
-
-        retomarEscutaAutomatica();
-    }
-
-    private void pausarEscutaAutomatica() {
-
-        try {
-
-            Intent intent =
-                    new Intent(
-                            this,
-                            JarvisVoiceService.class
-                    );
-
-            intent.setAction(
-                    JarvisVoiceService.ACTION_PAUSE
-            );
-
-            startService(intent);
-
-        } catch (Exception e) {
-            // Nada a fazer.
-        }
-    }
-
-    private void retomarEscutaAutomatica() {
-
-        try {
-
-            Intent intent =
-                    new Intent(
-                            this,
-                            JarvisVoiceService.class
-                    );
-
-            intent.setAction(
-                    JarvisVoiceService.ACTION_RESUME
-            );
-
-            if (android.os.Build.VERSION.SDK_INT >= 26) {
-
-                startForegroundService(intent);
-
-            } else {
-
-                startService(intent);
-            }
-
-        } catch (Exception e) {
-            // Nada a fazer.
-        }
-    }
-
-    /*
-     * ============================================================
-     * VOZ
+     * VOZ / TTS
      * ============================================================
      */
 
@@ -247,7 +178,7 @@ public class MainActivity extends Activity {
 
     /*
      * ============================================================
-     * RECONHECIMENTO MANUAL
+     * RECONHECIMENTO DE VOZ OFFLINE
      * ============================================================
      */
 
@@ -289,7 +220,18 @@ public class MainActivity extends Activity {
 
             if (speechRecognizer != null) {
 
-                speechRecognizer.destroy();
+                try {
+                    speechRecognizer.cancel();
+                } catch (Exception e) {
+                    // Nada a fazer.
+                }
+
+                try {
+                    speechRecognizer.destroy();
+                } catch (Exception e) {
+                    // Nada a fazer.
+                }
+
                 speechRecognizer = null;
             }
 
@@ -994,7 +936,7 @@ public class MainActivity extends Activity {
                         new Date()
                 );
 
-        return "Status do sistema: bateria "
+        return "Status do sistema: "
                 + obterBateria()
                 + " Hora "
                 + hora
@@ -1061,6 +1003,12 @@ public class MainActivity extends Activity {
         }
 
         if (speechRecognizer != null) {
+
+            try {
+                speechRecognizer.cancel();
+            } catch (Exception e) {
+                // Nada a fazer.
+            }
 
             try {
                 speechRecognizer.destroy();
