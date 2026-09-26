@@ -25,6 +25,12 @@
 
         </activity>
 
+        <!-- Serviço de voz do JARVIS -->
+        <service
+            android:name=".JarvisVoiceService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
+
     </application>
 
 </manifest>
