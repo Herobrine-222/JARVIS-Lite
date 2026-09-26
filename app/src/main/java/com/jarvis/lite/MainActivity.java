@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.BatteryManager;
 import android.os.Bundle;
 import android.os.Handler;
@@ -58,10 +59,6 @@ public class MainActivity extends Activity {
                         new String[]{Manifest.permission.RECORD_AUDIO},
                         REQUEST_AUDIO
                 );
-
-            } else {
-
-                iniciarServicoJarvis();
             }
         }
 
@@ -75,12 +72,9 @@ public class MainActivity extends Activity {
                 "Modo OFFLINE ativo. Digite ou fale um comando."
         );
 
-        /*
-         * Se o aplicativo foi aberto pelo serviço depois
-         * de detectar a palavra JARVIS, inicia o reconhecimento
-         * do comando seguinte.
-         */
-        if (getIntent().getBooleanExtra("JARVIS_WAKE", false)) {
+        if (getIntent().getBooleanExtra(
+                "JARVIS_WAKE",
+                false)) {
 
             adicionarMensagem(
                     "JARVIS",
@@ -98,7 +92,34 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void iniciarServicoJarvis() {
+    /*
+     * ============================================================
+     * STAGE 7
+     * ============================================================
+     *
+     * Quando o aplicativo está visível:
+     * - serviço automático pausado
+     * - somente o botão manual usa o microfone
+     *
+     * Quando o aplicativo deixa de estar visível:
+     * - serviço automático pode voltar a escutar JARVIS
+     */
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+
+        pausarEscutaAutomatica();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+
+        retomarEscutaAutomatica();
+    }
+
+    private void pausarEscutaAutomatica() {
 
         try {
 
@@ -107,6 +128,31 @@ public class MainActivity extends Activity {
                             this,
                             JarvisVoiceService.class
                     );
+
+            intent.setAction(
+                    JarvisVoiceService.ACTION_PAUSE
+            );
+
+            startService(intent);
+
+        } catch (Exception e) {
+            // Nada a fazer.
+        }
+    }
+
+    private void retomarEscutaAutomatica() {
+
+        try {
+
+            Intent intent =
+                    new Intent(
+                            this,
+                            JarvisVoiceService.class
+                    );
+
+            intent.setAction(
+                    JarvisVoiceService.ACTION_RESUME
+            );
 
             if (android.os.Build.VERSION.SDK_INT >= 26) {
 
@@ -118,13 +164,15 @@ public class MainActivity extends Activity {
             }
 
         } catch (Exception e) {
-
-            adicionarMensagem(
-                    "JARVIS",
-                    "Não foi possível iniciar o serviço de voz."
-            );
+            // Nada a fazer.
         }
     }
+
+    /*
+     * ============================================================
+     * VOZ
+     * ============================================================
+     */
 
     private void iniciarVoz() {
 
@@ -140,11 +188,16 @@ public class MainActivity extends Activity {
 
                                 int resultado =
                                         tts.setLanguage(
-                                                new Locale("pt", "BR")
+                                                new Locale(
+                                                        "pt",
+                                                        "BR"
+                                                )
                                         );
 
-                                if (resultado != TextToSpeech.LANG_MISSING_DATA
-                                        && resultado != TextToSpeech.LANG_NOT_SUPPORTED) {
+                                if (resultado
+                                        != TextToSpeech.LANG_MISSING_DATA
+                                        && resultado
+                                        != TextToSpeech.LANG_NOT_SUPPORTED) {
 
                                     ttsReady = true;
 
@@ -192,19 +245,26 @@ public class MainActivity extends Activity {
         }
     }
 
+    /*
+     * ============================================================
+     * RECONHECIMENTO MANUAL
+     * ============================================================
+     */
+
     private void iniciarReconhecimento() {
 
         if (android.os.Build.VERSION.SDK_INT < 31) {
 
             responder(
-                    "O reconhecimento de voz local desta versão " +
-                    "do JARVIS exige Android 12 ou superior."
+                    "O reconhecimento de voz local desta versão "
+                            + "do JARVIS exige Android 12 ou superior."
             );
 
             return;
         }
 
-        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+        if (checkSelfPermission(
+                Manifest.permission.RECORD_AUDIO)
                 != PackageManager.PERMISSION_GRANTED) {
 
             responder(
@@ -214,11 +274,12 @@ public class MainActivity extends Activity {
             return;
         }
 
-        if (!SpeechRecognizer.isOnDeviceRecognitionAvailable(this)) {
+        if (!SpeechRecognizer
+                .isOnDeviceRecognitionAvailable(this)) {
 
             responder(
-                    "O reconhecimento de voz offline não está " +
-                    "disponível neste aparelho."
+                    "O reconhecimento de voz offline não está "
+                            + "disponível neste aparelho."
             );
 
             return;
@@ -227,18 +288,21 @@ public class MainActivity extends Activity {
         try {
 
             if (speechRecognizer != null) {
+
                 speechRecognizer.destroy();
                 speechRecognizer = null;
             }
 
             speechRecognizer =
-                    SpeechRecognizer.createOnDeviceSpeechRecognizer(this);
+                    SpeechRecognizer
+                            .createOnDeviceSpeechRecognizer(this);
 
             speechRecognizer.setRecognitionListener(
                     new RecognitionListener() {
 
                         @Override
-                        public void onReadyForSpeech(Bundle params) {
+                        public void onReadyForSpeech(
+                                Bundle params) {
 
                             ouvindo = true;
 
@@ -253,20 +317,24 @@ public class MainActivity extends Activity {
                         }
 
                         @Override
-                        public void onRmsChanged(float rmsdB) {
+                        public void onRmsChanged(
+                                float rmsdB) {
                         }
 
                         @Override
-                        public void onBufferReceived(byte[] buffer) {
+                        public void onBufferReceived(
+                                byte[] buffer) {
                         }
 
                         @Override
                         public void onEndOfSpeech() {
+
                             ouvindo = false;
                         }
 
                         @Override
-                        public void onError(int error) {
+                        public void onError(
+                                int error) {
 
                             ouvindo = false;
 
@@ -275,23 +343,31 @@ public class MainActivity extends Activity {
                             switch (error) {
 
                                 case SpeechRecognizer.ERROR_AUDIO:
+
                                     mensagem =
                                             "Não consegui acessar o áudio.";
+
                                     break;
 
                                 case SpeechRecognizer.ERROR_NO_MATCH:
+
                                     mensagem =
                                             "Não consegui entender o que foi dito.";
+
                                     break;
 
                                 case SpeechRecognizer.ERROR_SPEECH_TIMEOUT:
+
                                     mensagem =
                                             "Não detectei nenhuma fala.";
+
                                     break;
 
                                 default:
+
                                     mensagem =
                                             "Não foi possível reconhecer o comando.";
+
                                     break;
                             }
 
@@ -299,13 +375,15 @@ public class MainActivity extends Activity {
                         }
 
                         @Override
-                        public void onResults(Bundle results) {
+                        public void onResults(
+                                Bundle results) {
 
                             ouvindo = false;
 
                             ArrayList<String> resultados =
                                     results.getStringArrayList(
-                                            SpeechRecognizer.RESULTS_RECOGNITION
+                                            SpeechRecognizer
+                                                    .RESULTS_RECOGNITION
                                     );
 
                             if (resultados == null
@@ -344,7 +422,8 @@ public class MainActivity extends Activity {
 
             Intent intent =
                     new Intent(
-                            RecognizerIntent.ACTION_RECOGNIZE_SPEECH
+                            RecognizerIntent
+                                    .ACTION_RECOGNIZE_SPEECH
                     );
 
             intent.putExtra(
@@ -354,7 +433,8 @@ public class MainActivity extends Activity {
 
             intent.putExtra(
                     RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+                    RecognizerIntent
+                            .LANGUAGE_MODEL_FREE_FORM
             );
 
             intent.putExtra(
@@ -374,248 +454,327 @@ public class MainActivity extends Activity {
         }
     }
 
+    /*
+     * ============================================================
+     * INTERFACE
+     * ============================================================
+     */
+
     private void configurarTela() {
 
-        int padding = dp(16);
-
-        LinearLayout root = new LinearLayout(this);
+        LinearLayout root =
+                new LinearLayout(this);
 
         root.setOrientation(
                 LinearLayout.VERTICAL
         );
 
         root.setPadding(
-                padding,
-                padding,
-                padding,
-                padding
+                24,
+                24,
+                24,
+                24
         );
 
         root.setGravity(
                 Gravity.CENTER_HORIZONTAL
         );
 
-        TextView title = new TextView(this);
+        TextView titulo =
+                new TextView(this);
 
-        title.setText(
+        titulo.setText(
                 "J.A.R.V.I.S"
         );
 
-        title.setTextSize(28);
+        titulo.setTextSize(30);
 
-        title.setGravity(
+        titulo.setGravity(
                 Gravity.CENTER
         );
 
-        TextView subtitle = new TextView(this);
+        root.addView(
+                titulo,
+                new LinearLayout.LayoutParams(
+                        -1,
+                        -2
+                )
+        );
 
-        subtitle.setText(
+        TextView subtitulo =
+                new TextView(this);
+
+        subtitulo.setText(
                 "NÚCLEO OFFLINE • V2"
         );
 
-        subtitle.setTextSize(13);
+        subtitulo.setTextSize(14);
 
-        subtitle.setGravity(
+        subtitulo.setGravity(
                 Gravity.CENTER
         );
 
-        subtitle.setPadding(
-                0,
-                dp(6),
-                0,
-                dp(8)
+        root.addView(
+                subtitulo,
+                new LinearLayout.LayoutParams(
+                        -1,
+                        -2
+                )
         );
 
-        clockText = new TextView(this);
+        clockText =
+                new TextView(this);
 
-        clockText.setTextSize(18);
+        clockText.setTextSize(28);
 
         clockText.setGravity(
                 Gravity.CENTER
         );
 
-        clockText.setPadding(
-                0,
-                0,
-                0,
-                dp(8)
+        LinearLayout.LayoutParams clockParams =
+                new LinearLayout.LayoutParams(
+                        -1,
+                        -2
+                );
+
+        clockParams.topMargin = 18;
+
+        root.addView(
+                clockText,
+                clockParams
         );
 
-        TextView reactor = new TextView(this);
+        TextView reactor =
+                new TextView(this);
 
-        reactor.setText("◉");
+        reactor.setText(
+                "◉"
+        );
 
-        reactor.setTextSize(80);
+        reactor.setTextSize(90);
 
         reactor.setGravity(
                 Gravity.CENTER
         );
 
-        TextView mode = new TextView(this);
+        LinearLayout.LayoutParams reactorParams =
+                new LinearLayout.LayoutParams(
+                        -1,
+                        150
+                );
 
-        mode.setText(
+        reactorParams.topMargin = 10;
+
+        root.addView(
+                reactor,
+                reactorParams
+        );
+
+        TextView modo =
+                new TextView(this);
+
+        modo.setText(
                 "🔴 MODO OFFLINE ATIVO"
         );
 
-        mode.setTextSize(16);
+        modo.setTextSize(16);
 
-        mode.setGravity(
+        modo.setGravity(
                 Gravity.CENTER
         );
 
-        mode.setPadding(
-                0,
-                dp(4),
-                0,
-                dp(8)
+        root.addView(
+                modo,
+                new LinearLayout.LayoutParams(
+                        -1,
+                        -2
+                )
         );
 
-        ScrollView scrollView =
-                new ScrollView(this);
-
-        chatText = new TextView(this);
+        chatText =
+                new TextView(this);
 
         chatText.setTextSize(16);
 
         chatText.setPadding(
-                dp(10),
-                dp(10),
-                dp(10),
-                dp(10)
+                12,
+                12,
+                12,
+                12
         );
 
-        scrollView.addView(
-                chatText
-        );
+        ScrollView scroll =
+                new ScrollView(this);
+
+        scroll.addView(chatText);
 
         LinearLayout.LayoutParams scrollParams =
                 new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        -1,
                         0,
                         1
                 );
 
-        commandInput = new EditText(this);
+        scrollParams.topMargin = 12;
+
+        root.addView(
+                scroll,
+                scrollParams
+        );
+
+        commandInput =
+                new EditText(this);
 
         commandInput.setHint(
                 "Digite um comando..."
         );
 
-        commandInput.setSingleLine(false);
-
-        commandInput.setMaxLines(3);
-
-        Button executeButton =
-                new Button(this);
-
-        executeButton.setText(
-                "EXECUTAR COMANDO"
-        );
-
-        executeButton.setOnClickListener(v -> {
-
-            String command =
-                    commandInput.getText()
-                            .toString()
-                            .trim();
-
-            if (command.isEmpty()) {
-                return;
-            }
-
-            adicionarMensagem(
-                    "VOCÊ",
-                    command
-            );
-
-            processarComando(command);
-
-            commandInput.setText("");
-        });
-
-        Button voiceButton =
-                new Button(this);
-
-        voiceButton.setText(
-                "🎙️ FALAR COM JARVIS"
-        );
-
-        voiceButton.setOnClickListener(v -> {
-
-            if (!ouvindo) {
-                iniciarReconhecimento();
-            }
-        });
-
-        Button onlineButton =
-                new Button(this);
-
-        onlineButton.setText(
-                "MODO ONLINE"
-        );
-
-        onlineButton.setOnClickListener(v ->
-                responder(
-                        "O módulo online ainda não está disponível. " +
-                        "O JARVIS continua offline."
+        root.addView(
+                commandInput,
+                new LinearLayout.LayoutParams(
+                        -1,
+                        -2
                 )
         );
 
-        Button micButton =
+        Button executar =
                 new Button(this);
 
-        micButton.setText(
+        executar.setText(
+                "EXECUTAR COMANDO"
+        );
+
+        executar.setOnClickListener(
+                v -> {
+
+                    String comando =
+                            commandInput
+                                    .getText()
+                                    .toString()
+                                    .trim();
+
+                    if (comando.isEmpty()) {
+                        return;
+                    }
+
+                    adicionarMensagem(
+                            "VOCÊ",
+                            comando
+                    );
+
+                    processarComando(comando);
+
+                    commandInput.setText("");
+                }
+        );
+
+        root.addView(
+                executar,
+                new LinearLayout.LayoutParams(
+                        -1,
+                        -2
+                )
+        );
+
+        Button falar =
+                new Button(this);
+
+        falar.setText(
+                "🎙️ FALAR COM JARVIS"
+        );
+
+        falar.setOnClickListener(
+                v -> {
+
+                    if (!ouvindo) {
+                        iniciarReconhecimento();
+                    }
+                }
+        );
+
+        root.addView(
+                falar,
+                new LinearLayout.LayoutParams(
+                        -1,
+                        -2
+                )
+        );
+
+        Button online =
+                new Button(this);
+
+        online.setText(
+                "MODO ONLINE"
+        );
+
+        online.setOnClickListener(
+                v -> responder(
+                        "O módulo online ainda não está disponível."
+                )
+        );
+
+        root.addView(
+                online,
+                new LinearLayout.LayoutParams(
+                        -1,
+                        -2
+                )
+        );
+
+        Button microfone =
+                new Button(this);
+
+        microfone.setText(
                 "GERENCIAR MICROFONE"
         );
 
         LinearLayout.LayoutParams micParams =
                 new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
+                        -1,
+                        -2
                 );
 
-        micParams.topMargin =
-                dp(10);
+        micParams.topMargin = 10;
 
-        micButton.setLayoutParams(
+        root.addView(
+                microfone,
                 micParams
         );
 
-        micButton.setOnClickListener(v -> {
+        microfone.setOnClickListener(
+                v -> {
 
-            Intent intent =
-                    new Intent(
-                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS
-                    );
+                    try {
 
-            intent.setData(
-                    android.net.Uri.parse(
-                            "package:" + getPackageName()
-                    )
-            );
+                        Intent intent =
+                                new Intent(
+                                        Settings
+                                                .ACTION_APPLICATION_DETAILS_SETTINGS
+                                );
 
-            startActivity(intent);
-        });
+                        intent.setData(
+                                Uri.parse(
+                                        "package:"
+                                                + getPackageName()
+                                )
+                        );
 
-        root.addView(title);
-        root.addView(subtitle);
-        root.addView(clockText);
-        root.addView(reactor);
-        root.addView(mode);
+                        startActivity(intent);
 
-        root.addView(
-                scrollView,
-                scrollParams
+                    } catch (Exception e) {
+                        // Nada a fazer.
+                    }
+                }
         );
-
-        root.addView(commandInput);
-        root.addView(executeButton);
-        root.addView(voiceButton);
-        root.addView(onlineButton);
-        root.addView(micButton);
 
         setContentView(root);
     }
+
+    /*
+     * ============================================================
+     * RELÓGIO
+     * ============================================================
+     */
 
     private void iniciarRelogio() {
 
@@ -628,22 +787,28 @@ public class MainActivity extends Activity {
                     @Override
                     public void run() {
 
-                        String hora =
-                                new SimpleDateFormat(
-                                        "HH:mm:ss",
-                                        Locale.getDefault()
-                                ).format(new Date());
-
-                        String data =
-                                new SimpleDateFormat(
-                                        "dd/MM/yyyy",
-                                        Locale.getDefault()
-                                ).format(new Date());
-
                         if (clockText != null) {
 
+                            String hora =
+                                    new SimpleDateFormat(
+                                            "HH:mm:ss",
+                                            Locale.getDefault()
+                                    ).format(
+                                            new Date()
+                                    );
+
+                            String data =
+                                    new SimpleDateFormat(
+                                            "dd/MM/yyyy",
+                                            Locale.getDefault()
+                                    ).format(
+                                            new Date()
+                                    );
+
                             clockText.setText(
-                                    hora + "\n" + data
+                                    hora
+                                            + "\n"
+                                            + data
                             );
                         }
 
@@ -659,62 +824,72 @@ public class MainActivity extends Activity {
         );
     }
 
+    /*
+     * ============================================================
+     * COMANDOS
+     * ============================================================
+     */
+
     private void processarComando(
-            String command) {
+            String comandoOriginal) {
 
-        String texto =
-                command.toLowerCase(
-                        Locale.getDefault()
-                );
+        String comando =
+                comandoOriginal
+                        .toLowerCase(
+                                Locale.getDefault()
+                        )
+                        .trim();
 
-        if (texto.contains("ajuda")
-                || texto.contains("comandos")) {
+        if (comando.contains("ajuda")
+                || comando.contains("comandos")) {
 
             responder(
-                    "Comandos disponíveis: hora, data, " +
-                    "bateria, status, quem é você e ajuda."
+                    "Comandos disponíveis: hora, data, "
+                            + "bateria, status e quem é você."
             );
 
             return;
         }
 
-        if (texto.contains("hora")) {
+        if (comando.contains("hora")) {
 
             String hora =
                     new SimpleDateFormat(
-                            "HH:mm",
+                            "HH:mm:ss",
                             Locale.getDefault()
-                    ).format(new Date());
+                    ).format(
+                            new Date()
+                    );
 
             responder(
-                    "Agora são " +
-                    hora +
-                    "."
+                    "Agora são "
+                            + hora
             );
 
             return;
         }
 
-        if (texto.contains("data")
-                || texto.contains("dia")) {
+        if (comando.contains("data")
+                || comando.contains("dia")) {
 
             String data =
                     new SimpleDateFormat(
                             "dd/MM/yyyy",
                             Locale.getDefault()
-                    ).format(new Date());
+                    ).format(
+                            new Date()
+                    );
 
             responder(
-                    "A data atual é " +
-                    data +
-                    "."
+                    "A data atual é "
+                            + data
             );
 
             return;
         }
 
-        if (texto.contains("bateria")
-                || texto.contains("carga")) {
+        if (comando.contains("bateria")
+                || comando.contains("carga")) {
 
             responder(
                     obterBateria()
@@ -723,8 +898,8 @@ public class MainActivity extends Activity {
             return;
         }
 
-        if (texto.contains("status")
-                || texto.contains("estado")) {
+        if (comando.contains("status")
+                || comando.contains("estado")) {
 
             responder(
                     obterStatus()
@@ -733,76 +908,114 @@ public class MainActivity extends Activity {
             return;
         }
 
-        if (texto.contains("quem é você")
-                || texto.contains("quem voce e")) {
+        if (comando.contains("quem é você")
+                || comando.contains("quem voce e")
+                || comando.contains("quem é voce")
+                || comando.contains("quem voce é")) {
 
             responder(
-                    "Eu sou o JARVIS Lite, seu assistente local. " +
-                    "Nesta versão funciono offline."
+                    "Eu sou o JARVIS Lite, "
+                            + "um assistente local offline."
             );
 
             return;
         }
 
-        if (texto.contains("jarvis")
-                && (texto.contains("está aí")
-                || texto.contains("esta ai"))) {
+        if (comando.contains("jarvis")
+                && (comando.contains("está aí")
+                || comando.contains("esta ai"))) {
 
             responder(
-                    "À sua disposição. Sistemas locais operacionais."
+                    "À sua disposição. "
+                            + "Sistemas locais operacionais."
             );
 
             return;
         }
 
         responder(
-                "Comando recebido. Ainda não tenho uma função " +
-                "local para esse comando."
+                "Não tenho uma função local "
+                        + "para esse comando ainda."
         );
     }
 
+    /*
+     * ============================================================
+     * BATERIA
+     * ============================================================
+     */
+
     private String obterBateria() {
 
-        BatteryManager manager =
-                (BatteryManager)
-                        getSystemService(
-                                Context.BATTERY_SERVICE
-                        );
+        try {
 
-        int nivel =
-                manager.getIntProperty(
-                        BatteryManager.BATTERY_PROPERTY_CAPACITY
-                );
+            BatteryManager batteryManager =
+                    (BatteryManager)
+                            getSystemService(
+                                    BATTERY_SERVICE
+                            );
 
-        return "Bateria em " +
-                nivel +
-                "%.";
+            if (batteryManager == null) {
+
+                return "Não consegui obter "
+                        + "o nível da bateria.";
+            }
+
+            int nivel =
+                    batteryManager.getIntProperty(
+                            BatteryManager
+                                    .BATTERY_PROPERTY_CAPACITY
+                    );
+
+            return "A bateria está em "
+                    + nivel
+                    + "%.";
+
+        } catch (Exception e) {
+
+            return "Não consegui obter "
+                    + "o nível da bateria.";
+        }
     }
+
+    /*
+     * ============================================================
+     * STATUS
+     * ============================================================
+     */
 
     private String obterStatus() {
 
         String hora =
                 new SimpleDateFormat(
-                        "HH:mm",
+                        "HH:mm:ss",
                         Locale.getDefault()
-                ).format(new Date());
+                ).format(
+                        new Date()
+                );
 
-        return "Status: " +
-                obterBateria() +
-                " Hora: " +
-                hora +
-                ". Modo OFFLINE.";
+        return "Status do sistema: bateria "
+                + obterBateria()
+                + " Hora "
+                + hora
+                + ". Modo OFFLINE ativo.";
     }
 
+    /*
+     * ============================================================
+     * RESPOSTA
+     * ============================================================
+     */
+
     private void responder(
-            String resposta) {
+            String mensagem) {
 
         adicionarMensagem(
                 "JARVIS",
-                resposta
+                mensagem
         );
 
-        falar(resposta);
+        falar(mensagem);
     }
 
     private void adicionarMensagem(
@@ -814,32 +1027,28 @@ public class MainActivity extends Activity {
         }
 
         String atual =
-                chatText.getText().toString();
+                chatText.getText()
+                        .toString();
 
         if (!atual.isEmpty()) {
             atual += "\n\n";
         }
 
         atual +=
-                autor +
-                ": " +
-                mensagem;
+                autor
+                        + ": "
+                        + mensagem;
 
         chatText.setText(
                 atual
         );
     }
 
-    private int dp(int value) {
-
-        float density =
-                getResources()
-                        .getDisplayMetrics()
-                        .density;
-
-        return (int)
-                (value * density + 0.5f);
-    }
+    /*
+     * ============================================================
+     * ENCERRAMENTO
+     * ============================================================
+     */
 
     @Override
     protected void onDestroy() {
@@ -862,6 +1071,8 @@ public class MainActivity extends Activity {
             speechRecognizer = null;
         }
 
+        ouvindo = false;
+
         if (tts != null) {
 
             try {
@@ -872,7 +1083,6 @@ public class MainActivity extends Activity {
             }
 
             tts = null;
-            ttsReady = false;
         }
 
         super.onDestroy();
