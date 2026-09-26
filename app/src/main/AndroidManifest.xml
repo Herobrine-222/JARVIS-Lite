@@ -4,7 +4,10 @@
     <!-- Permite reconhecimento de voz -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
-    <!-- Permite apenas consultar o estado da rede/Wi-Fi.
+    <!-- Permite localização aproximada -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!-- Permite consultar o estado da rede/Wi-Fi.
          Não dá acesso à Internet. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
