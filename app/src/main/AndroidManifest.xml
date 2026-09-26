@@ -14,7 +14,7 @@
     <application
         android:allowBackup="true"
         android:label="JARVIS Lite"
-        android:icon="@drawable/icon_jarvis"
+        android:icon="@drawable/file_00000000ba10820e8c7e1c6ea507a978"
         android:theme="@style/AppTheme">
 
         <activity
