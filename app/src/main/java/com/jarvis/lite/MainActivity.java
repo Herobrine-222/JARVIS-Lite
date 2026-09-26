@@ -10,7 +10,9 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import java.text.Normalizer;
 import java.util.ArrayList;
+import java.util.Locale;
 
 public class MainActivity extends Activity {
 
@@ -89,6 +91,16 @@ public class MainActivity extends Activity {
         startActivityForResult(intent, RECONHECER_VOZ);
     }
 
+    private boolean ehAtivacao(String texto) {
+
+        String normalizado = Normalizer
+                .normalize(texto.toLowerCase(Locale.ROOT), Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "");
+
+        return normalizado.contains("jarvis") &&
+               normalizado.contains("esta ai");
+    }
+
     @Override
     protected void onActivityResult(
             int requestCode,
@@ -110,10 +122,22 @@ public class MainActivity extends Activity {
 
                 String comando = resultados.get(0);
 
-                resposta.setText(
-                        "Comando reconhecido:\n\n" +
-                        comando
-                );
+                if (ehAtivacao(comando)) {
+
+                    resposta.setText(
+                            "À sua disposição.\n\n" +
+                            "Sistemas online.\n" +
+                            "O que deseja?"
+                    );
+
+                } else {
+
+                    resposta.setText(
+                            "Aguardando ativação...\n\n" +
+                            "Frase de ativação:\n" +
+                            "\"JARVIS, está aí?\""
+                    );
+                }
             }
         }
     }
