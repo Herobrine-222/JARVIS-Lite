@@ -4,7 +4,9 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.os.BatteryManager;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.speech.RecognizerIntent;
 import android.widget.Button;
 import android.widget.LinearLayout;
@@ -91,14 +93,105 @@ public class MainActivity extends Activity {
         startActivityForResult(intent, RECONHECER_VOZ);
     }
 
+    private String normalizar(String texto) {
+
+        return Normalizer
+                .normalize(
+                        texto.toLowerCase(Locale.ROOT),
+                        Normalizer.Form.NFD
+                )
+                .replaceAll("\\p{M}", "");
+    }
+
     private boolean ehAtivacao(String texto) {
 
-        String normalizado = Normalizer
-                .normalize(texto.toLowerCase(Locale.ROOT), Normalizer.Form.NFD)
-                .replaceAll("\\p{M}", "");
+        String normalizado = normalizar(texto);
 
         return normalizado.contains("jarvis") &&
                normalizado.contains("esta ai");
+    }
+
+    private boolean ehComandoBateria(String texto) {
+
+        String normalizado = normalizar(texto);
+
+        return normalizado.contains("bateria");
+    }
+
+    private String obterEstadoBateria() {
+
+        BatteryManager bateria =
+                (BatteryManager) getSystemService(BATTERY_SERVICE);
+
+        int porcentagem = bateria.getIntProperty(
+                BatteryManager.BATTERY_PROPERTY_CAPACITY
+        );
+
+        int status = bateria.getIntProperty(
+                BatteryManager.BATTERY_PROPERTY_STATUS
+        );
+
+        String estado;
+
+        if (status == BatteryManager.BATTERY_STATUS_CHARGING) {
+            estado = "carregando";
+        } else if (status == BatteryManager.BATTERY_STATUS_FULL) {
+            estado = "com carga completa";
+        } else if (status == BatteryManager.BATTERY_STATUS_DISCHARGING) {
+            estado = "não está carregando";
+        } else {
+            estado = "sem carregamento ativo";
+        }
+
+        return "Sua bateria está em " +
+                porcentagem +
+                "% e " +
+                estado +
+                ".";
+    }
+
+    private String obterPorcentagemBateria() {
+
+        BatteryManager bateria =
+                (BatteryManager) getSystemService(BATTERY_SERVICE);
+
+        int porcentagem = bateria.getIntProperty(
+                BatteryManager.BATTERY_PROPERTY_CAPACITY
+        );
+
+        return "Sua bateria está em " +
+                porcentagem +
+                "%.";
+    }
+
+    private void processarComando(String comando) {
+
+        String normalizado = normalizar(comando);
+
+        if (ehComandoBateria(comando)) {
+
+            if (normalizado.contains("estado") ||
+                normalizado.contains("como esta") ||
+                normalizado.contains("como ta")) {
+
+                resposta.setText(
+                        obterEstadoBateria()
+                );
+
+            } else {
+
+                resposta.setText(
+                        obterPorcentagemBateria()
+                );
+            }
+
+            return;
+        }
+
+        resposta.setText(
+                "Comando não reconhecido.\n\n" +
+                "Aguardando ativação..."
+        );
     }
 
     @Override
@@ -107,7 +200,11 @@ public class MainActivity extends Activity {
             int resultCode,
             Intent data) {
 
-        super.onActivityResult(requestCode, resultCode, data);
+        super.onActivityResult(
+                requestCode,
+                resultCode,
+                data
+        );
 
         if (requestCode == RECONHECER_VOZ &&
                 resultCode == RESULT_OK &&
@@ -118,7 +215,8 @@ public class MainActivity extends Activity {
                             RecognizerIntent.EXTRA_RESULTS
                     );
 
-            if (resultados != null && !resultados.isEmpty()) {
+            if (resultados != null &&
+                    !resultados.isEmpty()) {
 
                 String comando = resultados.get(0);
 
@@ -129,6 +227,13 @@ public class MainActivity extends Activity {
                             "Sistemas online.\n" +
                             "O que deseja?"
                     );
+
+                    // Abre uma segunda escuta para receber o comando.
+                    ouvir();
+
+                } else if (ehComandoBateria(comando)) {
+
+                    processarComando(comando);
 
                 } else {
 
