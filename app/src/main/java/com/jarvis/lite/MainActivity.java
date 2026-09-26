@@ -175,13 +175,25 @@ public class MainActivity extends Activity {
         FrameLayoutReator reator =
                 new FrameLayoutReator(this);
 
-        raiz.addView(
-                reator,
+        /*
+         * CORREÇÃO:
+         * Antes o reator usava weight = 1 e ocupava
+         * todo o espaço restante da tela.
+         *
+         * Agora ele tem uma altura fixa e pequena,
+         * evitando cobrir o título e o chat.
+         */
+        LinearLayout.LayoutParams parametrosReator =
                 new LinearLayout.LayoutParams(
                         -1,
-                        0,
-                        1
-                )
+                        250
+                );
+
+        parametrosReator.gravity = Gravity.CENTER;
+
+        raiz.addView(
+                reator,
+                parametrosReator
         );
 
         TextView chatTitulo = texto(
