@@ -6,13 +6,20 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.BatteryManager;
 import android.os.Bundle;
+import android.os.Build;
+import android.os.Environment;
+import android.os.StatFs;
 import android.speech.RecognizerIntent;
+import android.app.ActivityManager;
+
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import java.text.Normalizer;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.Locale;
 
 public class MainActivity extends Activity {
@@ -72,7 +79,9 @@ public class MainActivity extends Activity {
 
     private void ouvir() {
 
-        Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+        Intent intent = new Intent(
+                RecognizerIntent.ACTION_RECOGNIZE_SPEECH
+        );
 
         intent.putExtra(
                 RecognizerIntent.EXTRA_LANGUAGE_MODEL,
@@ -104,92 +113,172 @@ public class MainActivity extends Activity {
 
     private boolean ehAtivacao(String texto) {
 
-        String normalizado = normalizar(texto);
+        String t = normalizar(texto);
 
-        return normalizado.contains("jarvis") &&
-               normalizado.contains("esta ai");
+        return t.contains("jarvis") &&
+               t.contains("esta ai");
     }
 
-    private boolean ehComandoBateria(String texto) {
+    private boolean ehBateria(String texto) {
 
         return normalizar(texto).contains("bateria");
     }
 
-    private boolean ehPerguntaEstadoBateria(String texto) {
+    private boolean ehTemperaturaBateria(String texto) {
 
-        String normalizado = normalizar(texto);
+        String t = normalizar(texto);
 
-        return normalizado.contains("estado") ||
-               normalizado.contains("como esta") ||
-               normalizado.contains("como ta") ||
-               normalizado.contains("saude") ||
-               normalizado.contains("vida") ||
-               normalizado.contains("condicao") ||
-               normalizado.contains("temperatura") ||
-               normalizado.contains("carregando");
+        return t.contains("temperatura da bateria") ||
+               t.contains("temperatura da minha bateria") ||
+               t.contains("temperatura bateria") ||
+               t.contains("quao quente esta a bateria") ||
+               t.contains("quao quente esta minha bateria");
     }
 
-    private boolean ehPerguntaPorcentagem(String texto) {
+    private boolean ehPorcentagemBateria(String texto) {
 
-        String normalizado = normalizar(texto);
+        String t = normalizar(texto);
 
-        return normalizado.contains("porcentagem") ||
-               normalizado.contains("percent") ||
-               normalizado.contains("quantos por cento") ||
-               normalizado.contains("quanto resta") ||
-               normalizado.contains("quanto tem") ||
-               normalizado.contains("%");
+        return t.contains("porcentagem da bateria") ||
+               t.contains("porcentagem da minha bateria") ||
+               t.contains("quanto de bateria tenho") ||
+               t.contains("quanto de carga tenho") ||
+               t.contains("quanto resta de bateria") ||
+               t.contains("quanto ainda tenho de bateria") ||
+               t.contains("qual o nivel da bateria") ||
+               t.contains("qual o nivel de bateria") ||
+               t.contains("quantos por cento de bateria") ||
+               t.contains("percentual da bateria");
     }
 
-    private String obterEstadoBateria() {
+    private boolean ehCarregamento(String texto) {
 
-        BatteryManager bateria =
-                (BatteryManager) getSystemService(BATTERY_SERVICE);
+        String t = normalizar(texto);
 
-        int porcentagem = bateria.getIntProperty(
-                BatteryManager.BATTERY_PROPERTY_CAPACITY
-        );
+        return t.contains("esta carregando") ||
+               t.contains("ta carregando") ||
+               t.contains("esta carregado") ||
+               t.contains("celular esta carregando") ||
+               t.contains("meu celular esta carregando") ||
+               t.contains("o celular esta carregando");
+    }
 
-        Intent intentBateria = registerReceiver(
-                null,
-                new android.content.IntentFilter(
-                        Intent.ACTION_BATTERY_CHANGED
-                )
-        );
+    private boolean ehSaudeBateria(String texto) {
 
-        String estado;
+        String t = normalizar(texto);
 
-        int status = -1;
+        return t.contains("saude da bateria") ||
+               t.contains("saude da minha bateria") ||
+               t.contains("bateria esta saudavel") ||
+               t.contains("bateria esta normal") ||
+               t.contains("condicao da bateria") ||
+               t.contains("vida da bateria");
+    }
 
-        if (intentBateria != null) {
-            status = intentBateria.getIntExtra(
-                    BatteryManager.EXTRA_STATUS,
-                    -1
-            );
-        }
+    private boolean ehEstadoBateria(String texto) {
 
-        if (status == BatteryManager.BATTERY_STATUS_CHARGING) {
-            estado = "está carregando";
-        } else if (status == BatteryManager.BATTERY_STATUS_FULL) {
-            estado = "está com carga completa";
-        } else if (status == BatteryManager.BATTERY_STATUS_DISCHARGING) {
-            estado = "não está carregando";
-        } else {
-            estado = "não está em carregamento ativo";
-        }
+        String t = normalizar(texto);
 
-        String temperatura = obterTemperaturaBateria(intentBateria);
-        String saude = obterSaudeBateria(intentBateria);
+        return t.contains("estado da bateria") ||
+               t.contains("estado da minha bateria") ||
+               t.contains("como esta a bateria") ||
+               t.contains("como ta a bateria") ||
+               t.contains("como esta minha bateria") ||
+               t.contains("como ta minha bateria");
+    }
 
-        return "Sua bateria está em " +
-                porcentagem +
-                "%. " +
-                "Ela " +
-                estado +
-                ". " +
-                temperatura +
-                " " +
-                saude;
+    private boolean ehModelo(String texto) {
+
+        String t = normalizar(texto);
+
+        return t.contains("qual e meu celular") ||
+               t.contains("qual e o meu celular") ||
+               t.contains("qual e o modelo do celular") ||
+               t.contains("qual o modelo do celular") ||
+               t.contains("qual o modelo do aparelho") ||
+               t.contains("qual modelo eu tenho") ||
+               t.contains("que celular eu tenho");
+    }
+
+    private boolean ehAndroid(String texto) {
+
+        String t = normalizar(texto);
+
+        return t.contains("qual android eu tenho") ||
+               t.contains("qual e o meu android") ||
+               t.contains("qual e meu android") ||
+               t.contains("qual a versao do meu android") ||
+               t.contains("qual versao do meu android") ||
+               t.contains("qual versao do android eu tenho") ||
+               t.contains("que android eu tenho") ||
+               t.contains("que versao do android eu tenho") ||
+               t.contains("qual android esta instalado");
+    }
+
+    private boolean ehArmazenamento(String texto) {
+
+        String t = normalizar(texto);
+
+        return t.contains("quanto armazenamento tenho") ||
+               t.contains("quanto espaco tenho") ||
+               t.contains("quanto espaco esta disponivel") ||
+               t.contains("quanto armazenamento esta disponivel") ||
+               t.contains("quanto de armazenamento tenho") ||
+               t.contains("quanto de espaco tenho") ||
+               t.contains("espaco livre") ||
+               t.contains("armazenamento livre");
+    }
+
+    private boolean ehRAM(String texto) {
+
+        String t = normalizar(texto);
+
+        return t.contains("quanto de ram tenho") ||
+               t.contains("quanta ram tenho") ||
+               t.contains("quanto de memoria ram tenho") ||
+               t.contains("quanta memoria ram tenho") ||
+               t.contains("quanto de ram esta disponivel") ||
+               t.contains("quanta ram esta disponivel") ||
+               t.contains("memoria ram") ||
+               t.contains("ram disponivel");
+    }
+
+    private boolean ehHora(String texto) {
+
+        String t = normalizar(texto);
+
+        return t.contains("que horas sao") ||
+               t.contains("qual e a hora") ||
+               t.contains("qual a hora") ||
+               t.contains("que hora e") ||
+               t.contains("me diga a hora") ||
+               t.contains("horario atual");
+    }
+
+    private boolean ehData(String texto) {
+
+        String t = normalizar(texto);
+
+        return t.contains("que dia e hoje") ||
+               t.contains("qual e a data de hoje") ||
+               t.contains("qual a data de hoje") ||
+               t.contains("qual a data") ||
+               t.contains("data de hoje") ||
+               t.contains("me diga a data") ||
+               t.contains("dia de hoje");
+    }
+
+    private boolean ehAtualizacao(String texto) {
+
+        String t = normalizar(texto);
+
+        return t.contains("atualizacao do android") ||
+               t.contains("atualizacao do software") ||
+               t.contains("atualizacao do sistema") ||
+               t.contains("atualizacao disponivel") ||
+               t.contains("tem atualizacao") ||
+               t.contains("existe atualizacao") ||
+               t.contains("meu celular tem atualizacao");
     }
 
     private String obterPorcentagemBateria() {
@@ -206,7 +295,19 @@ public class MainActivity extends Activity {
                 "%.";
     }
 
-    private String obterTemperaturaBateria(Intent intentBateria) {
+    private Intent obterInformacoesBateria() {
+
+        return registerReceiver(
+                null,
+                new android.content.IntentFilter(
+                        Intent.ACTION_BATTERY_CHANGED
+                )
+        );
+    }
+
+    private String obterTemperaturaBateria() {
+
+        Intent intentBateria = obterInformacoesBateria();
 
         if (intentBateria == null) {
             return "Não foi possível obter a temperatura da bateria.";
@@ -232,7 +333,33 @@ public class MainActivity extends Activity {
                 " graus Celsius.";
     }
 
-    private String obterSaudeBateria(Intent intentBateria) {
+    private String obterCarregamento() {
+
+        Intent intentBateria = obterInformacoesBateria();
+
+        if (intentBateria == null) {
+            return "Não foi possível determinar o estado do carregamento.";
+        }
+
+        int status = intentBateria.getIntExtra(
+                BatteryManager.EXTRA_STATUS,
+                -1
+        );
+
+        if (status == BatteryManager.BATTERY_STATUS_CHARGING) {
+            return "Sim, a bateria está carregando.";
+        }
+
+        if (status == BatteryManager.BATTERY_STATUS_FULL) {
+            return "A bateria está com carga completa.";
+        }
+
+        return "Não, a bateria não está carregando.";
+    }
+
+    private String obterSaudeBateria() {
+
+        Intent intentBateria = obterInformacoesBateria();
 
         if (intentBateria == null) {
             return "Não foi possível determinar a saúde da bateria.";
@@ -246,7 +373,7 @@ public class MainActivity extends Activity {
         switch (saude) {
 
             case BatteryManager.BATTERY_HEALTH_GOOD:
-                return "O sistema reporta a saúde da bateria como normal.";
+                return "A saúde reportada pelo sistema está normal.";
 
             case BatteryManager.BATTERY_HEALTH_OVERHEAT:
                 return "O sistema reporta um alerta de superaquecimento.";
@@ -268,28 +395,172 @@ public class MainActivity extends Activity {
         }
     }
 
+    private String obterEstadoBateria() {
+
+        return obterPorcentagemBateria() + " " +
+                obterCarregamento() + " " +
+                obterTemperaturaBateria() + " " +
+                obterSaudeBateria();
+    }
+
+    private String obterModelo() {
+
+        return "O modelo do seu celular é " +
+                Build.MODEL +
+                ".";
+    }
+
+    private String obterAndroid() {
+
+        return "Seu celular está usando o Android " +
+                Build.VERSION.RELEASE +
+                ".";
+    }
+
+    private String formatarGB(long bytes) {
+
+        double gb = bytes / (1024.0 * 1024.0 * 1024.0);
+
+        return String.format(
+                Locale.US,
+                "%.2f GB",
+                gb
+        );
+    }
+
+    private String obterArmazenamento() {
+
+        StatFs armazenamento =
+                new StatFs(
+                        Environment.getDataDirectory().getPath()
+                );
+
+        long total = armazenamento.getTotalBytes();
+        long livre = armazenamento.getAvailableBytes();
+
+        return "Você tem " +
+                formatarGB(livre) +
+                " livres de " +
+                formatarGB(total) +
+                " de armazenamento.";
+    }
+
+    private String obterRAM() {
+
+        ActivityManager gerenciador =
+                (ActivityManager) getSystemService(
+                        ACTIVITY_SERVICE
+                );
+
+        ActivityManager.MemoryInfo memoria =
+                new ActivityManager.MemoryInfo();
+
+        gerenciador.getMemoryInfo(memoria);
+
+        return "Você tem " +
+                formatarGB(memoria.availMem) +
+                " de RAM disponível de " +
+                formatarGB(memoria.totalMem) +
+                ".";
+    }
+
+    private String obterHora() {
+
+        return "Agora são " +
+                new SimpleDateFormat(
+                        "HH:mm",
+                        Locale.getDefault()
+                ).format(new Date()) +
+                ".";
+    }
+
+    private String obterData() {
+
+        return "Hoje é " +
+                new SimpleDateFormat(
+                        "dd/MM/yyyy",
+                        Locale.getDefault()
+                ).format(new Date()) +
+                ".";
+    }
+
+    private String respostaAtualizacao() {
+
+        return "Não tenho permissão para acessar informações mais internas do aparelho.";
+    }
+
+    private void responder(String texto) {
+
+        resposta.setText(texto);
+    }
+
     private void processarComando(String comando) {
 
-        if (!ehComandoBateria(comando)) {
-            resposta.setText(
-                    "Comando não reconhecido.\n\n" +
-                    "Aguardando ativação..."
-            );
+        String t = normalizar(comando);
+
+        if (ehAtualizacao(t)) {
+            responder(respostaAtualizacao());
             return;
         }
 
-        if (ehPerguntaPorcentagem(comando) &&
-                !ehPerguntaEstadoBateria(comando)) {
-
-            resposta.setText(
-                    obterPorcentagemBateria()
-            );
-
+        if (ehTemperaturaBateria(t)) {
+            responder(obterTemperaturaBateria());
             return;
         }
 
-        resposta.setText(
-                obterEstadoBateria()
+        if (ehPorcentagemBateria(t)) {
+            responder(obterPorcentagemBateria());
+            return;
+        }
+
+        if (ehCarregamento(t)) {
+            responder(obterCarregamento());
+            return;
+        }
+
+        if (ehSaudeBateria(t)) {
+            responder(obterSaudeBateria());
+            return;
+        }
+
+        if (ehEstadoBateria(t)) {
+            responder(obterEstadoBateria());
+            return;
+        }
+
+        if (ehModelo(t)) {
+            responder(obterModelo());
+            return;
+        }
+
+        if (ehAndroid(t)) {
+            responder(obterAndroid());
+            return;
+        }
+
+        if (ehArmazenamento(t)) {
+            responder(obterArmazenamento());
+            return;
+        }
+
+        if (ehRAM(t)) {
+            responder(obterRAM());
+            return;
+        }
+
+        if (ehHora(t)) {
+            responder(obterHora());
+            return;
+        }
+
+        if (ehData(t)) {
+            responder(obterData());
+            return;
+        }
+
+        responder(
+                "Comando não reconhecido.\n\n" +
+                "Aguardando ativação..."
         );
     }
 
@@ -321,7 +592,7 @@ public class MainActivity extends Activity {
 
                 if (ehAtivacao(comando)) {
 
-                    resposta.setText(
+                    responder(
                             "À sua disposição.\n\n" +
                             "Sistemas online.\n" +
                             "O que deseja?"
@@ -329,17 +600,9 @@ public class MainActivity extends Activity {
 
                     ouvir();
 
-                } else if (ehComandoBateria(comando)) {
-
-                    processarComando(comando);
-
                 } else {
 
-                    resposta.setText(
-                            "Aguardando ativação...\n\n" +
-                            "Frase de ativação:\n" +
-                            "\"JARVIS, está aí?\""
-                    );
+                    processarComando(comando);
                 }
             }
         }
