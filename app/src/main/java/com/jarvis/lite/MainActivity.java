@@ -162,6 +162,16 @@ public class MainActivity extends Activity {
         Button micButton = new Button(this);
         micButton.setText("GERENCIAR MICROFONE");
 
+        LinearLayout.LayoutParams micParams =
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                );
+
+        micParams.topMargin = dp(10);
+
+        micButton.setLayoutParams(micParams);
+
         micButton.setOnClickListener(v -> {
 
             Intent intent =
