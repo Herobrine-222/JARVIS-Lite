@@ -31,7 +31,7 @@ public class JarvisVoiceService extends Service {
     private SpeechRecognizer speechRecognizer;
 
     private boolean ouvindo = false;
-    private boolean pausado = false;
+    private boolean pausado = true;
 
     @Override
     public void onCreate() {
@@ -43,7 +43,7 @@ public class JarvisVoiceService extends Service {
                 new Notification.Builder(this, CHANNEL_ID)
                         .setContentTitle("JARVIS Lite")
                         .setContentText(
-                                "Aguardando a palavra JARVIS"
+                                "Escuta automática em espera"
                         )
                         .setSmallIcon(
                                 android.R.drawable.ic_btn_speak_now
@@ -56,7 +56,9 @@ public class JarvisVoiceService extends Service {
                 notification
         );
 
-        iniciarEscuta();
+        // IMPORTANTE:
+        // NÃO iniciar o microfone aqui.
+        // O microfone só será iniciado por ACTION_RESUME.
     }
 
     private void criarCanalNotificacao() {
@@ -83,6 +85,52 @@ public class JarvisVoiceService extends Service {
                 manager.createNotificationChannel(channel);
             }
         }
+    }
+
+    @Override
+    public int onStartCommand(
+            Intent intent,
+            int flags,
+            int startId) {
+
+        if (intent == null) {
+            pausado = true;
+            pararReconhecedor();
+            return START_NOT_STICKY;
+        }
+
+        String action =
+                intent.getAction();
+
+        if (ACTION_PAUSE.equals(action)) {
+
+            pausado = true;
+
+            pararReconhecedor();
+
+            atualizarNotificacao(
+                    "Escuta automática pausada"
+            );
+
+            return START_NOT_STICKY;
+        }
+
+        if (ACTION_RESUME.equals(action)) {
+
+            pausado = false;
+
+            atualizarNotificacao(
+                    "Aguardando a palavra JARVIS"
+            );
+
+            if (!ouvindo) {
+                iniciarEscuta();
+            }
+
+            return START_NOT_STICKY;
+        }
+
+        return START_NOT_STICKY;
     }
 
     private void iniciarEscuta() {
@@ -144,6 +192,8 @@ public class JarvisVoiceService extends Service {
 
                             ouvindo = false;
 
+                            pararReconhecedor();
+
                             if (!pausado) {
                                 iniciarEscuta();
                             }
@@ -174,9 +224,12 @@ public class JarvisVoiceService extends Service {
                                 if (texto.contains("jarvis")) {
 
                                     abrirJarvis();
+
                                     return;
                                 }
                             }
+
+                            pararReconhecedor();
 
                             if (!pausado) {
                                 iniciarEscuta();
@@ -223,31 +276,16 @@ public class JarvisVoiceService extends Service {
         } catch (Exception e) {
 
             ouvindo = false;
+            pararReconhecedor();
         }
     }
 
     private void abrirJarvis() {
 
-        // PRIMEIRO libera o microfone.
+        // Primeiro libera COMPLETAMENTE o microfone.
         pausado = true;
+
         pararReconhecedor();
-
-        try {
-
-            if (Build.VERSION.SDK_INT >= 24) {
-
-                stopForeground(
-                        STOP_FOREGROUND_REMOVE
-                );
-
-            } else {
-
-                stopForeground(true);
-            }
-
-        } catch (Exception e) {
-            // Continua normalmente.
-        }
 
         Intent intent =
                 new Intent(
@@ -291,53 +329,43 @@ public class JarvisVoiceService extends Service {
         ouvindo = false;
     }
 
-    private void pausar() {
+    private void atualizarNotificacao(
+            String texto) {
 
-        pausado = true;
+        try {
 
-        pararReconhecedor();
-    }
+            Notification notification =
+                    new Notification.Builder(
+                            this,
+                            CHANNEL_ID
+                    )
+                            .setContentTitle(
+                                    "JARVIS Lite"
+                            )
+                            .setContentText(texto)
+                            .setSmallIcon(
+                                    android.R.drawable
+                                            .ic_btn_speak_now
+                            )
+                            .setOngoing(true)
+                            .build();
 
-    private void retomar() {
+            NotificationManager manager =
+                    getSystemService(
+                            NotificationManager.class
+                    );
 
-        pausado = false;
+            if (manager != null) {
 
-        if (!ouvindo) {
-            iniciarEscuta();
-        }
-    }
-
-    @Override
-    public int onStartCommand(
-            Intent intent,
-            int flags,
-            int startId) {
-
-        if (intent != null) {
-
-            String action =
-                    intent.getAction();
-
-            if (ACTION_PAUSE.equals(action)) {
-
-                pausar();
-
-                return START_NOT_STICKY;
+                manager.notify(
+                        NOTIFICATION_ID,
+                        notification
+                );
             }
 
-            if (ACTION_RESUME.equals(action)) {
-
-                retomar();
-
-                return START_NOT_STICKY;
-            }
+        } catch (Exception e) {
+            // Nada a fazer.
         }
-
-        if (!pausado && !ouvindo) {
-            iniciarEscuta();
-        }
-
-        return START_NOT_STICKY;
     }
 
     @Override
