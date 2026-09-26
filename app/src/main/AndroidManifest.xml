@@ -1,7 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Permite reconhecimento de voz -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!-- Permite apenas consultar o estado da rede/Wi-Fi.
+         Não dá acesso à Internet. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <application
         android:allowBackup="true"
