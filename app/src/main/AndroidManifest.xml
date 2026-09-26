@@ -1,18 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Permite reconhecimento de voz -->
+    <!-- Única permissão necessária nesta etapa -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
-    <!-- Permite localização aproximada -->
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-
-    <!-- Permite consultar o estado da rede/Wi-Fi.
-         Não dá acesso à Internet. -->
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:label="JARVIS Lite"
         android:icon="@drawable/file_00000000ba10820e8c7e1c6ea507a978"
         android:theme="@style/AppTheme">
