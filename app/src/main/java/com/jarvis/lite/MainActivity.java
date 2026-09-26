@@ -279,7 +279,7 @@ public class MainActivity extends Activity {
         }
 
         if (ehPerguntaPorcentagem(comando) &&
-            !ehPerguntaEstadoBateria(comando)) {
+                !ehPerguntaEstadoBateria(comando)) {
 
             resposta.setText(
                     obterPorcentagemBateria()
@@ -289,4 +289,58 @@ public class MainActivity extends Activity {
         }
 
         resposta.setText(
-                obter
+                obterEstadoBateria()
+        );
+    }
+
+    @Override
+    protected void onActivityResult(
+            int requestCode,
+            int resultCode,
+            Intent data) {
+
+        super.onActivityResult(
+                requestCode,
+                resultCode,
+                data
+        );
+
+        if (requestCode == RECONHECER_VOZ &&
+                resultCode == RESULT_OK &&
+                data != null) {
+
+            ArrayList<String> resultados =
+                    data.getStringArrayListExtra(
+                            RecognizerIntent.EXTRA_RESULTS
+                    );
+
+            if (resultados != null &&
+                    !resultados.isEmpty()) {
+
+                String comando = resultados.get(0);
+
+                if (ehAtivacao(comando)) {
+
+                    resposta.setText(
+                            "À sua disposição.\n\n" +
+                            "Sistemas online.\n" +
+                            "O que deseja?"
+                    );
+
+                    ouvir();
+
+                } else if (ehComandoBateria(comando)) {
+
+                    processarComando(comando);
+
+                } else {
+
+                    resposta.setText(
+                            "Aguardando ativação...\n\n" +
+                            "Frase de ativação:\n" +
+                            "\"JARVIS, está aí?\""
+                    );
+                }
+            }
+        }
+    }
