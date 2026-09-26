@@ -50,6 +50,7 @@ public class MainActivity extends Activity {
         iniciarVoz();
 
         if (android.os.Build.VERSION.SDK_INT >= 23) {
+
             if (checkSelfPermission(Manifest.permission.RECORD_AUDIO)
                     != PackageManager.PERMISSION_GRANTED) {
 
@@ -57,6 +58,10 @@ public class MainActivity extends Activity {
                         new String[]{Manifest.permission.RECORD_AUDIO},
                         REQUEST_AUDIO
                 );
+
+            } else {
+
+                iniciarServicoJarvis();
             }
         }
 
@@ -69,11 +74,62 @@ public class MainActivity extends Activity {
                 "JARVIS",
                 "Modo OFFLINE ativo. Digite ou fale um comando."
         );
+
+        /*
+         * Se o aplicativo foi aberto pelo serviço depois
+         * de detectar a palavra JARVIS, inicia o reconhecimento
+         * do comando seguinte.
+         */
+        if (getIntent().getBooleanExtra("JARVIS_WAKE", false)) {
+
+            adicionarMensagem(
+                    "JARVIS",
+                    "À sua disposição. Estou ouvindo."
+            );
+
+            falar(
+                    "À sua disposição. Estou ouvindo."
+            );
+
+            new Handler().postDelayed(
+                    () -> iniciarReconhecimento(),
+                    1000
+            );
+        }
+    }
+
+    private void iniciarServicoJarvis() {
+
+        try {
+
+            Intent intent =
+                    new Intent(
+                            this,
+                            JarvisVoiceService.class
+                    );
+
+            if (android.os.Build.VERSION.SDK_INT >= 26) {
+
+                startForegroundService(intent);
+
+            } else {
+
+                startService(intent);
+            }
+
+        } catch (Exception e) {
+
+            adicionarMensagem(
+                    "JARVIS",
+                    "Não foi possível iniciar o serviço de voz."
+            );
+        }
     }
 
     private void iniciarVoz() {
 
         try {
+
             tts = new TextToSpeech(
                     getApplicationContext(),
                     status -> {
@@ -132,7 +188,7 @@ public class MainActivity extends Activity {
             );
 
         } catch (Exception e) {
-            // O JARVIS continua funcionando em texto.
+            // Continua funcionando em texto.
         }
     }
 
@@ -183,6 +239,7 @@ public class MainActivity extends Activity {
 
                         @Override
                         public void onReadyForSpeech(Bundle params) {
+
                             ouvindo = true;
 
                             adicionarMensagem(
@@ -261,7 +318,8 @@ public class MainActivity extends Activity {
                                 return;
                             }
 
-                            String comando = resultados.get(0);
+                            String comando =
+                                    resultados.get(0);
 
                             adicionarMensagem(
                                     "VOCÊ",
@@ -272,14 +330,14 @@ public class MainActivity extends Activity {
                         }
 
                         @Override
-                        public void onPartialResults(Bundle partialResults) {
+                        public void onPartialResults(
+                                Bundle partialResults) {
                         }
 
                         @Override
                         public void onEvent(
                                 int eventType,
-                                Bundle params
-                        ) {
+                                Bundle params) {
                         }
                     }
             );
@@ -321,46 +379,104 @@ public class MainActivity extends Activity {
         int padding = dp(16);
 
         LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
+
+        root.setOrientation(
+                LinearLayout.VERTICAL
+        );
+
         root.setPadding(
                 padding,
                 padding,
                 padding,
                 padding
         );
-        root.setGravity(Gravity.CENTER_HORIZONTAL);
+
+        root.setGravity(
+                Gravity.CENTER_HORIZONTAL
+        );
 
         TextView title = new TextView(this);
-        title.setText("J.A.R.V.I.S");
+
+        title.setText(
+                "J.A.R.V.I.S"
+        );
+
         title.setTextSize(28);
-        title.setGravity(Gravity.CENTER);
+
+        title.setGravity(
+                Gravity.CENTER
+        );
 
         TextView subtitle = new TextView(this);
-        subtitle.setText("NÚCLEO OFFLINE • V2");
+
+        subtitle.setText(
+                "NÚCLEO OFFLINE • V2"
+        );
+
         subtitle.setTextSize(13);
-        subtitle.setGravity(Gravity.CENTER);
-        subtitle.setPadding(0, dp(6), 0, dp(8));
+
+        subtitle.setGravity(
+                Gravity.CENTER
+        );
+
+        subtitle.setPadding(
+                0,
+                dp(6),
+                0,
+                dp(8)
+        );
 
         clockText = new TextView(this);
+
         clockText.setTextSize(18);
-        clockText.setGravity(Gravity.CENTER);
-        clockText.setPadding(0, 0, 0, dp(8));
+
+        clockText.setGravity(
+                Gravity.CENTER
+        );
+
+        clockText.setPadding(
+                0,
+                0,
+                0,
+                dp(8)
+        );
 
         TextView reactor = new TextView(this);
+
         reactor.setText("◉");
+
         reactor.setTextSize(80);
-        reactor.setGravity(Gravity.CENTER);
+
+        reactor.setGravity(
+                Gravity.CENTER
+        );
 
         TextView mode = new TextView(this);
-        mode.setText("🔴 MODO OFFLINE ATIVO");
-        mode.setTextSize(16);
-        mode.setGravity(Gravity.CENTER);
-        mode.setPadding(0, dp(4), 0, dp(8));
 
-        ScrollView scrollView = new ScrollView(this);
+        mode.setText(
+                "🔴 MODO OFFLINE ATIVO"
+        );
+
+        mode.setTextSize(16);
+
+        mode.setGravity(
+                Gravity.CENTER
+        );
+
+        mode.setPadding(
+                0,
+                dp(4),
+                0,
+                dp(8)
+        );
+
+        ScrollView scrollView =
+                new ScrollView(this);
 
         chatText = new TextView(this);
+
         chatText.setTextSize(16);
+
         chatText.setPadding(
                 dp(10),
                 dp(10),
@@ -368,7 +484,9 @@ public class MainActivity extends Activity {
                 dp(10)
         );
 
-        scrollView.addView(chatText);
+        scrollView.addView(
+                chatText
+        );
 
         LinearLayout.LayoutParams scrollParams =
                 new LinearLayout.LayoutParams(
@@ -378,12 +496,21 @@ public class MainActivity extends Activity {
                 );
 
         commandInput = new EditText(this);
-        commandInput.setHint("Digite um comando...");
+
+        commandInput.setHint(
+                "Digite um comando..."
+        );
+
         commandInput.setSingleLine(false);
+
         commandInput.setMaxLines(3);
 
-        Button executeButton = new Button(this);
-        executeButton.setText("EXECUTAR COMANDO");
+        Button executeButton =
+                new Button(this);
+
+        executeButton.setText(
+                "EXECUTAR COMANDO"
+        );
 
         executeButton.setOnClickListener(v -> {
 
@@ -406,8 +533,12 @@ public class MainActivity extends Activity {
             commandInput.setText("");
         });
 
-        Button voiceButton = new Button(this);
-        voiceButton.setText("🎙️ FALAR COM JARVIS");
+        Button voiceButton =
+                new Button(this);
+
+        voiceButton.setText(
+                "🎙️ FALAR COM JARVIS"
+        );
 
         voiceButton.setOnClickListener(v -> {
 
@@ -416,8 +547,12 @@ public class MainActivity extends Activity {
             }
         });
 
-        Button onlineButton = new Button(this);
-        onlineButton.setText("MODO ONLINE");
+        Button onlineButton =
+                new Button(this);
+
+        onlineButton.setText(
+                "MODO ONLINE"
+        );
 
         onlineButton.setOnClickListener(v ->
                 responder(
@@ -426,8 +561,12 @@ public class MainActivity extends Activity {
                 )
         );
 
-        Button micButton = new Button(this);
-        micButton.setText("GERENCIAR MICROFONE");
+        Button micButton =
+                new Button(this);
+
+        micButton.setText(
+                "GERENCIAR MICROFONE"
+        );
 
         LinearLayout.LayoutParams micParams =
                 new LinearLayout.LayoutParams(
@@ -435,9 +574,12 @@ public class MainActivity extends Activity {
                         LinearLayout.LayoutParams.WRAP_CONTENT
                 );
 
-        micParams.topMargin = dp(10);
+        micParams.topMargin =
+                dp(10);
 
-        micButton.setLayoutParams(micParams);
+        micButton.setLayoutParams(
+                micParams
+        );
 
         micButton.setOnClickListener(v -> {
 
@@ -477,43 +619,48 @@ public class MainActivity extends Activity {
 
     private void iniciarRelogio() {
 
-        clockHandler = new Handler();
+        clockHandler =
+                new Handler();
 
-        Runnable atualizar = new Runnable() {
+        Runnable atualizar =
+                new Runnable() {
 
-            @Override
-            public void run() {
+                    @Override
+                    public void run() {
 
-                String hora =
-                        new SimpleDateFormat(
-                                "HH:mm:ss",
-                                Locale.getDefault()
-                        ).format(new Date());
+                        String hora =
+                                new SimpleDateFormat(
+                                        "HH:mm:ss",
+                                        Locale.getDefault()
+                                ).format(new Date());
 
-                String data =
-                        new SimpleDateFormat(
-                                "dd/MM/yyyy",
-                                Locale.getDefault()
-                        ).format(new Date());
+                        String data =
+                                new SimpleDateFormat(
+                                        "dd/MM/yyyy",
+                                        Locale.getDefault()
+                                ).format(new Date());
 
-                if (clockText != null) {
+                        if (clockText != null) {
 
-                    clockText.setText(
-                            hora + "\n" + data
-                    );
-                }
+                            clockText.setText(
+                                    hora + "\n" + data
+                            );
+                        }
 
-                clockHandler.postDelayed(
-                        this,
-                        1000
-                );
-            }
-        };
+                        clockHandler.postDelayed(
+                                this,
+                                1000
+                        );
+                    }
+                };
 
-        clockHandler.post(atualizar);
+        clockHandler.post(
+                atualizar
+        );
     }
 
-    private void processarComando(String command) {
+    private void processarComando(
+            String command) {
 
         String texto =
                 command.toLowerCase(
@@ -540,7 +687,9 @@ public class MainActivity extends Activity {
                     ).format(new Date());
 
             responder(
-                    "Agora são " + hora + "."
+                    "Agora são " +
+                    hora +
+                    "."
             );
 
             return;
@@ -556,7 +705,9 @@ public class MainActivity extends Activity {
                     ).format(new Date());
 
             responder(
-                    "A data atual é " + data + "."
+                    "A data atual é " +
+                    data +
+                    "."
             );
 
             return;
@@ -636,14 +787,15 @@ public class MainActivity extends Activity {
                         Locale.getDefault()
                 ).format(new Date());
 
-        return "Status: bateria em " +
+        return "Status: " +
                 obterBateria() +
                 " Hora: " +
                 hora +
                 ". Modo OFFLINE.";
     }
 
-    private void responder(String resposta) {
+    private void responder(
+            String resposta) {
 
         adicionarMensagem(
                 "JARVIS",
@@ -655,8 +807,7 @@ public class MainActivity extends Activity {
 
     private void adicionarMensagem(
             String autor,
-            String mensagem
-    ) {
+            String mensagem) {
 
         if (chatText == null) {
             return;
@@ -674,7 +825,9 @@ public class MainActivity extends Activity {
                 ": " +
                 mensagem;
 
-        chatText.setText(atual);
+        chatText.setText(
+                atual
+        );
     }
 
     private int dp(int value) {
@@ -692,7 +845,10 @@ public class MainActivity extends Activity {
     protected void onDestroy() {
 
         if (clockHandler != null) {
-            clockHandler.removeCallbacksAndMessages(null);
+
+            clockHandler.removeCallbacksAndMessages(
+                    null
+            );
         }
 
         if (speechRecognizer != null) {
