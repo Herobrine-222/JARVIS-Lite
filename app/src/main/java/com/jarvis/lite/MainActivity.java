@@ -9,6 +9,7 @@ import android.os.BatteryManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.provider.Settings;
+import android.speech.tts.TextToSpeech;
 import android.view.Gravity;
 import android.widget.Button;
 import android.widget.EditText;
@@ -30,12 +31,16 @@ public class MainActivity extends Activity {
 
     private Handler clockHandler;
 
+    private TextToSpeech tts;
+    private boolean ttsReady = false;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
         configurarTela();
         iniciarRelogio();
+        iniciarVoz();
 
         if (android.os.Build.VERSION.SDK_INT >= 23) {
             if (checkSelfPermission(Manifest.permission.RECORD_AUDIO)
@@ -57,6 +62,71 @@ public class MainActivity extends Activity {
                 "JARVIS",
                 "Modo OFFLINE ativo. Digite um comando."
         );
+    }
+
+    private void iniciarVoz() {
+
+        try {
+            tts = new TextToSpeech(
+                    getApplicationContext(),
+                    status -> {
+
+                        if (status == TextToSpeech.SUCCESS) {
+
+                            try {
+
+                                int resultado =
+                                        tts.setLanguage(
+                                                new Locale("pt", "BR")
+                                        );
+
+                                if (resultado != TextToSpeech.LANG_MISSING_DATA
+                                        && resultado != TextToSpeech.LANG_NOT_SUPPORTED) {
+
+                                    ttsReady = true;
+
+                                } else {
+
+                                    ttsReady = false;
+                                }
+
+                            } catch (Exception e) {
+
+                                ttsReady = false;
+                            }
+
+                        } else {
+
+                            ttsReady = false;
+                        }
+                    }
+            );
+
+        } catch (Exception e) {
+
+            tts = null;
+            ttsReady = false;
+        }
+    }
+
+    private void falar(String texto) {
+
+        if (!ttsReady || tts == null) {
+            return;
+        }
+
+        try {
+
+            tts.speak(
+                    texto,
+                    TextToSpeech.QUEUE_FLUSH,
+                    null,
+                    "jarvis_resposta"
+            );
+
+        } catch (Exception e) {
+            // Se a voz falhar, o JARVIS continua funcionando em texto.
+        }
     }
 
     private void configurarTela() {
@@ -193,10 +263,12 @@ public class MainActivity extends Activity {
         root.addView(clockText);
         root.addView(reactor);
         root.addView(mode);
+
         root.addView(
                 scrollView,
                 scrollParams
         );
+
         root.addView(commandInput);
         root.addView(executeButton);
         root.addView(onlineButton);
@@ -227,6 +299,7 @@ public class MainActivity extends Activity {
                         ).format(new Date());
 
                 if (clockText != null) {
+
                     clockText.setText(
                             hora + "\n" + data
                     );
@@ -378,6 +451,8 @@ public class MainActivity extends Activity {
                 "JARVIS",
                 resposta
         );
+
+        falar(resposta);
     }
 
     private void adicionarMensagem(
@@ -419,7 +494,21 @@ public class MainActivity extends Activity {
     protected void onDestroy() {
 
         if (clockHandler != null) {
+
             clockHandler.removeCallbacksAndMessages(null);
+        }
+
+        if (tts != null) {
+
+            try {
+                tts.stop();
+                tts.shutdown();
+            } catch (Exception e) {
+                // Nada a fazer.
+            }
+
+            tts = null;
+            ttsReady = false;
         }
 
         super.onDestroy();
