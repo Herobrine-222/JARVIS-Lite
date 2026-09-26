@@ -9,6 +9,9 @@ import android.os.BatteryManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.provider.Settings;
+import android.speech.RecognitionListener;
+import android.speech.RecognizerIntent;
+import android.speech.SpeechRecognizer;
 import android.speech.tts.TextToSpeech;
 import android.view.Gravity;
 import android.widget.Button;
@@ -18,6 +21,7 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.Locale;
 
@@ -33,6 +37,9 @@ public class MainActivity extends Activity {
 
     private TextToSpeech tts;
     private boolean ttsReady = false;
+
+    private SpeechRecognizer speechRecognizer;
+    private boolean ouvindo = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -60,7 +67,7 @@ public class MainActivity extends Activity {
 
         adicionarMensagem(
                 "JARVIS",
-                "Modo OFFLINE ativo. Digite um comando."
+                "Modo OFFLINE ativo. Digite ou fale um comando."
         );
     }
 
@@ -125,7 +132,187 @@ public class MainActivity extends Activity {
             );
 
         } catch (Exception e) {
-            // Se a voz falhar, o JARVIS continua funcionando em texto.
+            // O JARVIS continua funcionando em texto.
+        }
+    }
+
+    private void iniciarReconhecimento() {
+
+        if (android.os.Build.VERSION.SDK_INT < 31) {
+
+            responder(
+                    "O reconhecimento de voz local desta versão " +
+                    "do JARVIS exige Android 12 ou superior."
+            );
+
+            return;
+        }
+
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+                != PackageManager.PERMISSION_GRANTED) {
+
+            responder(
+                    "A permissão do microfone ainda não foi concedida."
+            );
+
+            return;
+        }
+
+        if (!SpeechRecognizer.isOnDeviceRecognitionAvailable(this)) {
+
+            responder(
+                    "O reconhecimento de voz offline não está " +
+                    "disponível neste aparelho."
+            );
+
+            return;
+        }
+
+        try {
+
+            if (speechRecognizer != null) {
+                speechRecognizer.destroy();
+                speechRecognizer = null;
+            }
+
+            speechRecognizer =
+                    SpeechRecognizer.createOnDeviceSpeechRecognizer(this);
+
+            speechRecognizer.setRecognitionListener(
+                    new RecognitionListener() {
+
+                        @Override
+                        public void onReadyForSpeech(Bundle params) {
+                            ouvindo = true;
+
+                            adicionarMensagem(
+                                    "JARVIS",
+                                    "Estou ouvindo..."
+                            );
+                        }
+
+                        @Override
+                        public void onBeginningOfSpeech() {
+                        }
+
+                        @Override
+                        public void onRmsChanged(float rmsdB) {
+                        }
+
+                        @Override
+                        public void onBufferReceived(byte[] buffer) {
+                        }
+
+                        @Override
+                        public void onEndOfSpeech() {
+                            ouvindo = false;
+                        }
+
+                        @Override
+                        public void onError(int error) {
+
+                            ouvindo = false;
+
+                            String mensagem;
+
+                            switch (error) {
+
+                                case SpeechRecognizer.ERROR_AUDIO:
+                                    mensagem =
+                                            "Não consegui acessar o áudio.";
+                                    break;
+
+                                case SpeechRecognizer.ERROR_NO_MATCH:
+                                    mensagem =
+                                            "Não consegui entender o que foi dito.";
+                                    break;
+
+                                case SpeechRecognizer.ERROR_SPEECH_TIMEOUT:
+                                    mensagem =
+                                            "Não detectei nenhuma fala.";
+                                    break;
+
+                                default:
+                                    mensagem =
+                                            "Não foi possível reconhecer o comando.";
+                                    break;
+                            }
+
+                            responder(mensagem);
+                        }
+
+                        @Override
+                        public void onResults(Bundle results) {
+
+                            ouvindo = false;
+
+                            ArrayList<String> resultados =
+                                    results.getStringArrayList(
+                                            SpeechRecognizer.RESULTS_RECOGNITION
+                                    );
+
+                            if (resultados == null
+                                    || resultados.isEmpty()) {
+
+                                responder(
+                                        "Não consegui entender o comando."
+                                );
+
+                                return;
+                            }
+
+                            String comando = resultados.get(0);
+
+                            adicionarMensagem(
+                                    "VOCÊ",
+                                    comando
+                            );
+
+                            processarComando(comando);
+                        }
+
+                        @Override
+                        public void onPartialResults(Bundle partialResults) {
+                        }
+
+                        @Override
+                        public void onEvent(
+                                int eventType,
+                                Bundle params
+                        ) {
+                        }
+                    }
+            );
+
+            Intent intent =
+                    new Intent(
+                            RecognizerIntent.ACTION_RECOGNIZE_SPEECH
+                    );
+
+            intent.putExtra(
+                    RecognizerIntent.EXTRA_LANGUAGE,
+                    "pt-BR"
+            );
+
+            intent.putExtra(
+                    RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+            );
+
+            intent.putExtra(
+                    RecognizerIntent.EXTRA_PARTIAL_RESULTS,
+                    false
+            );
+
+            speechRecognizer.startListening(intent);
+
+        } catch (Exception e) {
+
+            ouvindo = false;
+
+            responder(
+                    "Não foi possível iniciar o reconhecimento de voz."
+            );
         }
     }
 
@@ -219,6 +406,16 @@ public class MainActivity extends Activity {
             commandInput.setText("");
         });
 
+        Button voiceButton = new Button(this);
+        voiceButton.setText("🎙️ FALAR COM JARVIS");
+
+        voiceButton.setOnClickListener(v -> {
+
+            if (!ouvindo) {
+                iniciarReconhecimento();
+            }
+        });
+
         Button onlineButton = new Button(this);
         onlineButton.setText("MODO ONLINE");
 
@@ -271,6 +468,7 @@ public class MainActivity extends Activity {
 
         root.addView(commandInput);
         root.addView(executeButton);
+        root.addView(voiceButton);
         root.addView(onlineButton);
         root.addView(micButton);
 
@@ -494,8 +692,18 @@ public class MainActivity extends Activity {
     protected void onDestroy() {
 
         if (clockHandler != null) {
-
             clockHandler.removeCallbacksAndMessages(null);
+        }
+
+        if (speechRecognizer != null) {
+
+            try {
+                speechRecognizer.destroy();
+            } catch (Exception e) {
+                // Nada a fazer.
+            }
+
+            speechRecognizer = null;
         }
 
         if (tts != null) {
