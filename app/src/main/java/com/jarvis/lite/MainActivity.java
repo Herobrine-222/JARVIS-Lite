@@ -1,5 +1,4 @@
 package com.jarvis.lite;
-
 import android.app.Activity;
 import android.app.ActivityManager;
 import android.content.ActivityNotFoundException;
