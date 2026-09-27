@@ -22,7 +22,6 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.view.Gravity;
-import android.view.MotionEvent;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -44,7 +43,6 @@ public class MainActivity extends Activity {
     private EditText commandInput;
 
     private Handler clockHandler;
-    private Handler reactorHandler;
 
     private TextToSpeech tts;
     private boolean ttsReady = false;
@@ -742,7 +740,7 @@ public class MainActivity extends Activity {
         );
 
         /*
-         * BOTÃO ONLINE
+         * BOTÃO ONLINE / OFFLINE
          */
 
         Button online =
@@ -755,17 +753,42 @@ public class MainActivity extends Activity {
         online.setOnClickListener(
                 v -> {
 
-                    modoOnline = true;
+                    if (!modoOnline) {
 
-                    modo.setText(
-                            "🟢 MODO ONLINE SELECIONADO"
-                    );
+                        modoOnline = true;
 
-                    responder(
-                            "Modo online selecionado pelo usuário. "
-                                    + "Nenhuma conexão será iniciada "
-                                    + "automaticamente."
-                    );
+                        modo.setText(
+                                "🟢 MODO ONLINE SELECIONADO"
+                        );
+
+                        online.setText(
+                                "MODO OFFLINE"
+                        );
+
+                        responder(
+                                "Modo online selecionado pelo usuário. "
+                                        + "Nenhuma conexão será iniciada "
+                                        + "automaticamente."
+                        );
+
+                    } else {
+
+                        modoOnline = false;
+
+                        modo.setText(
+                                "🔴 MODO OFFLINE ATIVO"
+                        );
+
+                        online.setText(
+                                "MODO ONLINE"
+                        );
+
+                        responder(
+                                "Modo offline ativado. "
+                                        + "O JARVIS voltou a operar "
+                                        + "somente com os recursos locais."
+                        );
+                    }
                 }
         );
 
@@ -1045,7 +1068,6 @@ public class MainActivity extends Activity {
             PackageManager pm =
                     getPackageManager();
 
-            ListagemAplicativos:
             for (ApplicationInfo appInfo :
                     pm.getInstalledApplications(
                             PackageManager.GET_META_DATA)) {
@@ -1394,6 +1416,9 @@ public class MainActivity extends Activity {
     }
 
     private void voltarTela() {
+
+        modoOnline = false;
+
         configurarTela();
         iniciarRelogio();
     }
@@ -1880,12 +1905,6 @@ public class MainActivity extends Activity {
                                 centroX + raio,
                                 centroY + raio
                         );
-
-                /*
-                 * Cada anel possui pequenas
-                 * interrupções para dar aparência
-                 * tecnológica.
-                 */
 
                 canvas.drawArc(
                         oval,
