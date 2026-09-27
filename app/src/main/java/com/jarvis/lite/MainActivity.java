@@ -34,7 +34,6 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
-import android.widget.CheckBox;
 import android.widget.Toast;
 
 import java.text.SimpleDateFormat;
@@ -130,10 +129,7 @@ public class MainActivity extends Activity {
                         0L
                 );
 
-        /*
-         * O modo online nunca é restaurado como padrão.
-         * O aplicativo sempre começa offline.
-         */
+        // Sempre inicia em modo offline.
         modoOnline = false;
 
         carregarConfiguracoes();
@@ -271,7 +267,7 @@ public class MainActivity extends Activity {
         menu.setTextSize(20);
 
         menu.setOnClickListener(
-                v -> abrirHistoricoMenu()
+                v -> abrirMenuHistorico()
         );
 
         header.addView(
@@ -467,11 +463,8 @@ public class MainActivity extends Activity {
                         1
                 );
 
-        scrollParams.topMargin =
-                dp(4);
-
-        scrollParams.bottomMargin =
-                dp(4);
+        scrollParams.topMargin = dp(4);
+        scrollParams.bottomMargin = dp(4);
 
         root.addView(
                 chatScroll,
@@ -834,9 +827,7 @@ public class MainActivity extends Activity {
                         "Limpar conversas"
                 )
                 .setMessage(
-                        "Isso limpará somente a conversa exibida na tela principal. "
-                                +
-                        "O histórico continuará salvo."
+                        "Isso limpará somente a conversa exibida na tela principal. O histórico continuará salvo."
                 )
                 .setNegativeButton(
                         "CANCELAR",
@@ -857,9 +848,7 @@ public class MainActivity extends Activity {
                                     .apply();
 
                             if (chatContainer != null) {
-
-                                chatContainer
-                                        .removeAllViews();
+                                chatContainer.removeAllViews();
                             }
 
                             mostrarReator();
@@ -874,12 +863,53 @@ public class MainActivity extends Activity {
                 .show();
     }
 
-    private void abrirHistoricoMenu() {
+    /*
+     * ============================================================
+     * MENU ☰
+     * ============================================================
+     */
+
+    private void abrirMenuHistorico() {
+
+        LinearLayout layout =
+                criarTelaBase(
+                        "HISTÓRICO",
+                        "CONVERSA CONTÍNUA"
+                );
+
+        adicionarBotaoTela(
+                layout,
+                "🕘  HISTÓRICO DE CONVERSA",
+                this::abrirHistoricoCompleto
+        );
+
+        adicionarBotaoTela(
+                layout,
+                "📤  EXPORTAR CONVERSAS",
+                this::exportarHistorico
+        );
+
+        adicionarBotaoTela(
+                layout,
+                "🧹  LIMPAR CONVERSAS",
+                this::limparTelaPrincipal
+        );
+
+        adicionarBotaoTela(
+                layout,
+                "VOLTAR",
+                this::voltarTela
+        );
+
+        setContentView(layout);
+    }
+
+    private void abrirHistoricoCompleto() {
 
         LinearLayout layout =
                 criarTelaBase(
                         "HISTÓRICO DE CONVERSA",
-                        "UMA ÚNICA CONVERSA CONTÍNUA"
+                        "TODAS AS MENSAGENS EM ORDEM CRONOLÓGICA"
                 );
 
         ScrollView scroll =
@@ -934,26 +964,8 @@ public class MainActivity extends Activity {
 
         adicionarBotaoTela(
                 layout,
-                "EXPORTAR TODAS AS CONVERSAS",
-                this::exportarHistorico
-        );
-
-        adicionarBotaoTela(
-                layout,
-                "SELECIONAR MENSAGENS",
-                this::abrirSelecaoHistorico
-        );
-
-        adicionarBotaoTela(
-                layout,
-                "LIMPAR TELA PRINCIPAL",
-                this::limparTelaPrincipal
-        );
-
-        adicionarBotaoTela(
-                layout,
                 "VOLTAR",
-                this::voltarTela
+                this::abrirMenuHistorico
         );
 
         setContentView(layout);
@@ -988,9 +1000,7 @@ public class MainActivity extends Activity {
                 );
 
         autor.setTextSize(11);
-        autor.setTextColor(
-                Color.GRAY
-        );
+        autor.setTextColor(Color.GRAY);
 
         TextView mensagem =
                 criarTexto(
@@ -1017,6 +1027,12 @@ public class MainActivity extends Activity {
         );
     }
 
+    /*
+     * ============================================================
+     * SELEÇÃO DO HISTÓRICO
+     * ============================================================
+     */
+
     private void abrirSelecaoHistorico() {
 
         final HashSet<Integer>
@@ -1029,13 +1045,6 @@ public class MainActivity extends Activity {
                         "TOQUE NAS MENSAGENS PARA SELECIONAR"
                 );
 
-        LinearLayout lista =
-                new LinearLayout(this);
-
-        lista.setOrientation(
-                LinearLayout.VERTICAL
-        );
-
         TextView contador =
                 criarTexto(
                         "Selecionadas: 0"
@@ -1045,9 +1054,19 @@ public class MainActivity extends Activity {
                 Color.LTGRAY
         );
 
-        lista.addView(
+        layout.addView(
                 contador,
                 parametrosTexto()
+        );
+
+        ScrollView scroll =
+                new ScrollView(this);
+
+        LinearLayout lista =
+                new LinearLayout(this);
+
+        lista.setOrientation(
+                LinearLayout.VERTICAL
         );
 
         for (int i = 0;
@@ -1062,32 +1081,31 @@ public class MainActivity extends Activity {
             LinearLayout linha =
                     criarCard();
 
-            CheckBox check =
-                    new CheckBox(this);
+            Button circulo =
+                    criarBotao("○");
 
-            check.setText(
-                    item.autor
-                            + " — "
-                            + item.mensagem
-            );
+            circulo.setTextSize(22);
 
-            check.setTextColor(
-                    Color.WHITE
-            );
+            circulo.setOnClickListener(
+                    v -> {
 
-            check.setTextSize(13);
+                        if (selecionados.contains(
+                                indice
+                        )) {
 
-            check.setOnCheckedChangeListener(
-                    (buttonView, checked) -> {
-
-                        if (checked) {
-                            selecionados.add(
-                                    indice
-                            );
-                        } else {
                             selecionados.remove(
                                     indice
                             );
+
+                            circulo.setText("○");
+
+                        } else {
+
+                            selecionados.add(
+                                    indice
+                            );
+
+                            circulo.setText("●");
                         }
 
                         contador.setText(
@@ -1098,11 +1116,29 @@ public class MainActivity extends Activity {
                     }
             );
 
+            TextView texto =
+                    criarTexto(
+                            item.autor
+                                    + " — "
+                                    + item.mensagem
+                    );
+
+            texto.setTextSize(13);
+
             linha.addView(
-                    check,
+                    circulo,
                     new LinearLayout.LayoutParams(
-                            -1,
-                            -2
+                            dp(55),
+                            dp(50)
+                    )
+            );
+
+            linha.addView(
+                    texto,
+                    new LinearLayout.LayoutParams(
+                            0,
+                            -2,
+                            1
                     )
             );
 
@@ -1111,9 +1147,6 @@ public class MainActivity extends Activity {
                     parametrosCard()
             );
         }
-
-        ScrollView scroll =
-                new ScrollView(this);
 
         scroll.addView(lista);
 
@@ -1128,7 +1161,7 @@ public class MainActivity extends Activity {
 
         Button apagar =
                 criarBotao(
-                        "🗑 APAGAR SELECIONADAS"
+                        "🗑  APAGAR SELECIONADAS"
                 );
 
         apagar.setOnClickListener(
@@ -1159,7 +1192,7 @@ public class MainActivity extends Activity {
         adicionarBotaoTela(
                 layout,
                 "VOLTAR",
-                this::abrirHistoricoMenu
+                this::abrirHistoricoCompleto
         );
 
         setContentView(layout);
@@ -1209,30 +1242,23 @@ public class MainActivity extends Activity {
 
                             salvarHistorico();
 
-                            if (historico.isEmpty()) {
-
-                                telaPrincipalLimpa =
-                                        true;
-
-                                preferencias.edit()
-                                        .putBoolean(
-                                                "tela_principal_limpa",
-                                                true
-                                        )
-                                        .apply();
-                            }
-
                             Toast.makeText(
                                     this,
                                     "Mensagens selecionadas apagadas.",
                                     Toast.LENGTH_SHORT
                             ).show();
 
-                            abrirHistoricoMenu();
+                            abrirHistoricoCompleto();
                         }
                 )
                 .show();
     }
+
+    /*
+     * ============================================================
+     * EXPORTAÇÃO
+     * ============================================================
+     */
 
     private void exportarHistorico() {
 
@@ -1362,9 +1388,7 @@ public class MainActivity extends Activity {
 
         nome.setText(autor);
         nome.setTextSize(10);
-        nome.setTextColor(
-                Color.GRAY
-        );
+        nome.setTextColor(Color.GRAY);
 
         nome.setGravity(
                 "VOCÊ".equals(autor)
@@ -1377,9 +1401,7 @@ public class MainActivity extends Activity {
 
         balao.setText(mensagem);
         balao.setTextSize(14);
-        balao.setTextColor(
-                Color.WHITE
-        );
+        balao.setTextColor(Color.WHITE);
 
         balao.setGravity(
                 Gravity.CENTER_VERTICAL
@@ -1508,13 +1530,8 @@ public class MainActivity extends Activity {
                             true
                     );
 
-            entrada.addAnimation(
-                    aparecer
-            );
-
-            entrada.addAnimation(
-                    subir
-            );
+            entrada.addAnimation(aparecer);
+            entrada.addAnimation(subir);
 
             linha.startAnimation(
                     entrada
@@ -1529,8 +1546,7 @@ public class MainActivity extends Activity {
                 80
         );
     }
-
-    /*
+        /*
      * ============================================================
      * CONFIGURAÇÕES
      * ============================================================
@@ -1587,9 +1603,7 @@ public class MainActivity extends Activity {
                 );
 
         permissoes.setTextSize(18);
-        permissoes.setTextColor(
-                Color.WHITE
-        );
+        permissoes.setTextColor(Color.WHITE);
 
         layout.addView(
                 permissoes,
@@ -1682,9 +1696,7 @@ public class MainActivity extends Activity {
                 );
 
         conexoes.setTextSize(18);
-        conexoes.setTextColor(
-                Color.WHITE
-        );
+        conexoes.setTextColor(Color.WHITE);
 
         layout.addView(
                 conexoes,
@@ -1749,7 +1761,9 @@ public class MainActivity extends Activity {
         );
 
         TextView nome =
-                criarTexto(titulo);
+                criarTexto(
+                        titulo
+                );
 
         nome.setTextSize(15);
 
@@ -1761,9 +1775,7 @@ public class MainActivity extends Activity {
                 );
 
         descricao.setTextSize(12);
-        descricao.setTextColor(
-                Color.GRAY
-        );
+        descricao.setTextColor(Color.GRAY);
 
         textos.addView(nome);
         textos.addView(descricao);
@@ -1847,17 +1859,19 @@ public class MainActivity extends Activity {
         );
 
         TextView tituloView =
-                criarTexto(titulo);
+                criarTexto(
+                        titulo
+                );
 
         tituloView.setTextSize(15);
 
         TextView descView =
-                criarTexto(descricao);
+                criarTexto(
+                        descricao
+                );
 
         descView.setTextSize(12);
-        descView.setTextColor(
-                Color.GRAY
-        );
+        descView.setTextColor(Color.GRAY);
 
         textos.addView(
                 tituloView
@@ -1882,7 +1896,9 @@ public class MainActivity extends Activity {
                     boolean novo =
                             !estado.get();
 
-                    alterar.set(novo);
+                    alterar.set(
+                            novo
+                    );
 
                     controle.setText(
                             novo
@@ -1914,6 +1930,12 @@ public class MainActivity extends Activity {
                 parametrosCard()
         );
     }
+
+    /*
+     * ============================================================
+     * VOZ
+     * ============================================================
+     */
 
     private void abrirGerenciarVoz() {
 
@@ -1980,11 +2002,14 @@ public class MainActivity extends Activity {
                 if ("pt".equalsIgnoreCase(
                         local.getLanguage()
                 )
-                        && "BR".equalsIgnoreCase(
-                        local.getCountry()
-                )) {
+                        &&
+                        "BR".equalsIgnoreCase(
+                                local.getCountry()
+                        )) {
 
-                    vozes.add(voz);
+                    vozes.add(
+                            voz
+                    );
                 }
             }
 
@@ -2064,7 +2089,9 @@ public class MainActivity extends Activity {
         ScrollView scroll =
                 new ScrollView(this);
 
-        scroll.addView(lista);
+        scroll.addView(
+                lista
+        );
 
         layout.addView(
                 scroll,
@@ -2078,9 +2105,10 @@ public class MainActivity extends Activity {
         adicionarBotaoTela(
                 layout,
                 "TESTAR VOZ ATUAL",
-                () -> falar(
-                        "À sua disposição. Sistemas locais operacionais."
-                )
+                () ->
+                        falar(
+                                "À sua disposição. Sistemas locais operacionais."
+                        )
         );
 
         adicionarBotaoTela(
@@ -2114,6 +2142,12 @@ public class MainActivity extends Activity {
 
         return "🎙 VOZ DISPONÍVEL";
     }
+
+    /*
+     * ============================================================
+     * VERIFICAÇÃO
+     * ============================================================
+     */
 
     private void abrirVerificacao() {
 
@@ -2221,6 +2255,7 @@ public class MainActivity extends Activity {
     private String textoUltimaVerificacao() {
 
         if (ultimaVerificacao == 0L) {
+
             return "Verificação realizada: nunca.";
         }
 
@@ -2235,8 +2270,15 @@ public class MainActivity extends Activity {
                 );
 
         return "Verificação realizada em:\n"
-                + horario;
+                +
+                horario;
     }
+
+    /*
+     * ============================================================
+     * COMANDO DE VOZ
+     * ============================================================
+     */
 
     private void abrirComandoVoz() {
 
@@ -2336,6 +2378,12 @@ public class MainActivity extends Activity {
 
         setContentView(layout);
     }
+
+    /*
+     * ============================================================
+     * PRIVACIDADE
+     * ============================================================
+     */
 
     private void abrirPrivacidade() {
 
@@ -2587,13 +2635,7 @@ public class MainActivity extends Activity {
 
                                     ouvindo = true;
 
-                                    adicionarMensagem(
-                                            "JARVIS",
-                                            "Estou ouvindo..."
-                                    );
-
                                     if (reactorView != null) {
-
                                         reactorView
                                                 .setOuvindo(
                                                         true
@@ -2630,7 +2672,6 @@ public class MainActivity extends Activity {
                                             false;
 
                                     if (reactorView != null) {
-
                                         reactorView
                                                 .setOuvindo(
                                                         false
@@ -2706,7 +2747,6 @@ public class MainActivity extends Activity {
                                             false;
 
                                     if (reactorView != null) {
-
                                         reactorView
                                                 .setOuvindo(
                                                         false
@@ -2885,9 +2925,7 @@ public class MainActivity extends Activity {
                 || comando.contains("comandos")) {
 
             responder(
-                    "Comandos disponíveis: hora, data, bateria, status, "
-                            +
-                    "privacidade, quem é você e informações sobre o histórico."
+                    "Comandos disponíveis: hora, data, bateria, status, privacidade, quem é você e informações sobre o histórico."
             );
 
             return;
@@ -2905,7 +2943,8 @@ public class MainActivity extends Activity {
 
             responder(
                     "Agora são "
-                            + hora
+                            +
+                    hora
             );
 
             return;
@@ -2924,7 +2963,8 @@ public class MainActivity extends Activity {
 
             responder(
                     "A data atual é "
-                            + data
+                            +
+                    data
             );
 
             return;
@@ -2980,9 +3020,10 @@ public class MainActivity extends Activity {
         if (comando.contains(
                 "verificação"
         )
-                || comando.contains(
-                "verificacao"
-        )) {
+                ||
+                comando.contains(
+                        "verificacao"
+                )) {
 
             abrirVerificacao();
 
@@ -2992,15 +3033,18 @@ public class MainActivity extends Activity {
         if (comando.contains(
                 "quem é você"
         )
-                || comando.contains(
-                "quem voce e"
-        )
-                || comando.contains(
-                "quem é voce"
-        )
-                || comando.contains(
-                "quem voce é"
-        )) {
+                ||
+                comando.contains(
+                        "quem voce e"
+                )
+                ||
+                comando.contains(
+                        "quem é voce"
+                )
+                ||
+                comando.contains(
+                        "quem voce é"
+                )) {
 
             responder(
                     "Eu sou o JARVIS Lite, um assistente local offline-first."
@@ -3012,15 +3056,18 @@ public class MainActivity extends Activity {
         if (comando.contains(
                 "o que você lembra"
         )
-                || comando.contains(
-                "o que voce lembra"
-        )
-                || comando.contains(
-                "histórico"
-        )
-                || comando.contains(
-                "historico"
-        )) {
+                ||
+                comando.contains(
+                        "o que voce lembra"
+                )
+                ||
+                comando.contains(
+                        "histórico"
+                )
+                ||
+                comando.contains(
+                        "historico"
+                )) {
 
             if (historico.isEmpty()) {
 
@@ -3198,7 +3245,9 @@ public class MainActivity extends Activity {
         }
 
         TextView tituloView =
-                criarTexto(titulo);
+                criarTexto(
+                        titulo
+                );
 
         tituloView.setTextSize(
                 27
@@ -3398,7 +3447,6 @@ public class MainActivity extends Activity {
     private void voltarTela() {
 
         configurarTela();
-
         iniciarRelogio();
     }
 
@@ -3427,6 +3475,12 @@ public class MainActivity extends Activity {
         } catch (Exception e) {
         }
     }
+
+    /*
+     * ============================================================
+     * RELÓGIO
+     * ============================================================
+     */
 
     private void iniciarRelogio() {
 
@@ -3629,99 +3683,113 @@ public class MainActivity extends Activity {
             paint.setStrokeWidth(
                     ouvindoLocal
                             ? 4.5f
-                            :
-           3.2f
-                    );
+                            : 3.2f
+            );
 
-                    paint.setColor(
-                            Color.rgb(
-                                    255,
-                                    220,
-                                    20
-                            )
-                    );
+            paint.setColor(
+                    Color.rgb(
+                            255,
+                            220,
+                            20
+                    )
+            );
 
-                    for (int i = 0; i < 8; i++) {
-                        float raio = raioMax - (i * 10.5f);
+            for (int i = 0; i < 8; i++) {
 
-                        canvas.save();
+                float raio =
+                        raioMax -
+                                (i * 10.5f);
 
-                        float direcao = (i % 2 == 0)
+                canvas.save();
+
+                float direcao =
+                        (i % 2 == 0)
                                 ? 1f
                                 : -1f;
 
-                        canvas.rotate(
-                                rotacao * direcao,
-                                centroX,
-                                centroY
-                        );
+                canvas.rotate(
+                        rotacao * direcao,
+                        centroX,
+                        centroY
+                );
 
-                        RectF oval = new RectF(
+                RectF oval =
+                        new RectF(
                                 centroX - raio,
                                 centroY - raio,
                                 centroX + raio,
                                 centroY + raio
                         );
 
-                        canvas.drawArc(
-                                oval,
-                                15f,
-                                285f,
-                                false,
-                                paint
-                        );
+                canvas.drawArc(
+                        oval,
+                        15f,
+                        285f,
+                        false,
+                        paint
+                );
 
-                        canvas.drawArc(
-                                oval,
-                                320f,
-                                25f,
-                                false,
-                                paint
-                        );
+                canvas.drawArc(
+                        oval,
+                        320f,
+                        25f,
+                        false,
+                        paint
+                );
 
-                        canvas.restore();
-                    }
-
-                    paint.setStyle(Paint.Style.FILL);
-
-                    paint.setColor(Color.WHITE);
-
-                    paint.setShadowLayer(
-                            ouvindoLocal ? 35f : 22f,
-                            0f,
-                            0f,
-                            Color.YELLOW
-                    );
-
-                    canvas.drawCircle(
-                            centroX,
-                            centroY,
-                            raioMax * 0.115f,
-                            paint
-                    );
-
-                    paint.clearShadowLayer();
-
-                    paint.setColor(
-                            Color.rgb(
-                                    255,
-                                    215,
-                                    0
-                            )
-                    );
-
-                    canvas.drawCircle(
-                            centroX,
-                            centroY,
-                            raioMax * 0.065f,
-                            paint
-                    );
-                }
-
-                @Override
-                protected void onDetachedFromWindow() {
-                    handler.removeCallbacks(animacao);
-                    super.onDetachedFromWindow();
-                }
+                canvas.restore();
             }
+
+            paint.setStyle(
+                    Paint.Style.FILL
+            );
+
+            paint.setColor(
+                    Color.WHITE
+            );
+
+            paint.setShadowLayer(
+                    ouvindoLocal
+                            ? 35f
+                            : 22f,
+                    0f,
+                    0f,
+                    Color.YELLOW
+            );
+
+            canvas.drawCircle(
+                    centroX,
+                    centroY,
+                    raioMax * 0.115f,
+                    paint
+            );
+
+            paint.clearShadowLayer();
+
+            paint.setColor(
+                    Color.rgb(
+                            255,
+                            215,
+                            0
+                    )
+            );
+
+            canvas.drawCircle(
+                    centroX,
+                    centroY,
+                    raioMax * 0.065f,
+                    paint
+            );
+        }
+
+        @Override
+        protected void onDetachedFromWindow() {
+
+            handler.removeCallbacks(
+                    animacao
+            );
+
+            super.onDetachedFromWindow();
+        }
+    }
 }
