@@ -3,9 +3,13 @@ package com.jarvis.lite;
 import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.BatteryManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.provider.Settings;
@@ -13,7 +17,13 @@ import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 import android.speech.tts.TextToSpeech;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.RectF;
 import android.view.Gravity;
+import android.view.MotionEvent;
+import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -34,6 +44,7 @@ public class MainActivity extends Activity {
     private EditText commandInput;
 
     private Handler clockHandler;
+    private Handler reactorHandler;
 
     private TextToSpeech tts;
     private boolean ttsReady = false;
@@ -41,19 +52,18 @@ public class MainActivity extends Activity {
     private SpeechRecognizer speechRecognizer;
     private boolean ouvindo = false;
 
+    private boolean modoOnline = false;
+
+    private SharedPreferences preferencias;
+
+    private long ultimaVerificacao = 0L;
+
+    private ReactorView reactorView;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        /*
-         * PRIMEIRA PROVA:
-         *
-         * O serviço automático de voz não participa
-         * do reconhecimento enquanto esta Activity estiver aberta.
-         *
-         * Isso deixa o botão manual como único responsável
-         * pelo microfone.
-         */
         try {
             stopService(
                     new Intent(
@@ -62,14 +72,25 @@ public class MainActivity extends Activity {
                     )
             );
         } catch (Exception e) {
-            // Nada a fazer.
         }
+
+        preferencias =
+                getSharedPreferences(
+                        "jarvis_config",
+                        MODE_PRIVATE
+                );
+
+        ultimaVerificacao =
+                preferencias.getLong(
+                        "ultima_verificacao",
+                        0L
+                );
 
         configurarTela();
         iniciarRelogio();
         iniciarVoz();
 
-        if (android.os.Build.VERSION.SDK_INT >= 23) {
+        if (Build.VERSION.SDK_INT >= 23) {
 
             if (checkSelfPermission(
                     Manifest.permission.RECORD_AUDIO)
@@ -91,19 +112,8 @@ public class MainActivity extends Activity {
 
         adicionarMensagem(
                 "JARVIS",
-                "Modo OFFLINE ativo. Digite ou fale um comando."
+                "Modo OFFLINE ativo."
         );
-
-        /*
-         * IMPORTANTE:
-         *
-         * Nesta primeira prova NÃO vamos iniciar
-         * o reconhecimento automaticamente através
-         * do JARVIS_WAKE.
-         *
-         * O microfone só será usado quando o usuário
-         * tocar em "FALAR COM JARVIS".
-         */
     }
 
     /*
@@ -179,7 +189,6 @@ public class MainActivity extends Activity {
             );
 
         } catch (Exception e) {
-            // Continua funcionando em texto.
         }
     }
 
@@ -191,17 +200,13 @@ public class MainActivity extends Activity {
 
     private void iniciarReconhecimento() {
 
-        /*
-         * Garante que qualquer reconhecimento anterior
-         * seja encerrado antes de criar outro.
-         */
         pararReconhecimento();
 
-        if (android.os.Build.VERSION.SDK_INT < 31) {
+        if (Build.VERSION.SDK_INT < 31) {
 
             responder(
                     "O reconhecimento de voz local desta versão "
-                            + "do JARVIS exige Android 12 ou superior."
+                            + "exige Android 12 ou superior."
             );
 
             return;
@@ -315,7 +320,8 @@ public class MainActivity extends Activity {
 
                                     break;
 
-                                case SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS:
+                                case SpeechRecognizer
+                                        .ERROR_INSUFFICIENT_PERMISSIONS:
 
                                     mensagem =
                                             "A permissão do microfone não está disponível.";
@@ -409,10 +415,6 @@ public class MainActivity extends Activity {
                     false
             );
 
-            /*
-             * Mantém o reconhecimento estritamente
-             * no reconhecedor local.
-             */
             speechRecognizer.startListening(intent);
 
         } catch (Exception e) {
@@ -464,7 +466,7 @@ public class MainActivity extends Activity {
 
     /*
      * ============================================================
-     * INTERFACE
+     * INTERFACE PRINCIPAL
      * ============================================================
      */
 
@@ -479,9 +481,9 @@ public class MainActivity extends Activity {
 
         root.setPadding(
                 24,
+                18,
                 24,
-                24,
-                24
+                18
         );
 
         root.setGravity(
@@ -497,8 +499,16 @@ public class MainActivity extends Activity {
 
         titulo.setTextSize(30);
 
+        titulo.setTextColor(
+                Color.WHITE
+        );
+
         titulo.setGravity(
                 Gravity.CENTER
+        );
+
+        root.setBackgroundColor(
+                Color.BLACK
         );
 
         root.addView(
@@ -513,10 +523,14 @@ public class MainActivity extends Activity {
                 new TextView(this);
 
         subtitulo.setText(
-                "NÚCLEO OFFLINE • V2"
+                "NÚCLEO LOCAL • OFFLINE"
         );
 
-        subtitulo.setTextSize(14);
+        subtitulo.setTextSize(13);
+
+        subtitulo.setTextColor(
+                Color.LTGRAY
+        );
 
         subtitulo.setGravity(
                 Gravity.CENTER
@@ -533,7 +547,11 @@ public class MainActivity extends Activity {
         clockText =
                 new TextView(this);
 
-        clockText.setTextSize(28);
+        clockText.setTextSize(25);
+
+        clockText.setTextColor(
+                Color.WHITE
+        );
 
         clockText.setGravity(
                 Gravity.CENTER
@@ -545,36 +563,49 @@ public class MainActivity extends Activity {
                         -2
                 );
 
-        clockParams.topMargin = 18;
+        clockParams.topMargin = 12;
 
         root.addView(
                 clockText,
                 clockParams
         );
 
-        TextView reactor =
-                new TextView(this);
+        /*
+         * REATOR
+         */
 
-        reactor.setText(
-                "◉"
-        );
+        reactorView =
+                new ReactorView(this);
 
-        reactor.setTextSize(90);
+        reactorView.setOnClickListener(
+                v -> {
 
-        reactor.setGravity(
-                Gravity.CENTER
+                    if (!ouvindo) {
+
+                        iniciarReconhecimento();
+
+                    } else {
+
+                        pararReconhecimento();
+
+                        adicionarMensagem(
+                                "JARVIS",
+                                "Reconhecimento interrompido."
+                        );
+                    }
+                }
         );
 
         LinearLayout.LayoutParams reactorParams =
                 new LinearLayout.LayoutParams(
                         -1,
-                        150
+                        270
                 );
 
-        reactorParams.topMargin = 10;
+        reactorParams.topMargin = 4;
 
         root.addView(
-                reactor,
+                reactorView,
                 reactorParams
         );
 
@@ -585,7 +616,11 @@ public class MainActivity extends Activity {
                 "🔴 MODO OFFLINE ATIVO"
         );
 
-        modo.setTextSize(16);
+        modo.setTextSize(15);
+
+        modo.setTextColor(
+                Color.WHITE
+        );
 
         modo.setGravity(
                 Gravity.CENTER
@@ -599,10 +634,18 @@ public class MainActivity extends Activity {
                 )
         );
 
+        /*
+         * CHAT
+         */
+
         chatText =
                 new TextView(this);
 
-        chatText.setTextSize(16);
+        chatText.setTextSize(15);
+
+        chatText.setTextColor(
+                Color.WHITE
+        );
 
         chatText.setPadding(
                 12,
@@ -614,7 +657,9 @@ public class MainActivity extends Activity {
         ScrollView scroll =
                 new ScrollView(this);
 
-        scroll.addView(chatText);
+        scroll.addView(
+                chatText
+        );
 
         LinearLayout.LayoutParams scrollParams =
                 new LinearLayout.LayoutParams(
@@ -623,18 +668,30 @@ public class MainActivity extends Activity {
                         1
                 );
 
-        scrollParams.topMargin = 12;
+        scrollParams.topMargin = 8;
 
         root.addView(
                 scroll,
                 scrollParams
         );
 
+        /*
+         * CAMPO DE COMANDO
+         */
+
         commandInput =
                 new EditText(this);
 
         commandInput.setHint(
                 "Digite um comando..."
+        );
+
+        commandInput.setHintTextColor(
+                Color.GRAY
+        );
+
+        commandInput.setTextColor(
+                Color.WHITE
         );
 
         root.addView(
@@ -684,39 +741,9 @@ public class MainActivity extends Activity {
                 )
         );
 
-        Button falar =
-                new Button(this);
-
-        falar.setText(
-                "🎙️ FALAR COM JARVIS"
-        );
-
-        falar.setOnClickListener(
-                v -> {
-
-                    if (!ouvindo) {
-
-                        iniciarReconhecimento();
-
-                    } else {
-
-                        pararReconhecimento();
-
-                        adicionarMensagem(
-                                "JARVIS",
-                                "Reconhecimento interrompido."
-                        );
-                    }
-                }
-        );
-
-        root.addView(
-                falar,
-                new LinearLayout.LayoutParams(
-                        -1,
-                        -2
-                )
-        );
+        /*
+         * BOTÃO ONLINE
+         */
 
         Button online =
                 new Button(this);
@@ -726,9 +753,20 @@ public class MainActivity extends Activity {
         );
 
         online.setOnClickListener(
-                v -> responder(
-                        "O módulo online ainda não está disponível."
-                )
+                v -> {
+
+                    modoOnline = true;
+
+                    modo.setText(
+                            "🟢 MODO ONLINE SELECIONADO"
+                    );
+
+                    responder(
+                            "Modo online selecionado pelo usuário. "
+                                    + "Nenhuma conexão será iniciada "
+                                    + "automaticamente."
+                    );
+                }
         );
 
         root.addView(
@@ -739,52 +777,648 @@ public class MainActivity extends Activity {
                 )
         );
 
-        Button microfone =
+        /*
+         * BOTÃO DE CONFIGURAÇÕES
+         */
+
+        Button configuracoes =
                 new Button(this);
 
-        microfone.setText(
-                "GERENCIAR MICROFONE"
+        configuracoes.setText(
+                "⚙ JARVIS"
         );
 
-        LinearLayout.LayoutParams micParams =
+        configuracoes.setOnClickListener(
+                v -> abrirMenuJarvis()
+        );
+
+        LinearLayout.LayoutParams configParams =
                 new LinearLayout.LayoutParams(
                         -1,
                         -2
                 );
 
-        micParams.topMargin = 10;
+        configParams.topMargin = 6;
 
         root.addView(
-                microfone,
-                micParams
+                configuracoes,
+                configParams
         );
 
-        microfone.setOnClickListener(
+        setContentView(root);
+    }
+
+    /*
+     * ============================================================
+     * MENU JARVIS
+     * ============================================================
+     */
+
+    private void abrirMenuJarvis() {
+
+        LinearLayout layout =
+                criarTelaBase(
+                        "J.A.R.V.I.S",
+                        "CONFIGURAÇÕES"
+                );
+
+        adicionarBotaoTela(
+                layout,
+                "Gerenciar JARVIS",
+                this::abrirGerenciarJarvis
+        );
+
+        adicionarBotaoTela(
+                layout,
+                "Privacidade",
+                this::abrirPrivacidade
+        );
+
+        adicionarBotaoTela(
+                layout,
+                "Verificação do aparelho",
+                this::abrirVerificacao
+        );
+
+        adicionarBotaoTela(
+                layout,
+                "Comando de voz",
+                this::abrirComandoVoz
+        );
+
+        adicionarBotaoTela(
+                layout,
+                "VOLTAR",
+                this::voltarTela
+        );
+
+        setContentView(layout);
+    }
+
+    /*
+     * ============================================================
+     * GERENCIAR JARVIS
+     * ============================================================
+     */
+
+    private void abrirGerenciarJarvis() {
+
+        LinearLayout layout =
+                criarTelaBase(
+                        "GERENCIAR JARVIS",
+                        "RECURSOS DISPONÍVEIS"
+                );
+
+        TextView info =
+                criarTexto(
+                        "Microfone:\n"
+                                + "Usado somente quando o usuário "
+                                + "ativa o reconhecimento de voz.\n\n"
+                                + "Reconhecimento:\n"
+                                + "Preferência pelo reconhecedor "
+                                + "local do Android.\n\n"
+                                + "Internet:\n"
+                                + "O modo offline é o padrão. "
+                                + "O JARVIS não deve ativar conexão "
+                                + "online sozinho.\n\n"
+                                + "Arquivos pessoais:\n"
+                                + "Esta versão não possui função "
+                                + "para apagar ou modificar seus arquivos.\n\n"
+                                + "Root:\n"
+                                + "Não utilizado.\n\n"
+                                + "Administrador do dispositivo:\n"
+                                + "Não utilizado."
+                );
+
+        layout.addView(
+                info,
+                parametrosTexto()
+        );
+
+        adicionarBotaoTela(
+                layout,
+                "ABRIR CONFIGURAÇÕES DO APLICATIVO",
+                this::abrirConfiguracoesAndroid
+        );
+
+        adicionarBotaoTela(
+                layout,
+                "VOLTAR",
+                this::abrirMenuJarvis
+        );
+
+        setContentView(layout);
+    }
+
+    /*
+     * ============================================================
+     * PRIVACIDADE
+     * ============================================================
+     */
+
+    private void abrirPrivacidade() {
+
+        LinearLayout layout =
+                criarTelaBase(
+                        "PRIVACIDADE",
+                        "ACESSO DO JARVIS"
+                );
+
+        TextView info =
+                criarTexto(
+                        "O JARVIS Lite utiliza somente recursos "
+                                + "permitidos pelo Android.\n\n"
+                                + "Nesta versão, o recurso sensível "
+                                + "principal é o microfone.\n\n"
+                                + "O microfone não deve ser usado "
+                                + "automaticamente enquanto o aplicativo "
+                                + "estiver aberto.\n\n"
+                                + "O Android continua sendo responsável "
+                                + "pelas permissões do aplicativo.\n\n"
+                                + "Nenhum aplicativo comum pode garantir "
+                                + "proteção absoluta contra todas as "
+                                + "ameaças."
+                );
+
+        layout.addView(
+                info,
+                parametrosTexto()
+        );
+
+        adicionarBotaoTela(
+                layout,
+                "GERENCIAR PERMISSÕES NO ANDROID",
+                this::abrirConfiguracoesAndroid
+        );
+
+        adicionarBotaoTela(
+                layout,
+                "VOLTAR",
+                this::abrirMenuJarvis
+        );
+
+        setContentView(layout);
+    }
+
+    /*
+     * ============================================================
+     * VERIFICAÇÃO DO APARELHO
+     * ============================================================
+     */
+
+    private void abrirVerificacao() {
+
+        LinearLayout layout =
+                criarTelaBase(
+                        "VERIFICAÇÃO DO APARELHO",
+                        "VERIFICAÇÃO BÁSICA"
+                );
+
+        TextView resultado =
+                criarTexto(
+                        "Resultado:\n"
+                                + "Nenhuma ameaça pode ser confirmada "
+                                + "por esta verificação básica.\n\n"
+                                + "Esta função apenas consulta "
+                                + "informações acessíveis ao aplicativo."
+                );
+
+        layout.addView(
+                resultado,
+                parametrosTexto()
+        );
+
+        TextView ultima =
+                criarTexto(
+                        textoUltimaVerificacao()
+                );
+
+        layout.addView(
+                ultima,
+                parametrosTexto()
+        );
+
+        Button verificar =
+                criarBotao(
+                        "VERIFICAR"
+                );
+
+        verificar.setOnClickListener(
                 v -> {
 
-                    try {
+                    executarVerificacao();
 
-                        Intent intent =
-                                new Intent(
-                                        Settings
-                                                .ACTION_APPLICATION_DETAILS_SETTINGS
-                                );
+                    ultima.setText(
+                            textoUltimaVerificacao()
+                    );
 
-                        intent.setData(
-                                Uri.parse(
-                                        "package:"
-                                                + getPackageName()
-                                )
+                    resultado.setText(
+                            "Resultado:\n"
+                                    + "Verificação básica concluída.\n\n"
+                                    + "O JARVIS não encontrou "
+                                    + "informações que permitam "
+                                    + "confirmar uma ameaça.\n\n"
+                                    + "Esta função não substitui "
+                                    + "o Google Play Protect."
+                    );
+                }
+        );
+
+        layout.addView(
+                verificar,
+                parametrosBotao()
+        );
+
+        adicionarBotaoTela(
+                layout,
+                "VOLTAR",
+                this::abrirMenuJarvis
+        );
+
+        setContentView(layout);
+    }
+
+    private void executarVerificacao() {
+
+        try {
+
+            PackageManager pm =
+                    getPackageManager();
+
+            ListagemAplicativos:
+            for (ApplicationInfo appInfo :
+                    pm.getInstalledApplications(
+                            PackageManager.GET_META_DATA)) {
+
+                if (appInfo == null) {
+                    continue;
+                }
+
+                /*
+                 * A verificação deliberadamente não apaga,
+                 * desinstala ou modifica nada.
+                 */
+            }
+
+        } catch (Exception e) {
+        }
+
+        ultimaVerificacao =
+                System.currentTimeMillis();
+
+        preferencias.edit()
+                .putLong(
+                        "ultima_verificacao",
+                        ultimaVerificacao
+                )
+                .apply();
+    }
+
+    private String textoUltimaVerificacao() {
+
+        if (ultimaVerificacao == 0L) {
+
+            return "Verificação realizada: nunca.";
+        }
+
+        String horario =
+                new SimpleDateFormat(
+                        "dd/MM/yyyy HH:mm:ss",
+                        Locale.getDefault()
+                ).format(
+                        new Date(
+                                ultimaVerificacao
+                        )
+                );
+
+        return "Verificação realizada em:\n"
+                + horario;
+    }
+
+    /*
+     * ============================================================
+     * COMANDO DE VOZ
+     * ============================================================
+     */
+
+    private void abrirComandoVoz() {
+
+        LinearLayout layout =
+                criarTelaBase(
+                        "COMANDO DE VOZ",
+                        "ATIVAÇÃO DO JARVIS"
+                );
+
+        TextView explicacao =
+                criarTexto(
+                        "Defina a frase que deverá ser usada "
+                                + "como comando de ativação.\n\n"
+                                + "Exemplo:\n"
+                                + "JARVIS está aí?"
+                );
+
+        layout.addView(
+                explicacao,
+                parametrosTexto()
+        );
+
+        EditText campo =
+                new EditText(this);
+
+        campo.setHint(
+                "Digite o novo comando..."
+        );
+
+        campo.setText(
+                preferencias.getString(
+                        "comando_voz",
+                        "JARVIS está aí?"
+                )
+        );
+
+        campo.setTextColor(
+                Color.WHITE
+        );
+
+        campo.setHintTextColor(
+                Color.GRAY
+        );
+
+        layout.addView(
+                campo,
+                parametrosTexto()
+        );
+
+        Button confirmar =
+                criarBotao(
+                        "CONFIRMAR"
+                );
+
+        confirmar.setEnabled(
+                campo.getText()
+                        .toString()
+                        .trim()
+                        .length() >= 4
+        );
+
+        campo.addTextChangedListener(
+                new android.text.TextWatcher() {
+
+                    @Override
+                    public void beforeTextChanged(
+                            CharSequence s,
+                            int start,
+                            int count,
+                            int after) {
+                    }
+
+                    @Override
+                    public void onTextChanged(
+                            CharSequence s,
+                            int start,
+                            int before,
+                            int count) {
+
+                        confirmar.setEnabled(
+                                s.toString()
+                                        .trim()
+                                        .length() >= 4
                         );
+                    }
 
-                        startActivity(intent);
-
-                    } catch (Exception e) {
+                    @Override
+                    public void afterTextChanged(
+                            android.text.Editable s) {
                     }
                 }
         );
 
-        setContentView(root);
+        confirmar.setOnClickListener(
+                v -> {
+
+                    String novoComando =
+                            campo.getText()
+                                    .toString()
+                                    .trim();
+
+                    if (novoComando.length() < 4) {
+                        return;
+                    }
+
+                    preferencias.edit()
+                            .putString(
+                                    "comando_voz",
+                                    novoComando
+                            )
+                            .apply();
+
+                    adicionarMensagem(
+                            "JARVIS",
+                            "novo comando de voz ativo"
+                    );
+
+                    falar(
+                            "Novo comando de voz ativo."
+                    );
+                }
+        );
+
+        layout.addView(
+                confirmar,
+                parametrosBotao()
+        );
+
+        adicionarBotaoTela(
+                layout,
+                "VOLTAR",
+                this::abrirMenuJarvis
+        );
+
+        setContentView(layout);
+    }
+
+    /*
+     * ============================================================
+     * TELAS AUXILIARES
+     * ============================================================
+     */
+
+    private LinearLayout criarTelaBase(
+            String titulo,
+            String subtitulo) {
+
+        LinearLayout layout =
+                new LinearLayout(this);
+
+        layout.setOrientation(
+                LinearLayout.VERTICAL
+        );
+
+        layout.setPadding(
+                24,
+                24,
+                24,
+                24
+        );
+
+        layout.setBackgroundColor(
+                Color.BLACK
+        );
+
+        TextView tituloView =
+                criarTexto(
+                        titulo
+                );
+
+        tituloView.setTextSize(
+                28
+        );
+
+        tituloView.setGravity(
+                Gravity.CENTER
+        );
+
+        layout.addView(
+                tituloView,
+                parametrosTexto()
+        );
+
+        TextView subtituloView =
+                criarTexto(
+                        subtitulo
+                );
+
+        subtituloView.setTextSize(
+                14
+        );
+
+        subtituloView.setGravity(
+                Gravity.CENTER
+        );
+
+        layout.addView(
+                subtituloView,
+                parametrosTexto()
+        );
+
+        return layout;
+    }
+
+    private TextView criarTexto(
+            String texto) {
+
+        TextView view =
+                new TextView(this);
+
+        view.setText(
+                texto
+        );
+
+        view.setTextColor(
+                Color.WHITE
+        );
+
+        view.setTextSize(
+                16
+        );
+
+        view.setPadding(
+                8,
+                12,
+                8,
+                12
+        );
+
+        return view;
+    }
+
+    private Button criarBotao(
+            String texto) {
+
+        Button button =
+                new Button(this);
+
+        button.setText(
+                texto
+        );
+
+        return button;
+    }
+
+    private void adicionarBotaoTela(
+            LinearLayout layout,
+            String texto,
+            Runnable acao) {
+
+        Button button =
+                criarBotao(
+                        texto
+                );
+
+        button.setOnClickListener(
+                v -> acao.run()
+        );
+
+        layout.addView(
+                button,
+                parametrosBotao()
+        );
+    }
+
+    private LinearLayout.LayoutParams
+    parametrosTexto() {
+
+        LinearLayout.LayoutParams params =
+                new LinearLayout.LayoutParams(
+                        -1,
+                        -2
+                );
+
+        params.topMargin = 8;
+
+        return params;
+    }
+
+    private LinearLayout.LayoutParams
+    parametrosBotao() {
+
+        LinearLayout.LayoutParams params =
+                new LinearLayout.LayoutParams(
+                        -1,
+                        -2
+                );
+
+        params.topMargin = 8;
+
+        return params;
+    }
+
+    private void voltarTela() {
+        configurarTela();
+        iniciarRelogio();
+    }
+
+    private void abrirConfiguracoesAndroid() {
+
+        try {
+
+            Intent intent =
+                    new Intent(
+                            Settings
+                                    .ACTION_APPLICATION_DETAILS_SETTINGS
+                    );
+
+            intent.setData(
+                    Uri.parse(
+                            "package:"
+                                    + getPackageName()
+                    )
+            );
+
+            startActivity(intent);
+
+        } catch (Exception e) {
+        }
     }
 
     /*
@@ -794,6 +1428,13 @@ public class MainActivity extends Activity {
      */
 
     private void iniciarRelogio() {
+
+        if (clockHandler != null) {
+
+            clockHandler.removeCallbacksAndMessages(
+                    null
+            );
+        }
 
         clockHandler =
                 new Handler();
@@ -862,7 +1503,8 @@ public class MainActivity extends Activity {
 
             responder(
                     "Comandos disponíveis: hora, data, "
-                            + "bateria, status e quem é você."
+                            + "bateria, status, privacidade "
+                            + "e quem é você."
             );
 
             return;
@@ -921,6 +1563,21 @@ public class MainActivity extends Activity {
             responder(
                     obterStatus()
             );
+
+            return;
+        }
+
+        if (comando.contains("privacidade")) {
+
+            abrirPrivacidade();
+
+            return;
+        }
+
+        if (comando.contains("verificação")
+                || comando.contains("verificacao")) {
+
+            abrirVerificacao();
 
             return;
         }
@@ -1015,7 +1672,11 @@ public class MainActivity extends Activity {
                 + obterBateria()
                 + " Hora "
                 + hora
-                + ". Modo OFFLINE ativo.";
+                + ". Modo "
+                + (modoOnline
+                ? "ONLINE selecionado"
+                : "OFFLINE ativo")
+                + ".";
     }
 
     /*
@@ -1032,7 +1693,9 @@ public class MainActivity extends Activity {
                 mensagem
         );
 
-        falar(mensagem);
+        falar(
+                mensagem
+        );
     }
 
     private void adicionarMensagem(
@@ -1059,6 +1722,243 @@ public class MainActivity extends Activity {
         chatText.setText(
                 atual
         );
+    }
+
+    /*
+     * ============================================================
+     * REATOR ARC
+     * ============================================================
+     */
+
+    private class ReactorView
+            extends View {
+
+        private final Paint paint =
+                new Paint(
+                        Paint.ANTI_ALIAS_FLAG
+                );
+
+        private float rotacao = 0f;
+
+        private final Handler handler =
+                new Handler();
+
+        private final Runnable animacao =
+                new Runnable() {
+
+                    @Override
+                    public void run() {
+
+                        rotacao += 1.5f;
+
+                        if (rotacao >= 360f) {
+                            rotacao -= 360f;
+                        }
+
+                        invalidate();
+
+                        handler.postDelayed(
+                                this,
+                                16
+                        );
+                    }
+                };
+
+        public ReactorView(
+                android.content.Context context) {
+
+            super(context);
+
+            setLayerType(
+                    View.LAYER_TYPE_SOFTWARE,
+                    null
+            );
+
+            handler.post(
+                    animacao
+            );
+        }
+
+        @Override
+        protected void onDraw(
+                Canvas canvas) {
+
+            super.onDraw(canvas);
+
+            float centroX =
+                    getWidth() / 2f;
+
+            float centroY =
+                    getHeight() / 2f;
+
+            float raioMax =
+                    Math.min(
+                            getWidth(),
+                            getHeight()
+                    ) * 0.39f;
+
+            /*
+             * brilho externo
+             */
+
+            paint.setStyle(
+                    Paint.Style.FILL
+            );
+
+            paint.setColor(
+                    Color.rgb(
+                            255,
+                            210,
+                            0
+                    )
+            );
+
+            paint.setShadowLayer(
+                    35f,
+                    0f,
+                    0f,
+                    Color.rgb(
+                            255,
+                            180,
+                            0
+                    )
+            );
+
+            canvas.drawCircle(
+                    centroX,
+                    centroY,
+                    raioMax * 0.20f,
+                    paint
+            );
+
+            paint.clearShadowLayer();
+
+            /*
+             * 8 anéis
+             */
+
+            paint.setStyle(
+                    Paint.Style.STROKE
+            );
+
+            paint.setStrokeWidth(
+                    4f
+            );
+
+            paint.setColor(
+                    Color.rgb(
+                            255,
+                            220,
+                            20
+                    )
+            );
+
+            for (int i = 0; i < 8; i++) {
+
+                float raio =
+                        raioMax
+                                - (i * 13f);
+
+                canvas.save();
+
+                float direcao =
+                        (i % 2 == 0)
+                                ? 1f
+                                : -1f;
+
+                canvas.rotate(
+                        rotacao
+                                * direcao,
+                        centroX,
+                        centroY
+                );
+
+                RectF oval =
+                        new RectF(
+                                centroX - raio,
+                                centroY - raio,
+                                centroX + raio,
+                                centroY + raio
+                        );
+
+                /*
+                 * Cada anel possui pequenas
+                 * interrupções para dar aparência
+                 * tecnológica.
+                 */
+
+                canvas.drawArc(
+                        oval,
+                        15f,
+                        285f,
+                        false,
+                        paint
+                );
+
+                canvas.drawArc(
+                        oval,
+                        320f,
+                        25f,
+                        false,
+                        paint
+                );
+
+                canvas.restore();
+            }
+
+            /*
+             * núcleo
+             */
+
+            paint.setStyle(
+                    Paint.Style.FILL
+            );
+
+            paint.setColor(
+                    Color.WHITE
+            );
+
+            paint.setShadowLayer(
+                    28f,
+                    0f,
+                    0f,
+                    Color.YELLOW
+            );
+
+            canvas.drawCircle(
+                    centroX,
+                    centroY,
+                    raioMax * 0.12f,
+                    paint
+            );
+
+            paint.clearShadowLayer();
+
+            paint.setColor(
+                    Color.rgb(
+                            255,
+                            215,
+                            0
+                    )
+            );
+
+            canvas.drawCircle(
+                    centroX,
+                    centroY,
+                    raioMax * 0.07f,
+                    paint
+            );
+        }
+
+        @Override
+        protected void onDetachedFromWindow() {
+
+            handler.removeCallbacks(
+                    animacao
+            );
+
+            super.onDetachedFromWindow();
+        }
     }
 
     /*
