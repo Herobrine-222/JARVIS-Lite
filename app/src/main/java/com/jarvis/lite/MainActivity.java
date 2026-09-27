@@ -45,6 +45,26 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        /*
+         * PRIMEIRA PROVA:
+         *
+         * O serviço automático de voz não participa
+         * do reconhecimento enquanto esta Activity estiver aberta.
+         *
+         * Isso deixa o botão manual como único responsável
+         * pelo microfone.
+         */
+        try {
+            stopService(
+                    new Intent(
+                            this,
+                            JarvisVoiceService.class
+                    )
+            );
+        } catch (Exception e) {
+            // Nada a fazer.
+        }
+
         configurarTela();
         iniciarRelogio();
         iniciarVoz();
@@ -75,28 +95,15 @@ public class MainActivity extends Activity {
         );
 
         /*
-         * Se o serviço Stage 7 abrir o aplicativo depois de
-         * detectar "JARVIS", podemos iniciar o reconhecimento
-         * manual depois que a Activity estiver pronta.
+         * IMPORTANTE:
+         *
+         * Nesta primeira prova NÃO vamos iniciar
+         * o reconhecimento automaticamente através
+         * do JARVIS_WAKE.
+         *
+         * O microfone só será usado quando o usuário
+         * tocar em "FALAR COM JARVIS".
          */
-        if (getIntent().getBooleanExtra(
-                "JARVIS_WAKE",
-                false)) {
-
-            adicionarMensagem(
-                    "JARVIS",
-                    "À sua disposição. Estou ouvindo."
-            );
-
-            falar(
-                    "À sua disposição. Estou ouvindo."
-            );
-
-            new Handler().postDelayed(
-                    () -> iniciarReconhecimento(),
-                    1000
-            );
-        }
     }
 
     /*
@@ -184,6 +191,12 @@ public class MainActivity extends Activity {
 
     private void iniciarReconhecimento() {
 
+        /*
+         * Garante que qualquer reconhecimento anterior
+         * seja encerrado antes de criar outro.
+         */
+        pararReconhecimento();
+
         if (android.os.Build.VERSION.SDK_INT < 31) {
 
             responder(
@@ -202,6 +215,13 @@ public class MainActivity extends Activity {
                     "A permissão do microfone ainda não foi concedida."
             );
 
+            requestPermissions(
+                    new String[]{
+                            Manifest.permission.RECORD_AUDIO
+                    },
+                    REQUEST_AUDIO
+            );
+
             return;
         }
 
@@ -217,23 +237,6 @@ public class MainActivity extends Activity {
         }
 
         try {
-
-            if (speechRecognizer != null) {
-
-                try {
-                    speechRecognizer.cancel();
-                } catch (Exception e) {
-                    // Nada a fazer.
-                }
-
-                try {
-                    speechRecognizer.destroy();
-                } catch (Exception e) {
-                    // Nada a fazer.
-                }
-
-                speechRecognizer = null;
-            }
 
             speechRecognizer =
                     SpeechRecognizer
@@ -305,15 +308,33 @@ public class MainActivity extends Activity {
 
                                     break;
 
+                                case SpeechRecognizer.ERROR_RECOGNIZER_BUSY:
+
+                                    mensagem =
+                                            "O reconhecimento de voz estava ocupado.";
+
+                                    break;
+
+                                case SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS:
+
+                                    mensagem =
+                                            "A permissão do microfone não está disponível.";
+
+                                    break;
+
                                 default:
 
                                     mensagem =
-                                            "Não foi possível reconhecer o comando.";
+                                            "Não foi possível reconhecer o comando. "
+                                                    + "Código: "
+                                                    + error;
 
                                     break;
                             }
 
                             responder(mensagem);
+
+                            liberarReconhecedor();
                         }
 
                         @Override
@@ -335,6 +356,8 @@ public class MainActivity extends Activity {
                                         "Não consegui entender o comando."
                                 );
 
+                                liberarReconhecedor();
+
                                 return;
                             }
 
@@ -345,6 +368,8 @@ public class MainActivity extends Activity {
                                     "VOCÊ",
                                     comando
                             );
+
+                            liberarReconhecedor();
 
                             processarComando(comando);
                         }
@@ -384,16 +409,57 @@ public class MainActivity extends Activity {
                     false
             );
 
+            /*
+             * Mantém o reconhecimento estritamente
+             * no reconhecedor local.
+             */
             speechRecognizer.startListening(intent);
 
         } catch (Exception e) {
 
             ouvindo = false;
 
+            liberarReconhecedor();
+
             responder(
                     "Não foi possível iniciar o reconhecimento de voz."
             );
         }
+    }
+
+    private void pararReconhecimento() {
+
+        ouvindo = false;
+
+        if (speechRecognizer != null) {
+
+            try {
+                speechRecognizer.cancel();
+            } catch (Exception e) {
+            }
+
+            try {
+                speechRecognizer.destroy();
+            } catch (Exception e) {
+            }
+
+            speechRecognizer = null;
+        }
+    }
+
+    private void liberarReconhecedor() {
+
+        if (speechRecognizer != null) {
+
+            try {
+                speechRecognizer.destroy();
+            } catch (Exception e) {
+            }
+
+            speechRecognizer = null;
+        }
+
+        ouvindo = false;
     }
 
     /*
@@ -629,7 +695,17 @@ public class MainActivity extends Activity {
                 v -> {
 
                     if (!ouvindo) {
+
                         iniciarReconhecimento();
+
+                    } else {
+
+                        pararReconhecimento();
+
+                        adicionarMensagem(
+                                "JARVIS",
+                                "Reconhecimento interrompido."
+                        );
                     }
                 }
         );
@@ -704,7 +780,6 @@ public class MainActivity extends Activity {
                         startActivity(intent);
 
                     } catch (Exception e) {
-                        // Nada a fazer.
                     }
                 }
         );
@@ -1002,32 +1077,16 @@ public class MainActivity extends Activity {
             );
         }
 
-        if (speechRecognizer != null) {
-
-            try {
-                speechRecognizer.cancel();
-            } catch (Exception e) {
-                // Nada a fazer.
-            }
-
-            try {
-                speechRecognizer.destroy();
-            } catch (Exception e) {
-                // Nada a fazer.
-            }
-
-            speechRecognizer = null;
-        }
-
-        ouvindo = false;
+        pararReconhecimento();
 
         if (tts != null) {
 
             try {
+
                 tts.stop();
                 tts.shutdown();
+
             } catch (Exception e) {
-                // Nada a fazer.
             }
 
             tts = null;
