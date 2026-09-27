@@ -25,6 +25,7 @@ import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 import android.speech.tts.TextToSpeech;
+import android.speech.tts.Voice;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowInsets;
@@ -38,6 +39,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.Locale;
+import java.util.List;
 
 public class MainActivity extends Activity {
 
@@ -57,6 +59,11 @@ public class MainActivity extends Activity {
     private boolean ouvindo = false;
 
     private boolean modoOnline = false;
+
+    private boolean microfoneAtivado = true;
+    private boolean notificacoesAtivadas = true;
+    private boolean statusAtivado = true;
+    private boolean arquivosMidiaAtivados = false;
 
     private SharedPreferences preferencias;
 
@@ -154,6 +161,12 @@ public class MainActivity extends Activity {
                                 ttsReady =
                                         resultado != TextToSpeech.LANG_MISSING_DATA
                                                 && resultado != TextToSpeech.LANG_NOT_SUPPORTED;
+
+                                if (ttsReady) {
+                                    tts.setSpeechRate(1.0f);
+                                    tts.setPitch(0.85f);
+                                    aplicarVozSalva();
+                                }
                             } catch (Exception e) {
                                 ttsReady = false;
                             }
@@ -629,64 +642,210 @@ public class MainActivity extends Activity {
     }
 
     private void abrirGerenciarJarvis() {
-        LinearLayout layout =
-                criarTelaBase(
-                        "GERENCIAR JARVIS",
-                        "PERMISSÕES E RECURSOS"
-                );
+        microfoneAtivado = preferencias.getBoolean("microfone_ativo", true);
+        notificacoesAtivadas = preferencias.getBoolean("notificacoes_ativas", true);
+        statusAtivado = preferencias.getBoolean("status_ativo", true);
+        arquivosMidiaAtivados = preferencias.getBoolean("arquivos_midia_ativos", false);
+
+        LinearLayout layout = criarTelaBase(
+                "GERENCIAR JARVIS",
+                "PERMISSÕES E RECURSOS"
+        );
 
         TextView aviso = criarTexto(
-                "Os controles abaixo mostram o estado real do Android. "
-                        + "O JARVIS não recebe acesso privilegiado ao aparelho."
+                "Cada controle altera o comportamento do JARVIS. "
+                        + "Permissões protegidas pelo Android continuam sob controle do sistema."
         );
         aviso.setTextSize(13);
         aviso.setTextColor(Color.LTGRAY);
         layout.addView(aviso, parametrosTexto());
 
-        adicionarControlePermissao(
-                layout,
-                "🎙  MICROFONE",
-                "Reconhecimento de voz e comandos falados",
-                true
-        );
+        adicionarControleInterno(layout, "🎙  MICROFONE",
+                "Permite que o JARVIS use o microfone para reconhecimento de voz.",
+                () -> microfoneAtivado,
+                valor -> {
+                    microfoneAtivado = valor;
+                    preferencias.edit().putBoolean("microfone_ativo", valor).apply();
+                    if (!valor) pararReconhecimento();
+                    else if (!microfonePermitido() && Build.VERSION.SDK_INT >= 23) {
+                        requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQUEST_AUDIO);
+                    }
+                });
 
-        adicionarControleInformacao(
-                layout,
-                "🌐  INTERNET",
-                "Bloqueada nesta versão: o aplicativo não possui a permissão INTERNET."
-        );
+        adicionarControleInterno(layout, "🔔  NOTIFICAÇÕES",
+                "Controla as notificações usadas pelo JARVIS.",
+                () -> notificacoesAtivadas,
+                valor -> {
+                    notificacoesAtivadas = valor;
+                    preferencias.edit().putBoolean("notificacoes_ativas", valor).apply();
+                });
 
-        adicionarControleInformacao(
-                layout,
-                "📁  ARQUIVOS PESSOAIS",
-                "Sem permissão de armazenamento para apagar ou modificar seus arquivos."
-        );
+        adicionarControleInterno(layout, "📱  STATUS DO APARELHO",
+                "Permite ao JARVIS consultar bateria, RAM, armazenamento e outros dados disponíveis.",
+                () -> statusAtivado,
+                valor -> {
+                    statusAtivado = valor;
+                    preferencias.edit().putBoolean("status_ativo", valor).apply();
+                });
 
-        adicionarControleInformacao(
-                layout,
-                "🛡  ROOT / ADMINISTRADOR",
-                "Não utilizado. O JARVIS funciona dentro das permissões normais do Android."
-        );
+        adicionarControleInterno(layout, "🌐  USAR A INTERNET",
+                "Acesso online somente quando selecionado pelo usuário. Esta versão ainda não possui a permissão INTERNET.",
+                () -> modoOnline,
+                valor -> {
+                    modoOnline = valor;
+                });
 
-        adicionarControleInformacao(
-                layout,
-                "🔋  BATERIA E STATUS",
-                "Disponível para leitura do estado da bateria e informações expostas pelo Android."
-        );
+        adicionarControleInterno(layout, "📁  ARQUIVOS E MÍDIA",
+                "Controle interno do recurso. Nenhuma permissão de armazenamento é concedida automaticamente.",
+                () -> arquivosMidiaAtivados,
+                valor -> {
+                    arquivosMidiaAtivados = valor;
+                    preferencias.edit().putBoolean("arquivos_midia_ativos", valor).apply();
+                });
 
-        adicionarBotaoTela(
-                layout,
-                "ABRIR CONFIGURAÇÕES DO APLICATIVO",
-                this::abrirConfiguracoesAndroid
-        );
+        adicionarControleIndisponivel(layout, "♿  ACESSIBILIDADE",
+                "Indisponível: o JARVIS não utiliza Accessibility Service.");
 
-        adicionarBotaoTela(
-                layout,
-                "VOLTAR",
-                this::abrirMenuJarvis
-        );
+        adicionarBotaoTela(layout, "🗣  GERENCIAR VOZ DO JARVIS", this::abrirGerenciarVoz);
+
+        adicionarBotaoTela(layout, "VOLTAR", this::abrirMenuJarvis);
 
         setContentView(layout);
+    }
+
+    private interface EstadoControle { boolean get(); }
+    private interface AlterarControle { void set(boolean valor); }
+
+    private void adicionarControleInterno(LinearLayout layout, String titulo, String descricao,
+                                          EstadoControle estado, AlterarControle alterar) {
+        LinearLayout card = criarCard();
+        LinearLayout textos = new LinearLayout(this);
+        textos.setOrientation(LinearLayout.VERTICAL);
+
+        TextView tituloView = criarTexto(titulo);
+        tituloView.setTextSize(15);
+        textos.addView(tituloView);
+
+        TextView descView = criarTexto(descricao);
+        descView.setTextSize(12);
+        descView.setTextColor(Color.GRAY);
+        textos.addView(descView);
+
+        Button controle = criarBotao(estado.get() ? "ATIVADO" : "DESATIVADO");
+        controle.setTextSize(10);
+        controle.setOnClickListener(v -> {
+            boolean novo = !estado.get();
+            alterar.set(novo);
+            controle.setText(novo ? "ATIVADO" : "DESATIVADO");
+        });
+
+        card.addView(textos, new LinearLayout.LayoutParams(0, -2, 1));
+        card.addView(controle, new LinearLayout.LayoutParams(dp(105), dp(44)));
+        layout.addView(card, parametrosCard());
+    }
+
+    private void adicionarControleIndisponivel(LinearLayout layout, String titulo, String descricao) {
+        LinearLayout card = criarCard();
+        LinearLayout textos = new LinearLayout(this);
+        textos.setOrientation(LinearLayout.VERTICAL);
+        textos.addView(criarTexto(titulo));
+        TextView desc = criarTexto(descricao);
+        desc.setTextSize(12);
+        desc.setTextColor(Color.GRAY);
+        textos.addView(desc);
+        TextView estado = criarTexto("INDISPONÍVEL");
+        estado.setTextSize(10);
+        estado.setGravity(Gravity.CENTER);
+        estado.setTextColor(Color.GRAY);
+        card.addView(textos, new LinearLayout.LayoutParams(0, -2, 1));
+        card.addView(estado, new LinearLayout.LayoutParams(dp(105), dp(44)));
+        layout.addView(card, parametrosCard());
+    }
+
+    private void abrirGerenciarVoz() {
+        LinearLayout layout = criarTelaBase("VOZ DO JARVIS", "ESCOLHA UMA VOZ TTS DISPONÍVEL");
+
+        TextView info = criarTexto("Escolha uma voz instalada no aparelho. A velocidade permanece normal e o tom será ajustado para um perfil mais grave.");
+        info.setTextSize(13);
+        info.setTextColor(Color.LTGRAY);
+        layout.addView(info, parametrosTexto());
+
+        LinearLayout lista = new LinearLayout(this);
+        lista.setOrientation(LinearLayout.VERTICAL);
+
+        if (tts == null || !ttsReady) {
+            TextView indisponivel = criarTexto("O mecanismo de voz ainda está inicializando.");
+            indisponivel.setTextColor(Color.GRAY);
+            lista.addView(indisponivel, parametrosTexto());
+        } else {
+            List<Voice> vozes = new java.util.ArrayList<>();
+            for (Voice voz : tts.getVoices()) {
+                if (voz == null || voz.getLocale() == null) continue;
+                Locale local = voz.getLocale();
+                if ("pt".equalsIgnoreCase(local.getLanguage())
+                        && "BR".equalsIgnoreCase(local.getCountry())) {
+                    vozes.add(voz);
+                }
+            }
+
+            String salva = preferencias.getString("voz_tts", "");
+            if (vozes.isEmpty()) {
+                TextView nenhuma = criarTexto("Nenhuma voz pt-BR foi encontrada pelo mecanismo TTS.");
+                nenhuma.setTextColor(Color.GRAY);
+                lista.addView(nenhuma, parametrosTexto());
+            } else {
+                for (Voice voz : vozes) {
+                    String nome = voz.getName();
+                    String rotulo = rotuloVoz(nome);
+                    Button escolha = criarBotao(rotulo + "\n" + nome);
+                    escolha.setTextSize(11);
+                    escolha.setGravity(Gravity.CENTER);
+                    escolha.setOnClickListener(v -> {
+                        if (tts != null) {
+                            tts.setVoice(voz);
+                            tts.setSpeechRate(1.0f);
+                            tts.setPitch(0.85f);
+                            preferencias.edit().putString("voz_tts", voz.getName()).apply();
+                            falar("Voz selecionada.");
+                        }
+                    });
+                    lista.addView(escolha, parametrosBotao());
+                }
+            }
+        }
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(lista);
+        layout.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+
+        adicionarBotaoTela(layout, "TESTAR VOZ ATUAL", () -> falar("À sua disposição. Sistemas locais operacionais."));
+        adicionarBotaoTela(layout, "VOLTAR", this::abrirGerenciarJarvis);
+        setContentView(layout);
+    }
+
+    private String rotuloVoz(String nome) {
+        String n = nome.toLowerCase(Locale.getDefault());
+        if (n.contains("male") || n.contains("mascul")) return "🎙 VOZ MASCULINA";
+        if (n.contains("female") || n.contains("feminin")) return "🎙 VOZ FEMININA";
+        return "🎙 VOZ DISPONÍVEL";
+    }
+
+    private void aplicarVozSalva() {
+        if (tts == null || !ttsReady) return;
+        try {
+            String nome = preferencias.getString("voz_tts", "");
+            if (!nome.isEmpty()) {
+                for (Voice voz : tts.getVoices()) {
+                    if (nome.equals(voz.getName())) {
+                        tts.setVoice(voz);
+                        break;
+                    }
+                }
+            }
+            tts.setSpeechRate(1.0f);
+            tts.setPitch(0.85f);
+        } catch (Exception e) {
+        }
     }
 
     private void adicionarControlePermissao(
@@ -1251,8 +1410,11 @@ public class MainActivity extends Activity {
 
         if (comando.contains("status")
                 || comando.contains("estado")) {
-
-            responder(obterStatus());
+            if (!statusAtivado) {
+                responder("O acesso ao status do aparelho está desativado no Gerenciar JARVIS.");
+            } else {
+                responder(obterStatus());
+            }
             return;
         }
 
