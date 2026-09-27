@@ -706,11 +706,36 @@ public class MainActivity extends Activity {
         adicionarControleIndisponivel(layout, "♿  ACESSIBILIDADE",
                 "Indisponível: o JARVIS não utiliza Accessibility Service.");
 
-        adicionarBotaoTela(layout, "🗣  GERENCIAR VOZ DO JARVIS", this::abrirGerenciarVoz);
+        adicionarBotaoTela(
+                layout,
+                "🗣  GERENCIAR VOZ DO JARVIS",
+                this::abrirGerenciarVoz
+        );
 
-        adicionarBotaoTela(layout, "VOLTAR", this::abrirMenuJarvis);
+        adicionarBotaoTela(
+                layout,
+                "VOLTAR",
+                this::abrirMenuJarvis
+        );
 
-        setContentView(layout);
+        /*
+         * Coloca toda a tela de gerenciamento dentro de um
+         * ScrollView para permitir rolar até as opções inferiores.
+         */
+        ScrollView scrollTela = new ScrollView(this);
+
+        scrollTela.setFillViewport(true);
+        scrollTela.setClipToPadding(false);
+
+        scrollTela.addView(
+                layout,
+                new ScrollView.LayoutParams(
+                        -1,
+                        -2
+                )
+        );
+
+        setContentView(scrollTela);
     }
 
     private interface EstadoControle { boolean get(); }
