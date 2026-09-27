@@ -8,6 +8,7 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Insets;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.os.BatteryManager;
@@ -22,6 +23,7 @@ import android.speech.SpeechRecognizer;
 import android.speech.tts.TextToSpeech;
 import android.view.Gravity;
 import android.view.View;
+import android.view.WindowInsets;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -60,6 +62,11 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        if (Build.VERSION.SDK_INT >= 21) {
+            getWindow().setStatusBarColor(Color.BLACK);
+            getWindow().setNavigationBarColor(Color.BLACK);
+        }
 
         try {
             stopService(
@@ -111,6 +118,51 @@ public class MainActivity extends Activity {
                 "JARVIS",
                 "Modo OFFLINE ativo."
         );
+    }
+
+    private int dp(int valor) {
+        return Math.round(
+                valor * getResources()
+                        .getDisplayMetrics()
+                        .density
+        );
+    }
+
+    private void configurarAreaSegura(View root) {
+
+        if (Build.VERSION.SDK_INT >= 30) {
+
+            root.setOnApplyWindowInsetsListener(
+                    (v, insets) -> {
+
+                        Insets barras =
+                                insets.getInsets(
+                                        WindowInsets.Type.statusBars()
+                                                | WindowInsets.Type.navigationBars()
+                                );
+
+                        v.setPadding(
+                                dp(18),
+                                dp(10) + barras.top,
+                                dp(18),
+                                dp(24) + barras.bottom
+                        );
+
+                        return insets;
+                    }
+            );
+
+            root.requestApplyInsets();
+
+        } else {
+
+            root.setPadding(
+                    dp(18),
+                    dp(10),
+                    dp(18),
+                    dp(24)
+            );
+        }
     }
 
     /*
@@ -298,53 +350,39 @@ public class MainActivity extends Activity {
                             switch (error) {
 
                                 case SpeechRecognizer.ERROR_AUDIO:
-
                                     mensagem =
                                             "Não consegui acessar o áudio.";
-
                                     break;
 
                                 case SpeechRecognizer.ERROR_NO_MATCH:
-
                                     mensagem =
                                             "Não consegui entender o que foi dito.";
-
                                     break;
 
                                 case SpeechRecognizer.ERROR_SPEECH_TIMEOUT:
-
                                     mensagem =
                                             "Não detectei nenhuma fala.";
-
                                     break;
 
                                 case SpeechRecognizer.ERROR_RECOGNIZER_BUSY:
-
                                     mensagem =
                                             "O reconhecimento de voz estava ocupado.";
-
                                     break;
 
-                                case SpeechRecognizer
-                                        .ERROR_INSUFFICIENT_PERMISSIONS:
-
+                                case SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS:
                                     mensagem =
                                             "A permissão do microfone não está disponível.";
-
                                     break;
 
                                 default:
-
                                     mensagem =
                                             "Não foi possível reconhecer o comando. "
                                                     + "Código: "
                                                     + error;
-
                                     break;
                             }
 
                             responder(mensagem);
-
                             liberarReconhecedor();
                         }
 
@@ -360,8 +398,7 @@ public class MainActivity extends Activity {
 
                             ArrayList<String> resultados =
                                     results.getStringArrayList(
-                                            SpeechRecognizer
-                                                    .RESULTS_RECOGNITION
+                                            SpeechRecognizer.RESULTS_RECOGNITION
                                     );
 
                             if (resultados == null
@@ -372,7 +409,6 @@ public class MainActivity extends Activity {
                                 );
 
                                 liberarReconhecedor();
-
                                 return;
                             }
 
@@ -404,8 +440,7 @@ public class MainActivity extends Activity {
 
             Intent intent =
                     new Intent(
-                            RecognizerIntent
-                                    .ACTION_RECOGNIZE_SPEECH
+                            RecognizerIntent.ACTION_RECOGNIZE_SPEECH
                     );
 
             intent.putExtra(
@@ -415,8 +450,7 @@ public class MainActivity extends Activity {
 
             intent.putExtra(
                     RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                    RecognizerIntent
-                            .LANGUAGE_MODEL_FREE_FORM
+                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
             );
 
             intent.putExtra(
@@ -500,21 +534,11 @@ public class MainActivity extends Activity {
                 LinearLayout.VERTICAL
         );
 
-        /*
-         * Espaçamento compacto.
-         * A margem inferior maior evita que os botões
-         * fiquem colados à navegação do Android.
-         */
-        root.setPadding(
-                18,
-                10,
-                18,
-                48
-        );
-
         root.setBackgroundColor(
                 Color.BLACK
         );
+
+        configurarAreaSegura(root);
 
         /*
          * CABEÇALHO
@@ -551,7 +575,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams tituloParams =
                 new LinearLayout.LayoutParams(
                         0,
-                        -2,
+                        dp(48),
                         1
                 );
 
@@ -577,8 +601,8 @@ public class MainActivity extends Activity {
 
         LinearLayout.LayoutParams configParams =
                 new LinearLayout.LayoutParams(
-                        58,
-                        48
+                        dp(58),
+                        dp(48)
                 );
 
         header.addView(
@@ -590,7 +614,7 @@ public class MainActivity extends Activity {
                 header,
                 new LinearLayout.LayoutParams(
                         -1,
-                        48
+                        dp(48)
                 )
         );
 
@@ -613,11 +637,15 @@ public class MainActivity extends Activity {
                 Color.GRAY
         );
 
+        subtitulo.setGravity(
+                Gravity.CENTER_VERTICAL
+        );
+
         root.addView(
                 subtitulo,
                 new LinearLayout.LayoutParams(
                         -1,
-                        24
+                        dp(24)
                 )
         );
 
@@ -644,7 +672,7 @@ public class MainActivity extends Activity {
                 clockText,
                 new LinearLayout.LayoutParams(
                         -1,
-                        50
+                        dp(50)
                 )
         );
 
@@ -677,7 +705,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams reactorParams =
                 new LinearLayout.LayoutParams(
                         -1,
-                        190
+                        dp(190)
                 );
 
         root.addView(
@@ -712,14 +740,12 @@ public class MainActivity extends Activity {
                 modo,
                 new LinearLayout.LayoutParams(
                         -1,
-                        30
+                        dp(30)
                 )
         );
 
         /*
          * ÁREA DE CONVERSA
-         *
-         * Ela recebe o espaço restante da tela.
          */
 
         ScrollView scroll =
@@ -737,10 +763,10 @@ public class MainActivity extends Activity {
         );
 
         chatContainer.setPadding(
-                10,
-                8,
-                10,
-                8
+                dp(10),
+                dp(8),
+                dp(10),
+                dp(8)
         );
 
         chatText =
@@ -777,8 +803,8 @@ public class MainActivity extends Activity {
                         1
                 );
 
-        scrollParams.topMargin = 4;
-        scrollParams.bottomMargin = 4;
+        scrollParams.topMargin = dp(4);
+        scrollParams.bottomMargin = dp(4);
 
         root.addView(
                 scroll,
@@ -822,7 +848,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams inputParams =
                 new LinearLayout.LayoutParams(
                         0,
-                        48,
+                        dp(48),
                         1
                 );
 
@@ -856,8 +882,8 @@ public class MainActivity extends Activity {
         entrada.addView(
                 microfone,
                 new LinearLayout.LayoutParams(
-                        58,
-                        48
+                        dp(58),
+                        dp(48)
                 )
         );
 
@@ -865,7 +891,7 @@ public class MainActivity extends Activity {
                 entrada,
                 new LinearLayout.LayoutParams(
                         -1,
-                        48
+                        dp(48)
                 )
         );
 
@@ -910,7 +936,7 @@ public class MainActivity extends Activity {
                 executar,
                 new LinearLayout.LayoutParams(
                         -1,
-                        44
+                        dp(44)
                 )
         );
 
@@ -975,7 +1001,7 @@ public class MainActivity extends Activity {
                 online,
                 new LinearLayout.LayoutParams(
                         -1,
-                        42
+                        dp(42)
                 )
         );
 
@@ -1420,15 +1446,40 @@ public class MainActivity extends Activity {
         );
 
         layout.setPadding(
-                22,
-                22,
-                22,
-                48
+                dp(22),
+                dp(22),
+                dp(22),
+                dp(48)
         );
 
         layout.setBackgroundColor(
                 Color.BLACK
         );
+
+        if (Build.VERSION.SDK_INT >= 30) {
+
+            layout.setOnApplyWindowInsetsListener(
+                    (v, insets) -> {
+
+                        Insets barras =
+                                insets.getInsets(
+                                        WindowInsets.Type.statusBars()
+                                                | WindowInsets.Type.navigationBars()
+                                );
+
+                        v.setPadding(
+                                dp(22),
+                                dp(22) + barras.top,
+                                dp(22),
+                                dp(24) + barras.bottom
+                        );
+
+                        return insets;
+                    }
+            );
+
+            layout.requestApplyInsets();
+        }
 
         TextView tituloView =
                 criarTexto(
@@ -1492,10 +1543,10 @@ public class MainActivity extends Activity {
         );
 
         view.setPadding(
-                8,
-                10,
-                8,
-                10
+                dp(8),
+                dp(10),
+                dp(8),
+                dp(10)
         );
 
         return view;
@@ -1543,7 +1594,7 @@ public class MainActivity extends Activity {
                         -2
                 );
 
-        params.topMargin = 6;
+        params.topMargin = dp(6);
 
         return params;
     }
@@ -1554,10 +1605,10 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams params =
                 new LinearLayout.LayoutParams(
                         -1,
-                        46
+                        dp(46)
                 );
 
-        params.topMargin = 6;
+        params.topMargin = dp(6);
 
         return params;
     }
@@ -1586,8 +1637,7 @@ public class MainActivity extends Activity {
 
             Intent intent =
                     new Intent(
-                            Settings
-                                    .ACTION_APPLICATION_DETAILS_SETTINGS
+                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS
                     );
 
             intent.setData(
