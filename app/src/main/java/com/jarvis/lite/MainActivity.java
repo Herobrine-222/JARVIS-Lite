@@ -5,22 +5,21 @@ import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
-import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
-import android.net.Uri;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.RectF;
 import android.os.BatteryManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.provider.Settings;
+import android.net.Uri;
 import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 import android.speech.tts.TextToSpeech;
-import android.graphics.Canvas;
-import android.graphics.Color;
-import android.graphics.Paint;
-import android.graphics.RectF;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
@@ -116,7 +115,7 @@ public class MainActivity extends Activity {
 
     /*
      * ============================================================
-     * VOZ / TTS
+     * TTS
      * ============================================================
      */
 
@@ -258,6 +257,10 @@ public class MainActivity extends Activity {
                                     "JARVIS",
                                     "Estou ouvindo..."
                             );
+
+                            if (reactorView != null) {
+                                reactorView.setOuvindo(true);
+                            }
                         }
 
                         @Override
@@ -285,6 +288,10 @@ public class MainActivity extends Activity {
                                 int error) {
 
                             ouvindo = false;
+
+                            if (reactorView != null) {
+                                reactorView.setOuvindo(false);
+                            }
 
                             String mensagem;
 
@@ -346,6 +353,10 @@ public class MainActivity extends Activity {
                                 Bundle results) {
 
                             ouvindo = false;
+
+                            if (reactorView != null) {
+                                reactorView.setOuvindo(false);
+                            }
 
                             ArrayList<String> resultados =
                                     results.getStringArrayList(
@@ -419,6 +430,10 @@ public class MainActivity extends Activity {
 
             ouvindo = false;
 
+            if (reactorView != null) {
+                reactorView.setOuvindo(false);
+            }
+
             liberarReconhecedor();
 
             responder(
@@ -430,6 +445,10 @@ public class MainActivity extends Activity {
     private void pararReconhecimento() {
 
         ouvindo = false;
+
+        if (reactorView != null) {
+            reactorView.setOuvindo(false);
+        }
 
         if (speechRecognizer != null) {
 
@@ -460,11 +479,15 @@ public class MainActivity extends Activity {
         }
 
         ouvindo = false;
+
+        if (reactorView != null) {
+            reactorView.setOuvindo(false);
+        }
     }
 
     /*
      * ============================================================
-     * INTERFACE PRINCIPAL
+     * INTERFACE PRINCIPAL COMPACTA
      * ============================================================
      */
 
@@ -477,15 +500,35 @@ public class MainActivity extends Activity {
                 LinearLayout.VERTICAL
         );
 
+        /*
+         * Espaçamento compacto.
+         * A margem inferior maior evita que os botões
+         * fiquem colados à navegação do Android.
+         */
         root.setPadding(
-                24,
                 18,
-                24,
-                18
+                10,
+                18,
+                48
         );
 
-        root.setGravity(
-                Gravity.CENTER_HORIZONTAL
+        root.setBackgroundColor(
+                Color.BLACK
+        );
+
+        /*
+         * CABEÇALHO
+         */
+
+        LinearLayout header =
+                new LinearLayout(this);
+
+        header.setOrientation(
+                LinearLayout.HORIZONTAL
+        );
+
+        header.setGravity(
+                Gravity.CENTER_VERTICAL
         );
 
         TextView titulo =
@@ -495,57 +538,99 @@ public class MainActivity extends Activity {
                 "J.A.R.V.I.S"
         );
 
-        titulo.setTextSize(30);
+        titulo.setTextSize(24);
 
         titulo.setTextColor(
                 Color.WHITE
         );
 
         titulo.setGravity(
-                Gravity.CENTER
+                Gravity.CENTER_VERTICAL
         );
 
-        root.setBackgroundColor(
-                Color.BLACK
+        LinearLayout.LayoutParams tituloParams =
+                new LinearLayout.LayoutParams(
+                        0,
+                        -2,
+                        1
+                );
+
+        header.addView(
+                titulo,
+                tituloParams
+        );
+
+        Button configuracoes =
+                new Button(this);
+
+        configuracoes.setText(
+                "⚙"
+        );
+
+        configuracoes.setTextSize(
+                18
+        );
+
+        configuracoes.setOnClickListener(
+                v -> abrirMenuJarvis()
+        );
+
+        LinearLayout.LayoutParams configParams =
+                new LinearLayout.LayoutParams(
+                        58,
+                        48
+                );
+
+        header.addView(
+                configuracoes,
+                configParams
         );
 
         root.addView(
-                titulo,
+                header,
                 new LinearLayout.LayoutParams(
                         -1,
-                        -2
+                        48
                 )
         );
+
+        /*
+         * SUBTÍTULO
+         */
 
         TextView subtitulo =
                 new TextView(this);
 
         subtitulo.setText(
-                "NÚCLEO LOCAL • OFFLINE"
+                "ASSISTENTE LOCAL • OFFLINE"
         );
 
-        subtitulo.setTextSize(13);
+        subtitulo.setTextSize(
+                11
+        );
 
         subtitulo.setTextColor(
-                Color.LTGRAY
-        );
-
-        subtitulo.setGravity(
-                Gravity.CENTER
+                Color.GRAY
         );
 
         root.addView(
                 subtitulo,
                 new LinearLayout.LayoutParams(
                         -1,
-                        -2
+                        24
                 )
         );
+
+        /*
+         * RELÓGIO
+         */
 
         clockText =
                 new TextView(this);
 
-        clockText.setTextSize(25);
+        clockText.setTextSize(
+                21
+        );
 
         clockText.setTextColor(
                 Color.WHITE
@@ -555,17 +640,12 @@ public class MainActivity extends Activity {
                 Gravity.CENTER
         );
 
-        LinearLayout.LayoutParams clockParams =
-                new LinearLayout.LayoutParams(
-                        -1,
-                        -2
-                );
-
-        clockParams.topMargin = 12;
-
         root.addView(
                 clockText,
-                clockParams
+                new LinearLayout.LayoutParams(
+                        -1,
+                        50
+                )
         );
 
         /*
@@ -597,15 +677,17 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams reactorParams =
                 new LinearLayout.LayoutParams(
                         -1,
-                        270
+                        190
                 );
-
-        reactorParams.topMargin = 4;
 
         root.addView(
                 reactorView,
                 reactorParams
         );
+
+        /*
+         * STATUS
+         */
 
         TextView modo =
                 new TextView(this);
@@ -614,7 +696,9 @@ public class MainActivity extends Activity {
                 "🔴 MODO OFFLINE ATIVO"
         );
 
-        modo.setTextSize(15);
+        modo.setTextSize(
+                13
+        );
 
         modo.setTextColor(
                 Color.WHITE
@@ -628,35 +712,62 @@ public class MainActivity extends Activity {
                 modo,
                 new LinearLayout.LayoutParams(
                         -1,
-                        -2
+                        30
                 )
         );
 
         /*
-         * CHAT
+         * ÁREA DE CONVERSA
+         *
+         * Ela recebe o espaço restante da tela.
          */
+
+        ScrollView scroll =
+                new ScrollView(this);
+
+        scroll.setFillViewport(
+                true
+        );
+
+        LinearLayout chatContainer =
+                new LinearLayout(this);
+
+        chatContainer.setOrientation(
+                LinearLayout.VERTICAL
+        );
+
+        chatContainer.setPadding(
+                10,
+                8,
+                10,
+                8
+        );
 
         chatText =
                 new TextView(this);
 
-        chatText.setTextSize(15);
+        chatText.setTextSize(
+                14
+        );
 
         chatText.setTextColor(
                 Color.WHITE
         );
 
-        chatText.setPadding(
-                12,
-                12,
-                12,
-                12
+        chatText.setGravity(
+                Gravity.BOTTOM
         );
 
-        ScrollView scroll =
-                new ScrollView(this);
+        chatContainer.addView(
+                chatText,
+                new LinearLayout.LayoutParams(
+                        -1,
+                        -2
+                )
+        );
 
         scroll.addView(
-                chatText
+                chatContainer
         );
 
         LinearLayout.LayoutParams scrollParams =
@@ -666,7 +777,8 @@ public class MainActivity extends Activity {
                         1
                 );
 
-        scrollParams.topMargin = 8;
+        scrollParams.topMargin = 4;
+        scrollParams.bottomMargin = 4;
 
         root.addView(
                 scroll,
@@ -674,14 +786,25 @@ public class MainActivity extends Activity {
         );
 
         /*
-         * CAMPO DE COMANDO
+         * CAMPO DE TEXTO
          */
+
+        LinearLayout entrada =
+                new LinearLayout(this);
+
+        entrada.setOrientation(
+                LinearLayout.HORIZONTAL
+        );
+
+        entrada.setGravity(
+                Gravity.CENTER_VERTICAL
+        );
 
         commandInput =
                 new EditText(this);
 
         commandInput.setHint(
-                "Digite um comando..."
+                "Digite uma mensagem..."
         );
 
         commandInput.setHintTextColor(
@@ -692,19 +815,69 @@ public class MainActivity extends Activity {
                 Color.WHITE
         );
 
-        root.addView(
-                commandInput,
+        commandInput.setSingleLine(
+                true
+        );
+
+        LinearLayout.LayoutParams inputParams =
                 new LinearLayout.LayoutParams(
-                        -1,
-                        -2
+                        0,
+                        48,
+                        1
+                );
+
+        entrada.addView(
+                commandInput,
+                inputParams
+        );
+
+        Button microfone =
+                new Button(this);
+
+        microfone.setText(
+                "🎙"
+        );
+
+        microfone.setTextSize(
+                16
+        );
+
+        microfone.setOnClickListener(
+                v -> {
+
+                    if (!ouvindo) {
+                        iniciarReconhecimento();
+                    } else {
+                        pararReconhecimento();
+                    }
+                }
+        );
+
+        entrada.addView(
+                microfone,
+                new LinearLayout.LayoutParams(
+                        58,
+                        48
                 )
         );
+
+        root.addView(
+                entrada,
+                new LinearLayout.LayoutParams(
+                        -1,
+                        48
+                )
+        );
+
+        /*
+         * BOTÃO ENVIAR
+         */
 
         Button executar =
                 new Button(this);
 
         executar.setText(
-                "EXECUTAR COMANDO"
+                "ENVIAR"
         );
 
         executar.setOnClickListener(
@@ -725,7 +898,9 @@ public class MainActivity extends Activity {
                             comando
                     );
 
-                    processarComando(comando);
+                    processarComando(
+                            comando
+                    );
 
                     commandInput.setText("");
                 }
@@ -735,7 +910,7 @@ public class MainActivity extends Activity {
                 executar,
                 new LinearLayout.LayoutParams(
                         -1,
-                        -2
+                        44
                 )
         );
 
@@ -748,6 +923,10 @@ public class MainActivity extends Activity {
 
         online.setText(
                 "MODO ONLINE"
+        );
+
+        online.setTextSize(
+                12
         );
 
         online.setOnClickListener(
@@ -796,36 +975,8 @@ public class MainActivity extends Activity {
                 online,
                 new LinearLayout.LayoutParams(
                         -1,
-                        -2
+                        42
                 )
-        );
-
-        /*
-         * BOTÃO DE CONFIGURAÇÕES
-         */
-
-        Button configuracoes =
-                new Button(this);
-
-        configuracoes.setText(
-                "⚙ JARVIS"
-        );
-
-        configuracoes.setOnClickListener(
-                v -> abrirMenuJarvis()
-        );
-
-        LinearLayout.LayoutParams configParams =
-                new LinearLayout.LayoutParams(
-                        -1,
-                        -2
-                );
-
-        configParams.topMargin = 6;
-
-        root.addView(
-                configuracoes,
-                configParams
         );
 
         setContentView(root);
@@ -833,7 +984,7 @@ public class MainActivity extends Activity {
 
     /*
      * ============================================================
-     * MENU JARVIS
+     * MENU
      * ============================================================
      */
 
@@ -895,10 +1046,10 @@ public class MainActivity extends Activity {
         TextView info =
                 criarTexto(
                         "Microfone:\n"
-                                + "Usado somente quando o usuário "
-                                + "ativa o reconhecimento de voz.\n\n"
+                                + "Usado quando o usuário ativa "
+                                + "o reconhecimento de voz.\n\n"
                                 + "Reconhecimento:\n"
-                                + "Preferência pelo reconhecedor "
+                                + "Preferência pelo reconhecimento "
                                 + "local do Android.\n\n"
                                 + "Internet:\n"
                                 + "O modo offline é o padrão. "
@@ -951,16 +1102,13 @@ public class MainActivity extends Activity {
                 criarTexto(
                         "O JARVIS Lite utiliza somente recursos "
                                 + "permitidos pelo Android.\n\n"
-                                + "Nesta versão, o recurso sensível "
-                                + "principal é o microfone.\n\n"
-                                + "O microfone não deve ser usado "
-                                + "automaticamente enquanto o aplicativo "
-                                + "estiver aberto.\n\n"
-                                + "O Android continua sendo responsável "
+                                + "Nesta versão, o principal recurso "
+                                + "sensível é o microfone.\n\n"
+                                + "O Android continua responsável "
                                 + "pelas permissões do aplicativo.\n\n"
                                 + "Nenhum aplicativo comum pode garantir "
-                                + "proteção absoluta contra todas as "
-                                + "ameaças."
+                                + "proteção absoluta contra todas "
+                                + "as ameaças."
                 );
 
         layout.addView(
@@ -985,7 +1133,7 @@ public class MainActivity extends Activity {
 
     /*
      * ============================================================
-     * VERIFICAÇÃO DO APARELHO
+     * VERIFICAÇÃO
      * ============================================================
      */
 
@@ -1065,7 +1213,7 @@ public class MainActivity extends Activity {
 
         try {
 
-            PackageManager pm =
+            android.content.pm.PackageManager pm =
                     getPackageManager();
 
             for (ApplicationInfo appInfo :
@@ -1075,11 +1223,6 @@ public class MainActivity extends Activity {
                 if (appInfo == null) {
                     continue;
                 }
-
-                /*
-                 * A verificação deliberadamente não apaga,
-                 * desinstala ou modifica nada.
-                 */
             }
 
         } catch (Exception e) {
@@ -1277,10 +1420,10 @@ public class MainActivity extends Activity {
         );
 
         layout.setPadding(
-                24,
-                24,
-                24,
-                24
+                22,
+                22,
+                22,
+                48
         );
 
         layout.setBackgroundColor(
@@ -1293,7 +1436,7 @@ public class MainActivity extends Activity {
                 );
 
         tituloView.setTextSize(
-                28
+                27
         );
 
         tituloView.setGravity(
@@ -1311,7 +1454,11 @@ public class MainActivity extends Activity {
                 );
 
         subtituloView.setTextSize(
-                14
+                13
+        );
+
+        subtituloView.setTextColor(
+                Color.GRAY
         );
 
         subtituloView.setGravity(
@@ -1346,9 +1493,9 @@ public class MainActivity extends Activity {
 
         view.setPadding(
                 8,
-                12,
+                10,
                 8,
-                12
+                10
         );
 
         return view;
@@ -1396,7 +1543,7 @@ public class MainActivity extends Activity {
                         -2
                 );
 
-        params.topMargin = 8;
+        params.topMargin = 6;
 
         return params;
     }
@@ -1407,10 +1554,10 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams params =
                 new LinearLayout.LayoutParams(
                         -1,
-                        -2
+                        46
                 );
 
-        params.topMargin = 8;
+        params.topMargin = 6;
 
         return params;
     }
@@ -1421,6 +1568,16 @@ public class MainActivity extends Activity {
 
         configurarTela();
         iniciarRelogio();
+
+        adicionarMensagem(
+                "JARVIS",
+                "À sua disposição. Sistemas locais operacionais."
+        );
+
+        adicionarMensagem(
+                "JARVIS",
+                "Modo OFFLINE ativo."
+        );
     }
 
     private void abrirConfiguracoesAndroid() {
@@ -1490,7 +1647,7 @@ public class MainActivity extends Activity {
 
                             clockText.setText(
                                     hora
-                                            + "\n"
+                                            + "  •  "
                                             + data
                             );
                         }
@@ -1706,7 +1863,7 @@ public class MainActivity extends Activity {
 
     /*
      * ============================================================
-     * RESPOSTA
+     * RESPOSTAS
      * ============================================================
      */
 
@@ -1741,7 +1898,7 @@ public class MainActivity extends Activity {
 
         atual +=
                 autor
-                        + ": "
+                        + "\n"
                         + mensagem;
 
         chatText.setText(
@@ -1765,6 +1922,9 @@ public class MainActivity extends Activity {
 
         private float rotacao = 0f;
 
+        private boolean ouvindoLocal =
+                false;
+
         private final Handler handler =
                 new Handler();
 
@@ -1774,7 +1934,11 @@ public class MainActivity extends Activity {
                     @Override
                     public void run() {
 
-                        rotacao += 1.5f;
+                        if (ouvindoLocal) {
+                            rotacao += 3.0f;
+                        } else {
+                            rotacao += 1.2f;
+                        }
 
                         if (rotacao >= 360f) {
                             rotacao -= 360f;
@@ -1804,6 +1968,14 @@ public class MainActivity extends Activity {
             );
         }
 
+        public void setOuvindo(
+                boolean valor) {
+
+            ouvindoLocal = valor;
+
+            invalidate();
+        }
+
         @Override
         protected void onDraw(
                 Canvas canvas) {
@@ -1820,10 +1992,10 @@ public class MainActivity extends Activity {
                     Math.min(
                             getWidth(),
                             getHeight()
-                    ) * 0.39f;
+                    ) * 0.38f;
 
             /*
-             * brilho externo
+             * BRILHO CENTRAL
              */
 
             paint.setStyle(
@@ -1839,7 +2011,9 @@ public class MainActivity extends Activity {
             );
 
             paint.setShadowLayer(
-                    35f,
+                    ouvindoLocal
+                            ? 45f
+                            : 28f,
                     0f,
                     0f,
                     Color.rgb(
@@ -1852,14 +2026,14 @@ public class MainActivity extends Activity {
             canvas.drawCircle(
                     centroX,
                     centroY,
-                    raioMax * 0.20f,
+                    raioMax * 0.19f,
                     paint
             );
 
             paint.clearShadowLayer();
 
             /*
-             * 8 anéis
+             * ANÉIS
              */
 
             paint.setStyle(
@@ -1867,7 +2041,9 @@ public class MainActivity extends Activity {
             );
 
             paint.setStrokeWidth(
-                    4f
+                    ouvindoLocal
+                            ? 4.5f
+                            : 3.2f
             );
 
             paint.setColor(
@@ -1882,7 +2058,7 @@ public class MainActivity extends Activity {
 
                 float raio =
                         raioMax
-                                - (i * 13f);
+                                - (i * 10.5f);
 
                 canvas.save();
 
@@ -1926,7 +2102,7 @@ public class MainActivity extends Activity {
             }
 
             /*
-             * núcleo
+             * NÚCLEO
              */
 
             paint.setStyle(
@@ -1938,7 +2114,9 @@ public class MainActivity extends Activity {
             );
 
             paint.setShadowLayer(
-                    28f,
+                    ouvindoLocal
+                            ? 35f
+                            : 22f,
                     0f,
                     0f,
                     Color.YELLOW
@@ -1947,7 +2125,7 @@ public class MainActivity extends Activity {
             canvas.drawCircle(
                     centroX,
                     centroY,
-                    raioMax * 0.12f,
+                    raioMax * 0.115f,
                     paint
             );
 
@@ -1964,7 +2142,7 @@ public class MainActivity extends Activity {
             canvas.drawCircle(
                     centroX,
                     centroY,
-                    raioMax * 0.07f,
+                    raioMax * 0.065f,
                     paint
             );
         }
