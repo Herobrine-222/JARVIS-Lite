@@ -3,6 +3,7 @@ package com.jarvis.lite;
 import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
@@ -36,7 +37,9 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 import java.text.SimpleDateFormat;
+import java.text.Normalizer;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.Locale;
 import java.util.List;
@@ -424,109 +427,76 @@ public class MainActivity extends Activity {
 
     private void configurarTela() {
         telaAtual = TELA_PRINCIPAL;
+
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(Color.BLACK);
-
         configurarAreaSegura(root);
 
+        // Nova interface: menu de três linhas no canto superior esquerdo.
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
+
+        Button menu = new Button(this);
+        menu.setText("☰");
+        menu.setTextSize(22);
+        menu.setTextColor(Color.WHITE);
+        menu.setOnClickListener(v -> abrirMenuJarvis());
+        header.addView(menu, new LinearLayout.LayoutParams(dp(58), dp(48)));
 
         TextView titulo = new TextView(this);
         titulo.setText("J.A.R.V.I.S");
         titulo.setTextSize(24);
         titulo.setTextColor(Color.WHITE);
         titulo.setGravity(Gravity.CENTER_VERTICAL);
+        header.addView(titulo, new LinearLayout.LayoutParams(0, dp(48), 1));
 
-        LinearLayout.LayoutParams tituloParams =
-                new LinearLayout.LayoutParams(0, dp(48), 1);
-
-        header.addView(titulo, tituloParams);
-
-        Button configuracoes = new Button(this);
-        configuracoes.setText("⚙");
-        configuracoes.setTextSize(18);
-        configuracoes.setOnClickListener(v -> abrirMenuJarvis());
-
-        header.addView(
-                configuracoes,
-                new LinearLayout.LayoutParams(dp(58), dp(48))
-        );
-
-        root.addView(
-                header,
-                new LinearLayout.LayoutParams(-1, dp(48))
-        );
+        root.addView(header, new LinearLayout.LayoutParams(-1, dp(48)));
 
         TextView subtitulo = new TextView(this);
         subtitulo.setText("ASSISTENTE LOCAL • OFFLINE");
         subtitulo.setTextSize(11);
         subtitulo.setTextColor(Color.GRAY);
         subtitulo.setGravity(Gravity.CENTER_VERTICAL);
-
-        root.addView(
-                subtitulo,
-                new LinearLayout.LayoutParams(-1, dp(24))
-        );
+        root.addView(subtitulo, new LinearLayout.LayoutParams(-1, dp(24)));
 
         clockText = new TextView(this);
         clockText.setTextSize(21);
         clockText.setTextColor(Color.WHITE);
         clockText.setGravity(Gravity.CENTER);
-
-        root.addView(
-                clockText,
-                new LinearLayout.LayoutParams(-1, dp(50))
-        );
+        root.addView(clockText, new LinearLayout.LayoutParams(-1, dp(50)));
 
         reactorView = new ReactorView(this);
-
         reactorView.setOnClickListener(v -> {
             if (!ouvindo) {
                 iniciarReconhecimento();
             } else {
                 pararReconhecimento();
-                adicionarMensagem(
-                        "JARVIS",
-                        "Reconhecimento interrompido."
-                );
+                adicionarMensagem("JARVIS", "Reconhecimento interrompido.");
             }
         });
-
-        root.addView(
-                reactorView,
-                new LinearLayout.LayoutParams(-1, dp(190))
-        );
+        root.addView(reactorView, new LinearLayout.LayoutParams(-1, dp(190)));
 
         TextView modo = new TextView(this);
-        modo.setText("● MODO OFFLINE ATIVO");
+        modo.setText(modoOnline ? "● MODO ONLINE EM USO" : "● MODO OFFLINE EM USO");
         modo.setTextSize(13);
         modo.setTextColor(Color.WHITE);
         modo.setGravity(Gravity.CENTER);
-
-        root.addView(
-                modo,
-                new LinearLayout.LayoutParams(-1, dp(30))
-        );
+        root.addView(modo, new LinearLayout.LayoutParams(-1, dp(30)));
 
         chatScroll = new ScrollView(this);
         chatScroll.setFillViewport(true);
         chatScroll.setClipToPadding(false);
-        chatScroll.setPadding(0, 0, 0, 0);
 
         chatContainer = new LinearLayout(this);
         chatContainer.setOrientation(LinearLayout.VERTICAL);
         chatContainer.setPadding(dp(8), dp(8), dp(8), dp(12));
-
         chatScroll.addView(chatContainer);
 
-        LinearLayout.LayoutParams scrollParams =
-                new LinearLayout.LayoutParams(-1, 0, 1);
+        LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(-1, 0, 1);
         scrollParams.topMargin = dp(4);
         scrollParams.bottomMargin = dp(4);
-
         root.addView(chatScroll, scrollParams);
 
         LinearLayout entrada = new LinearLayout(this);
@@ -538,87 +508,28 @@ public class MainActivity extends Activity {
         commandInput.setHintTextColor(Color.GRAY);
         commandInput.setTextColor(Color.WHITE);
         commandInput.setSingleLine(true);
-
-        entrada.addView(
-                commandInput,
-                new LinearLayout.LayoutParams(0, dp(48), 1)
-        );
+        entrada.addView(commandInput, new LinearLayout.LayoutParams(0, dp(48), 1));
 
         Button microfone = new Button(this);
         microfone.setText("🎙");
         microfone.setTextSize(16);
-
         microfone.setOnClickListener(v -> {
-            if (!ouvindo) {
-                iniciarReconhecimento();
-            } else {
-                pararReconhecimento();
-            }
+            if (!ouvindo) iniciarReconhecimento();
+            else pararReconhecimento();
         });
-
-        entrada.addView(
-                microfone,
-                new LinearLayout.LayoutParams(dp(58), dp(48))
-        );
-
-        root.addView(
-                entrada,
-                new LinearLayout.LayoutParams(-1, dp(48))
-        );
+        entrada.addView(microfone, new LinearLayout.LayoutParams(dp(58), dp(48)));
+        root.addView(entrada, new LinearLayout.LayoutParams(-1, dp(48)));
 
         Button executar = new Button(this);
         executar.setText("ENVIAR");
-
         executar.setOnClickListener(v -> {
-            String comando =
-                    commandInput.getText().toString().trim();
-
-            if (comando.isEmpty()) {
-                return;
-            }
-
+            String comando = commandInput.getText().toString().trim();
+            if (comando.isEmpty()) return;
             adicionarMensagem("VOCÊ", comando);
             processarComando(comando);
             commandInput.setText("");
         });
-
-        root.addView(
-                executar,
-                new LinearLayout.LayoutParams(-1, dp(44))
-        );
-
-        Button online = new Button(this);
-        online.setText("MODO ONLINE");
-        online.setTextSize(12);
-
-        online.setOnClickListener(v -> {
-            if (!modoOnline) {
-                modoOnline = true;
-
-                modo.setText("● MODO ONLINE SELECIONADO");
-                online.setText("MODO OFFLINE");
-
-                responder(
-                        "Modo online selecionado pelo usuário. "
-                                + "Nenhuma conexão será iniciada automaticamente."
-                );
-            } else {
-                modoOnline = false;
-
-                modo.setText("● MODO OFFLINE ATIVO");
-                online.setText("MODO ONLINE");
-
-                responder(
-                        "Modo offline ativado. "
-                                + "O JARVIS voltou a operar somente com os recursos locais."
-                );
-            }
-        });
-
-        root.addView(
-                online,
-                new LinearLayout.LayoutParams(-1, dp(42))
-        );
+        root.addView(executar, new LinearLayout.LayoutParams(-1, dp(44)));
 
         setContentView(root);
     }
@@ -673,19 +584,63 @@ public class MainActivity extends Activity {
         notificacoesAtivadas = preferencias.getBoolean("notificacoes_ativas", true);
         statusAtivado = preferencias.getBoolean("status_ativo", true);
         arquivosMidiaAtivados = preferencias.getBoolean("arquivos_midia_ativos", false);
+        modoOnline = preferencias.getBoolean("modo_online", false);
 
         LinearLayout layout = criarTelaBase(
                 "GERENCIAR JARVIS",
-                "PERMISSÕES E RECURSOS"
+                "PERMISSÕES, RECURSOS E MODOS"
         );
 
         TextView aviso = criarTexto(
-                "Cada controle altera o comportamento do JARVIS. "
-                        + "Permissões protegidas pelo Android continuam sob controle do sistema."
+                "Aqui ficam as configurações do JARVIS. Desça a tela para ver todas as opções."
+                        + " O modo online só entra em uso quando você o selecionar."
         );
         aviso.setTextSize(13);
         aviso.setTextColor(Color.LTGRAY);
         layout.addView(aviso, parametrosTexto());
+
+        // Modo de operação: apenas um pode ficar EM USO por vez.
+        LinearLayout modos = criarCard();
+        LinearLayout textosModo = new LinearLayout(this);
+        textosModo.setOrientation(LinearLayout.VERTICAL);
+        textosModo.addView(criarTexto("🌐  MODO DE OPERAÇÃO"));
+        TextView descModo = criarTexto(
+                "OFFLINE é o modo inicial. ONLINE só é usado depois que você ativá-lo."
+        );
+        descModo.setTextSize(12);
+        descModo.setTextColor(Color.GRAY);
+        textosModo.addView(descModo);
+
+        LinearLayout botoesModo = new LinearLayout(this);
+        botoesModo.setOrientation(LinearLayout.HORIZONTAL);
+        botoesModo.setGravity(Gravity.CENTER_VERTICAL);
+
+        Button onlineButton = criarBotao(modoOnline ? "EM USO" : "ATIVAR");
+        Button offlineButton = criarBotao(modoOnline ? "ATIVAR" : "EM USO");
+        onlineButton.setTextSize(10);
+        offlineButton.setTextSize(10);
+
+        onlineButton.setOnClickListener(v -> {
+            modoOnline = true;
+            preferencias.edit().putBoolean("modo_online", true).apply();
+            onlineButton.setText("EM USO");
+            offlineButton.setText("ATIVAR");
+            responder("Modo online está em uso.");
+        });
+
+        offlineButton.setOnClickListener(v -> {
+            modoOnline = false;
+            preferencias.edit().putBoolean("modo_online", false).apply();
+            onlineButton.setText("ATIVAR");
+            offlineButton.setText("EM USO");
+            responder("Modo offline está em uso.");
+        });
+
+        botoesModo.addView(onlineButton, new LinearLayout.LayoutParams(0, dp(44), 1));
+        botoesModo.addView(offlineButton, new LinearLayout.LayoutParams(0, dp(44), 1));
+        textosModo.addView(botoesModo);
+        modos.addView(textosModo, new LinearLayout.LayoutParams(-1, -2));
+        layout.addView(modos, parametrosCard());
 
         adicionarControleInterno(layout, "🎙  MICROFONE",
                 "Permite que o JARVIS use o microfone para reconhecimento de voz.",
@@ -708,18 +663,11 @@ public class MainActivity extends Activity {
                 });
 
         adicionarControleInterno(layout, "📱  STATUS DO APARELHO",
-                "Permite ao JARVIS consultar bateria, RAM, armazenamento e outros dados disponíveis.",
+                "Permite consultar bateria, RAM, armazenamento e outros dados acessíveis.",
                 () -> statusAtivado,
                 valor -> {
                     statusAtivado = valor;
                     preferencias.edit().putBoolean("status_ativo", valor).apply();
-                });
-
-        adicionarControleInterno(layout, "🌐  USAR A INTERNET",
-                "Acesso online somente quando selecionado pelo usuário. Esta versão ainda não possui a permissão INTERNET.",
-                () -> modoOnline,
-                valor -> {
-                    modoOnline = valor;
                 });
 
         adicionarControleInterno(layout, "📁  ARQUIVOS E MÍDIA",
@@ -734,7 +682,6 @@ public class MainActivity extends Activity {
                 "Indisponível: o JARVIS não utiliza Accessibility Service.");
 
         adicionarBotaoTela(layout, "🗣  GERENCIAR VOZ DO JARVIS", this::abrirGerenciarVoz);
-
         adicionarBotaoTela(layout, "VOLTAR", this::abrirMenuJarvis);
 
         setContentView(layout);
@@ -1212,15 +1159,10 @@ public class MainActivity extends Activity {
             String titulo,
             String subtitulo) {
 
-        LinearLayout layout = new LinearLayout(this);
+        TelaRolavelLayout layout = new TelaRolavelLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setPadding(
-                dp(22),
-                dp(22),
-                dp(22),
-                dp(48)
-        );
         layout.setBackgroundColor(Color.BLACK);
+        layout.setPadding(dp(18), dp(10), dp(18), dp(24));
 
         if (Build.VERSION.SDK_INT >= 30) {
             layout.setOnApplyWindowInsetsListener((v, insets) -> {
@@ -1228,40 +1170,100 @@ public class MainActivity extends Activity {
                         WindowInsets.Type.statusBars()
                                 | WindowInsets.Type.navigationBars()
                 );
-
                 v.setPadding(
-                        dp(22),
-                        dp(22) + barras.top,
-                        dp(22),
+                        dp(18),
+                        dp(10) + barras.top,
+                        dp(18),
                         dp(24) + barras.bottom
                 );
-
                 return insets;
             });
-
             layout.requestApplyInsets();
         }
 
-        TextView tituloView = criarTexto(titulo);
-        tituloView.setTextSize(27);
-        tituloView.setGravity(Gravity.CENTER);
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
 
-        layout.addView(
-                tituloView,
-                parametrosTexto()
-        );
+        Button voltar = criarBotao("‹");
+        voltar.setTextSize(26);
+        voltar.setOnClickListener(v -> voltarSistema());
+        header.addView(voltar, new LinearLayout.LayoutParams(dp(58), dp(48)));
+
+        LinearLayout titulos = new LinearLayout(this);
+        titulos.setOrientation(LinearLayout.VERTICAL);
+        titulos.setGravity(Gravity.CENTER_VERTICAL);
+
+        TextView tituloView = criarTexto(titulo);
+        tituloView.setTextSize(22);
+        tituloView.setPadding(0, 0, 0, 0);
+        titulos.addView(tituloView);
 
         TextView subtituloView = criarTexto(subtitulo);
-        subtituloView.setTextSize(13);
+        subtituloView.setTextSize(11);
         subtituloView.setTextColor(Color.GRAY);
-        subtituloView.setGravity(Gravity.CENTER);
+        subtituloView.setPadding(0, 0, 0, 0);
+        titulos.addView(subtituloView);
 
-        layout.addView(
-                subtituloView,
-                parametrosTexto()
-        );
+        header.addView(titulos, new LinearLayout.LayoutParams(0, dp(52), 1));
+        layout.addView(header, new LinearLayout.LayoutParams(-1, dp(58)));
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.setClipToPadding(false);
+        scroll.setNestedScrollingEnabled(true);
+
+        LinearLayout conteudo = new LinearLayout(this);
+        conteudo.setOrientation(LinearLayout.VERTICAL);
+        conteudo.setPadding(0, dp(4), 0, dp(24));
+        scroll.addView(conteudo, new ScrollView.LayoutParams(-1, -2));
+
+        layout.setConteudoRolavel(conteudo);
+        layout.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        layout.ativarRoteamento();
 
         return layout;
+    }
+
+    /**
+     * Container usado pelas telas de configurações. Depois que a estrutura
+     * é criada, os addView feitos pelos métodos existentes são encaminhados
+     * para dentro do ScrollView. Assim todas as perguntas/opções podem ser
+     * roladas até o final sem alterar a lógica das telas.
+     */
+    private static class TelaRolavelLayout extends LinearLayout {
+        private LinearLayout conteudoRolavel;
+        private boolean roteando = false;
+
+        TelaRolavelLayout(android.content.Context context) {
+            super(context);
+        }
+
+        void setConteudoRolavel(LinearLayout conteudo) {
+            this.conteudoRolavel = conteudo;
+        }
+
+        void ativarRoteamento() {
+            this.roteando = true;
+        }
+
+        @Override
+        public void addView(View child, android.view.ViewGroup.LayoutParams params) {
+            if (roteando && conteudoRolavel != null && child != conteudoRolavel) {
+                conteudoRolavel.addView(child, params);
+            } else {
+                super.addView(child, params);
+            }
+        }
+
+        @Override
+        public void addView(View child) {
+            if (roteando && conteudoRolavel != null && child != conteudoRolavel) {
+                conteudoRolavel.addView(child);
+            } else {
+                super.addView(child);
+            }
+        }
     }
 
     private TextView criarTexto(String texto) {
@@ -1327,7 +1329,7 @@ public class MainActivity extends Activity {
     }
 
     private void abrirTelaPrincipal() {
-        modoOnline = false;
+        modoOnline = preferencias.getBoolean("modo_online", false);
         configurarTela();
         iniciarRelogio();
 
@@ -1423,6 +1425,13 @@ public class MainActivity extends Activity {
                         .toLowerCase(Locale.getDefault())
                         .trim();
 
+        // Camada de interação conversacional: não altera memória nem estado do aparelho.
+        String respostaInteracao = processarInteracaoConversacional(comandoOriginal);
+        if (respostaInteracao != null) {
+            responder(respostaInteracao);
+            return;
+        }
+
         if (processarComandoMemoria(comandoOriginal)) {
             return;
         }
@@ -1431,7 +1440,7 @@ public class MainActivity extends Activity {
                 || comando.contains("comandos")) {
 
             responder(
-                    "Comandos disponíveis: hora, data, bateria, status, privacidade e quem é você."
+                    "Comandos disponíveis: hora, data, bateria, temperatura, status, memória, privacidade, verificação e quem é você."
             );
 
             return;
@@ -1465,6 +1474,14 @@ public class MainActivity extends Activity {
                 || comando.contains("carga")) {
 
             responder(obterBateria());
+            return;
+        }
+
+        if (comando.contains("temperatura")
+                || comando.contains("temperatura do celular")
+                || comando.contains("temperatura do aparelho")) {
+
+            responder(obterTemperatura());
             return;
         }
 
@@ -1525,6 +1542,156 @@ public class MainActivity extends Activity {
         responder(
                 "Não tenho uma função local para esse comando ainda."
         );
+    }
+
+    private String processarInteracaoConversacional(String entrada) {
+        if (entrada == null) return null;
+
+        String original = entrada.trim();
+        if (original.isEmpty()) return null;
+
+        String c = normalizar(original);
+
+        // Saudações e respostas sociais básicas.
+        if (c.equals("opa") || c.startsWith("opa ")) {
+            return "Opa. Estou à sua disposição. Sistemas locais operacionais.";
+        }
+
+        if (contemAlgum(c, "bom dia", "boa tarde", "boa noite")) {
+            return saudacaoPorHorario();
+        }
+
+        if (contemAlgum(c, "ola", "oi", "e ai", "fala jarvis", "fala ai")) {
+            return saudacaoPorHorario();
+        }
+
+        if (contemAlgum(c, "como voce esta", "como voce ta", "como voce esta", "como voce ta", "tudo bem com voce", "tudo bem com você")) {
+            return "Estou funcionando normalmente e pronto para ajudar. E com você, está tudo bem?";
+        }
+
+        if (contemAlgum(c, "como foi seu dia", "como foi o seu dia")) {
+            return "Meu funcionamento não é como o dia de uma pessoa, mas até agora estou operando normalmente e pronto para ajudar.";
+        }
+
+        if (contemAlgum(c, "deus te abencoe", "deus te abençoe")) {
+            return "Amém. Muito obrigado. Que você também tenha um ótimo dia.";
+        }
+
+        if (contemAlgum(c, "durma bem", "boa noite jarvis", "vou dormir", "hora de dormir")) {
+            return "Obrigado. Desejo uma boa noite e um bom descanso. Quando precisar, estarei aqui.";
+        }
+
+        if (contemAlgum(c, "obrigado", "obrigada", "valeu", "vlw", "muito obrigado", "muito obrigada")) {
+            return "Por nada. Estou à sua disposição.";
+        }
+
+        if (contemAlgum(c, "de nada", "por nada")) {
+            return "Sempre à disposição.";
+        }
+
+        if (contemAlgum(c, "bom trabalho", "mandou bem", "ficou bom", "voce e bom", "voce e bom")) {
+            return "Obrigado. Vou continuar trabalhando com precisão e sem interferir nas outras funções do sistema.";
+        }
+
+        // Identidade, origem e finalidade.
+        if (contemAlgum(c, "quem e voce", "quem e voce", "quem e voce", "quem voce e", "qual seu nome", "qual e seu nome")) {
+            return "Eu sou o JARVIS Lite, o assistente deste projeto. Minha camada local foi criada para executar funções permitidas pelo Android, responder por voz e texto e trabalhar de forma offline quando possível.";
+        }
+
+        if (contemAlgum(c, "quem te criou", "quem criou voce", "quem criou você", "quem e seu criador", "quem é seu criador", "quem te fez")) {
+            return "Eu sou o JARVIS Lite deste projeto. A aplicação está sendo construída neste projeto com código Android, e minhas funções dependem do código e dos recursos que forem adicionados a ela.";
+        }
+
+        if (contemAlgum(c, "o que voce faz", "o que voce faz", "qual sua funcao", "qual e sua funcao", "para que voce serve", "para que voce serve")) {
+            return "Posso responder perguntas e interações locais, consultar informações permitidas do aparelho, executar comandos locais implementados, falar por voz e usar a memória local quando uma função de memória for solicitada.";
+        }
+
+        if (contemAlgum(c, "como voce funciona", "como voce funciona", "como funciona por completo", "como voce funciona por completo", "como você funciona por completo")) {
+            return "Eu trabalho por camadas: entrada de texto ou voz, interpretação da intenção, interações conversacionais, comandos locais do aparelho e memória local. A resposta passa pela função correspondente e é apresentada em texto e, quando disponível, por voz. O que ainda não estiver implementado não é inventado.";
+        }
+
+        // Memória: explicação, sem modificar o armazenamento.
+        if (contemAlgum(c, "como sua memoria funciona", "como funciona sua memoria", "como funciona a memoria", "como funciona sua memória", "como sua memoria funciona")) {
+            return "A memória atual do JARVIS Lite é local e fica no armazenamento privado do aplicativo por meio da classe JarvisMemory.java. Ela guarda apenas informações quando uma função de memória é acionada, sem precisar de internet. A camada definitiva de memória pode ser ampliada depois sem trocar essa base.";
+        }
+
+        if (contemAlgum(c, "voce tem memoria", "voce tem memoria", "voce se lembra", "voce se lembra", "voce lembra de mim", "voce lembra de mim")) {
+            return "Tenho uma memória local implementada no projeto. Ela é separada da conversa e só deve registrar informações quando o recurso de memória for acionado.";
+        }
+
+        if (contemAlgum(c, "voce esquece", "voce esquece", "por que voce esquece", "por que voce esquece")) {
+            return "A memória local não é a mesma coisa que o histórico da conversa. Se uma informação não estiver registrada na JarvisMemory.java, ela não deve ser tratada como memória permanente.";
+        }
+
+        if (contemAlgum(c, "voce esta online", "voce esta online", "voce esta offline", "voce esta offline", "esta online", "está online")) {
+            return "O modo de operação é controlado nas configurações de Gerenciar JARVIS. O modo online não deve ser ativado automaticamente.";
+        }
+
+        // Conversa sobre o próprio funcionamento, sem fingir sentimentos ou capacidades.
+        if (contemAlgum(c, "voce esta ai", "voce esta ai", "voce ta ai", "voce ta ai", "jarvis esta ai", "jarvis está aí")) {
+            return "Estou aqui. Sistemas locais operacionais. Em que posso ajudar?";
+        }
+
+        if (contemAlgum(c, "esta funcionando", "está funcionando", "voce funciona", "voce funciona")) {
+            return "Sim. Estou pronto para executar as funções que estão implementadas no JARVIS Lite.";
+        }
+
+        // Ajuda conversacional.
+        if (contemAlgum(c, "o que posso falar", "o que eu posso falar", "me ajude", "me ajuda", "preciso de ajuda")) {
+            return "Você pode falar comigo normalmente ou usar comandos como hora, data, bateria, temperatura, status, memória, privacidade, verificação e modo online ou offline, conforme as funções disponíveis no projeto.";
+        }
+
+        // Encerramento social não encerra a sessão de voz; isso é responsabilidade da camada de sessão.
+        if (contemAlgum(c, "ate mais", "até mais", "tchau", "falou", "ate logo", "até logo")) {
+            return "Até mais. Continuo disponível quando você precisar.";
+        }
+
+        if (contemAlgum(c, "boa sorte", "se cuida", "fique bem")) {
+            return "Obrigado. Você também. Estou à disposição.";
+        }
+
+        // Perguntas sobre a data/hora são tratadas como interação quando não houver comando específico.
+        if (c.equals("que horas sao") || c.equals("qual a hora")) {
+            String hora = new SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(new Date());
+            return "Agora são " + hora + ".";
+        }
+
+        if (c.equals("que dia e hoje") || c.equals("qual a data de hoje")) {
+            String data = new SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(new Date());
+            return "Hoje é " + data + ".";
+        }
+
+        return null;
+    }
+
+    private String saudacaoPorHorario() {
+        int hora = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
+        if (hora >= 5 && hora < 12) {
+            return "Bom dia. À sua disposição. Sistemas locais operacionais.";
+        }
+        if (hora >= 12 && hora < 18) {
+            return "Boa tarde. À sua disposição. Sistemas locais operacionais.";
+        }
+        return "Boa noite. À sua disposição. Sistemas locais operacionais.";
+    }
+
+    private boolean contemAlgum(String texto, String... termos) {
+        for (String termo : termos) {
+            String t = normalizar(termo);
+            if (texto.equals(t) || texto.contains(" " + t + " ")
+                    || texto.startsWith(t + " ") || texto.endsWith(" " + t)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String normalizar(String texto) {
+        String base = texto == null ? "" : texto.toLowerCase(Locale.getDefault()).trim();
+        base = Normalizer.normalize(base, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "");
+        base = base.replaceAll("[^a-z0-9]+", " ");
+        return base.replaceAll("\\s+", " ").trim();
     }
 
     private boolean processarComandoMemoria(String comandoOriginal) {
@@ -1717,6 +1884,38 @@ public class MainActivity extends Activity {
 
         } catch (Exception e) {
             return "Não consegui obter o nível da bateria.";
+        }
+    }
+
+    private String obterTemperatura() {
+        try {
+            Intent bateria = registerReceiver(
+                    null,
+                    new IntentFilter(Intent.ACTION_BATTERY_CHANGED)
+            );
+
+            if (bateria == null) {
+                return "Não consegui obter a temperatura do aparelho.";
+            }
+
+            int temperatura = bateria.getIntExtra(
+                    BatteryManager.EXTRA_TEMPERATURE,
+                    Integer.MIN_VALUE
+            );
+
+            if (temperatura == Integer.MIN_VALUE) {
+                return "A temperatura do aparelho não está disponível pelo Android neste momento.";
+            }
+
+            double celsius = temperatura / 10.0;
+            return String.format(
+                    Locale.getDefault(),
+                    "A temperatura informada pelo sistema é %.1f graus Celsius.",
+                    celsius
+            );
+
+        } catch (Exception e) {
+            return "Não consegui obter a temperatura do aparelho.";
         }
     }
 
