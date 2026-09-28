@@ -36,6 +36,7 @@ import android.view.inputmethod.EditorInfo;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -67,8 +68,12 @@ public class MainActivity extends Activity {
     private ScrollView chatScroll;
     private EditText commandInput;
 
-    private View reactorArea;
+    private LinearLayout reactorArea;
     private ReactorView reactorView;
+
+    // Conteúdo interno dos menus.
+    // O ScrollView fica fora dele.
+    private LinearLayout menuConteudo;
 
     // ============================================================
     // VOZ
@@ -141,7 +146,6 @@ public class MainActivity extends Activity {
                 WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
         );
 
-        // A tela principal não mantém o serviço de escuta aberto.
         try {
             stopService(
                     new Intent(
@@ -163,7 +167,7 @@ public class MainActivity extends Activity {
         );
 
         // SEGURANÇA:
-        // Toda vez que o aplicativo abre, começa offline.
+        // Sempre começa offline ao abrir.
         modoOnline = false;
 
         carregarConfiguracoes();
@@ -179,6 +183,7 @@ public class MainActivity extends Activity {
         iniciarVoz();
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+
             if (checkSelfPermission(
                     Manifest.permission.RECORD_AUDIO
             ) != PackageManager.PERMISSION_GRANTED) {
@@ -202,6 +207,7 @@ public class MainActivity extends Activity {
         }
 
         if (speechRecognizer != null) {
+
             try {
                 speechRecognizer.destroy();
             } catch (Exception ignored) {
@@ -211,6 +217,7 @@ public class MainActivity extends Activity {
         }
 
         if (tts != null) {
+
             try {
                 tts.stop();
                 tts.shutdown();
@@ -251,12 +258,18 @@ public class MainActivity extends Activity {
     private void salvarConfiguracoes() {
 
         preferencias.edit()
-                .putBoolean("microfone", microfoneAtivado)
+                .putBoolean(
+                        "microfone",
+                        microfoneAtivado
+                )
                 .putBoolean(
                         "notificacoes",
                         notificacoesAtivadas
                 )
-                .putBoolean("status", statusAtivado)
+                .putBoolean(
+                        "status",
+                        statusAtivado
+                )
                 .putBoolean(
                         "arquivos_midia",
                         arquivosMidiaAtivados
@@ -269,6 +282,7 @@ public class MainActivity extends Activity {
     // ============================================================
 
     private int dp(int valor) {
+
         return (int) (
                 valor *
                         getResources()
@@ -283,7 +297,8 @@ public class MainActivity extends Activity {
 
     private void configurarAreaSegura(View root) {
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        if (Build.VERSION.SDK_INT >=
+                Build.VERSION_CODES.R) {
 
             root.setOnApplyWindowInsetsListener(
                     (view, insets) -> {
@@ -298,10 +313,11 @@ public class MainActivity extends Activity {
                                         WindowInsets.Type.ime()
                                 );
 
-                        int inferior = Math.max(
-                                barras.bottom,
-                                teclado.bottom
-                        );
+                        int inferior =
+                                Math.max(
+                                        barras.bottom,
+                                        teclado.bottom
+                                );
 
                         view.setPadding(
                                 view.getPaddingLeft(),
@@ -340,7 +356,9 @@ public class MainActivity extends Activity {
                 LinearLayout.VERTICAL
         );
 
-        layout.setBackgroundColor(Color.BLACK);
+        layout.setBackgroundColor(
+                Color.BLACK
+        );
 
         configurarAreaSegura(layout);
 
@@ -366,7 +384,10 @@ public class MainActivity extends Activity {
                 dp(4)
         );
 
+        // --------------------------------------------------------
         // MENU
+        // --------------------------------------------------------
+
         ImageButton menu =
                 new ImageButton(this);
 
@@ -378,7 +399,9 @@ public class MainActivity extends Activity {
                 Color.TRANSPARENT
         );
 
-        menu.setColorFilter(Color.WHITE);
+        menu.setColorFilter(
+                Color.WHITE
+        );
 
         menu.setContentDescription(
                 "Menu"
@@ -396,15 +419,53 @@ public class MainActivity extends Activity {
                 )
         );
 
-        // TÍTULO
+        // --------------------------------------------------------
+        // ÁREA DO TÍTULO
+        // --------------------------------------------------------
+
         LinearLayout tituloArea =
                 new LinearLayout(this);
 
         tituloArea.setOrientation(
-                LinearLayout.VERTICAL
+                LinearLayout.HORIZONTAL
         );
 
         tituloArea.setGravity(
+                Gravity.CENTER_VERTICAL
+        );
+
+        // NOVA LOGO
+        ImageView logoJarvis =
+                new ImageView(this);
+
+        logoJarvis.setImageResource(
+                R.drawable.logo_jarvis
+        );
+
+        logoJarvis.setContentDescription(
+                "Logo JARVIS"
+        );
+
+        logoJarvis.setScaleType(
+                ImageView.ScaleType.CENTER_INSIDE
+        );
+
+        tituloArea.addView(
+                logoJarvis,
+                new LinearLayout.LayoutParams(
+                        dp(44),
+                        dp(44)
+                )
+        );
+
+        LinearLayout textosTitulo =
+                new LinearLayout(this);
+
+        textosTitulo.setOrientation(
+                LinearLayout.VERTICAL
+        );
+
+        textosTitulo.setGravity(
                 Gravity.CENTER_VERTICAL
         );
 
@@ -427,8 +488,22 @@ public class MainActivity extends Activity {
                         Color.GRAY
                 );
 
-        tituloArea.addView(titulo);
-        tituloArea.addView(subtitulo);
+        textosTitulo.addView(
+                titulo
+        );
+
+        textosTitulo.addView(
+                subtitulo
+        );
+
+        tituloArea.addView(
+                textosTitulo,
+                new LinearLayout.LayoutParams(
+                        0,
+                        dp(48),
+                        1f
+                )
+        );
 
         header.addView(
                 tituloArea,
@@ -439,7 +514,10 @@ public class MainActivity extends Activity {
                 )
         );
 
+        // --------------------------------------------------------
         // CONFIGURAÇÕES
+        // --------------------------------------------------------
+
         ImageButton configuracoes =
                 new ImageButton(this);
 
@@ -451,7 +529,9 @@ public class MainActivity extends Activity {
                 Color.TRANSPARENT
         );
 
-        configuracoes.setColorFilter(Color.WHITE);
+        configuracoes.setColorFilter(
+                Color.WHITE
+        );
 
         configuracoes.setContentDescription(
                 "Configurações"
@@ -537,7 +617,9 @@ public class MainActivity extends Activity {
         chatScroll =
                 new ScrollView(this);
 
-        chatScroll.setFillViewport(true);
+        chatScroll.setFillViewport(
+                true
+        );
 
         chatContainer =
                 new LinearLayout(this);
@@ -553,7 +635,9 @@ public class MainActivity extends Activity {
                 dp(8)
         );
 
-        chatScroll.addView(chatContainer);
+        chatScroll.addView(
+                chatContainer
+        );
 
         layout.addView(
                 chatScroll,
@@ -586,13 +670,20 @@ public class MainActivity extends Activity {
                 dp(6)
         );
 
+        // --------------------------------------------------------
         // CAMPO DE TEXTO
+        // --------------------------------------------------------
+
         commandInput =
                 new EditText(this);
 
-        commandInput.setSingleLine(true);
+        commandInput.setSingleLine(
+                true
+        );
 
-        commandInput.setTextColor(Color.WHITE);
+        commandInput.setTextColor(
+                Color.WHITE
+        );
 
         commandInput.setHintTextColor(
                 Color.DKGRAY
@@ -602,7 +693,9 @@ public class MainActivity extends Activity {
                 "Digite um comando..."
         );
 
-        commandInput.setTextSize(15);
+        commandInput.setTextSize(
+                15
+        );
 
         commandInput.setImeOptions(
                 EditorInfo.IME_ACTION_SEND
@@ -612,7 +705,11 @@ public class MainActivity extends Activity {
                 new GradientDrawable();
 
         fundoEntrada.setColor(
-                Color.rgb(20, 20, 20)
+                Color.rgb(
+                        20,
+                        20,
+                        20
+                )
         );
 
         fundoEntrada.setCornerRadius(
@@ -637,6 +734,7 @@ public class MainActivity extends Activity {
                             EditorInfo.IME_ACTION_SEND) {
 
                         enviarTexto();
+
                         return true;
                     }
 
@@ -653,7 +751,10 @@ public class MainActivity extends Activity {
                 )
         );
 
+        // --------------------------------------------------------
         // MICROFONE
+        // --------------------------------------------------------
+
         ImageButton microfone =
                 new ImageButton(this);
 
@@ -699,11 +800,16 @@ public class MainActivity extends Activity {
                 )
         );
 
+        // --------------------------------------------------------
         // ENVIAR
+        // --------------------------------------------------------
+
         Button enviar =
                 new Button(this);
 
-        enviar.setText("ENVIAR");
+        enviar.setText(
+                "ENVIAR"
+        );
 
         enviar.setTextColor(
                 Color.WHITE
@@ -733,7 +839,9 @@ public class MainActivity extends Activity {
                 )
         );
 
-        setContentView(layout);
+        setContentView(
+                layout
+        );
 
         // ========================================================
         // RESTAURAÇÃO DO ESTADO
@@ -747,6 +855,7 @@ public class MainActivity extends Activity {
         } else {
 
             esconderReator();
+
             renderizarHistoricoPrincipal();
         }
     }
@@ -771,7 +880,9 @@ public class MainActivity extends Activity {
             return;
         }
 
-        commandInput.setText("");
+        commandInput.setText(
+                ""
+        );
 
         adicionarAoHistorico(
                 "VOCÊ",
@@ -785,7 +896,9 @@ public class MainActivity extends Activity {
                 texto
         );
 
-        processarComando(texto);
+        processarComando(
+                texto
+        );
 
         rolarParaBaixo();
     }
@@ -797,6 +910,7 @@ public class MainActivity extends Activity {
     private void mostrarReator() {
 
         if (reactorArea != null) {
+
             reactorArea.setVisibility(
                     View.VISIBLE
             );
@@ -806,6 +920,7 @@ public class MainActivity extends Activity {
     private void esconderReator() {
 
         if (reactorArea != null) {
+
             reactorArea.setVisibility(
                     View.GONE
             );
@@ -814,7 +929,8 @@ public class MainActivity extends Activity {
 
     private void marcarTelaComMensagem() {
 
-        telaPrincipalLimpa = false;
+        telaPrincipalLimpa =
+                false;
 
         preferencias.edit()
                 .putBoolean(
@@ -847,9 +963,13 @@ public class MainActivity extends Activity {
                         "\\|\\|REGISTRO\\|\\|"
                 );
 
-        for (String registro : registros) {
+        for (String registro :
+                registros) {
 
-            if (registro.trim().isEmpty()) {
+            if (registro
+                    .trim()
+                    .isEmpty()) {
+
                 continue;
             }
 
@@ -882,7 +1002,9 @@ public class MainActivity extends Activity {
                         );
 
                 long horario =
-                        Long.parseLong(partes[2]);
+                        Long.parseLong(
+                                partes[2]
+                        );
 
                 historico.add(
                         new MensagemHistorico(
@@ -974,7 +1096,8 @@ public class MainActivity extends Activity {
 
     private void limparTelaPrincipal() {
 
-        telaPrincipalLimpa = true;
+        telaPrincipalLimpa =
+                true;
 
         preferencias.edit()
                 .putBoolean(
@@ -984,6 +1107,7 @@ public class MainActivity extends Activity {
                 .apply();
 
         if (chatContainer != null) {
+
             chatContainer.removeAllViews();
         }
 
@@ -1058,17 +1182,29 @@ public class MainActivity extends Activity {
 
         fundo.setColor(
                 autor.equals("VOCÊ")
-                        ? Color.rgb(30, 30, 30)
-                        : Color.rgb(15, 15, 15)
+                        ? Color.rgb(
+                                30,
+                                30,
+                                30
+                        )
+                        : Color.rgb(
+                                15,
+                                15,
+                                15
+                        )
         );
 
         fundo.setCornerRadius(
                 dp(14)
         );
 
-        mensagem.setBackground(fundo);
+        mensagem.setBackground(
+                fundo
+        );
 
-        linha.addView(nome);
+        linha.addView(
+                nome
+        );
 
         linha.addView(
                 mensagem,
@@ -1107,14 +1243,18 @@ public class MainActivity extends Activity {
         rolarParaBaixo();
     }
 
-    private void responder(String texto) {
+    private void responder(
+            String texto
+    ) {
 
         adicionarMensagem(
                 "J.A.R.V.I.S",
                 texto
         );
 
-        falar(texto);
+        falar(
+                texto
+        );
     }
 
     private void rolarParaBaixo() {
@@ -1129,8 +1269,7 @@ public class MainActivity extends Activity {
                 )
         );
     }
-
-    // ============================================================
+          // ============================================================
     // MENU DE HISTÓRICO
     // ============================================================
 
@@ -1171,23 +1310,9 @@ public class MainActivity extends Activity {
         LinearLayout layout =
                 criarLayoutMenu();
 
-        TextView titulo =
-                criarTexto(
-                        "HISTÓRICO DE CONVERSA",
-                        20,
-                        Color.WHITE
-                );
-
-        titulo.setGravity(
-                Gravity.CENTER
-        );
-
-        layout.addView(
-                titulo,
-                new LinearLayout.LayoutParams(
-                        -1,
-                        dp(60)
-                )
+        adicionarTituloMenu(
+                layout,
+                "HISTÓRICO DE CONVERSA"
         );
 
         if (historico.isEmpty()) {
@@ -1203,7 +1328,7 @@ public class MainActivity extends Activity {
                     Gravity.CENTER
             );
 
-            layout.addView(
+            menuConteudo.addView(
                     vazio,
                     new LinearLayout.LayoutParams(
                             -1,
@@ -1232,7 +1357,7 @@ public class MainActivity extends Activity {
                         dp(12)
                 );
 
-                layout.addView(
+                menuConteudo.addView(
                         item,
                         new LinearLayout.LayoutParams(
                                 -1,
@@ -1634,7 +1759,7 @@ public class MainActivity extends Activity {
                 dp(16)
         );
 
-        layout.addView(
+        menuConteudo.addView(
                 texto,
                 new LinearLayout.LayoutParams(
                         -1,
@@ -1684,7 +1809,7 @@ public class MainActivity extends Activity {
                 dp(16)
         );
 
-        layout.addView(
+        menuConteudo.addView(
                 aviso,
                 new LinearLayout.LayoutParams(
                         -1,
@@ -1706,7 +1831,7 @@ public class MainActivity extends Activity {
                 dp(16)
         );
 
-        layout.addView(
+        menuConteudo.addView(
                 resultado,
                 new LinearLayout.LayoutParams(
                         -1,
@@ -1737,7 +1862,7 @@ public class MainActivity extends Activity {
                 }
         );
 
-        layout.addView(
+        menuConteudo.addView(
                 verificar,
                 parametrosBotao()
         );
@@ -1836,11 +1961,11 @@ public class MainActivity extends Activity {
         TextView info =
                 criarTexto(
                         "Reconhecimento offline: " +
-                                "o JARVIS tenta usar o reconhecimento " +
+                                "o JARVIS usa o reconhecimento " +
                                 "de voz fornecido pelo próprio Android.\n\n" +
 
-                                "O serviço de ativação atual reconhece " +
-                                "a palavra JARVIS.",
+                                "O reconhecimento principal do aplicativo " +
+                                "não usa fallback online.",
                         14,
                         Color.LTGRAY
                 );
@@ -1852,7 +1977,7 @@ public class MainActivity extends Activity {
                 dp(16)
         );
 
-        layout.addView(
+        menuConteudo.addView(
                 info,
                 new LinearLayout.LayoutParams(
                         -1,
@@ -2062,21 +2187,21 @@ public class MainActivity extends Activity {
 
             Toast.makeText(
                     this,
-                    "O reconhecimento offline depende do suporte do Android.",
-                    Toast.LENGTH_SHORT
+                    "O reconhecimento de voz offline não está disponível neste Android.",
+                    Toast.LENGTH_LONG
             ).show();
 
             return;
         }
 
-        if (!SpeechRecognizer.isRecognitionAvailable(
+        if (!SpeechRecognizer.isOnDeviceRecognitionAvailable(
                 this
         )) {
 
             Toast.makeText(
                     this,
-                    "Reconhecimento de voz não disponível.",
-                    Toast.LENGTH_SHORT
+                    "O reconhecimento de voz offline não está disponível neste aparelho.",
+                    Toast.LENGTH_LONG
             ).show();
 
             return;
@@ -2092,44 +2217,34 @@ public class MainActivity extends Activity {
 
         try {
 
-            if (SpeechRecognizer.isOnDeviceRecognitionAvailable(
-                    this
-            )) {
-
-                speechRecognizer =
-                        SpeechRecognizer
-                                .createOnDeviceSpeechRecognizer(
-                                        this
-                                );
-
-            } else {
-
-                speechRecognizer =
-                        SpeechRecognizer
-                                .createSpeechRecognizer(
-                                        this
-                                );
-            }
+            speechRecognizer =
+                    SpeechRecognizer
+                            .createOnDeviceSpeechRecognizer(
+                                    this
+                            );
 
         } catch (Exception e) {
 
             Toast.makeText(
                     this,
-                    "Não foi possível iniciar o reconhecimento.",
+                    "Não foi possível iniciar o reconhecimento de voz offline.",
                     Toast.LENGTH_SHORT
             ).show();
 
+            speechRecognizer = null;
+
             return;
         }
+
+        ouvindo = true;
 
         speechRecognizer.setRecognitionListener(
                 new RecognitionListener() {
 
                     @Override
                     public void onReadyForSpeech(
-                            android.os.Bundle params
+                            Bundle params
                     ) {
-                        ouvindo = true;
                     }
 
                     @Override
@@ -2150,6 +2265,7 @@ public class MainActivity extends Activity {
 
                     @Override
                     public void onEndOfSpeech() {
+
                         ouvindo = false;
                     }
 
@@ -2160,71 +2276,64 @@ public class MainActivity extends Activity {
 
                         ouvindo = false;
 
-                        if (error ==
-                                SpeechRecognizer.ERROR_NO_MATCH) {
-
-                            Toast.makeText(
-                                    MainActivity.this,
-                                    "Não entendi o comando.",
-                                    Toast.LENGTH_SHORT
-                            ).show();
-                        }
+                        Toast.makeText(
+                                MainActivity.this,
+                                "Não foi possível reconhecer a fala offline.",
+                                Toast.LENGTH_SHORT
+                        ).show();
                     }
 
                     @Override
                     public void onResults(
-                            android.os.Bundle results
+                            Bundle results
                     ) {
 
                         ouvindo = false;
 
-                        ArrayList<String> encontrados =
+                        if (results == null) {
+                            return;
+                        }
+
+                        ArrayList<String> resultados =
                                 results.getStringArrayList(
                                         SpeechRecognizer.RESULTS_RECOGNITION
                                 );
 
-                        if (encontrados == null ||
-                                encontrados.isEmpty()) {
-
+                        if (resultados == null ||
+                                resultados.isEmpty()) {
                             return;
                         }
 
                         String texto =
-                                encontrados.get(0);
+                                resultados.get(0);
 
                         if (texto == null ||
                                 texto.trim().isEmpty()) {
-
                             return;
                         }
 
-                        adicionarAoHistorico(
-                                "VOCÊ",
-                                texto
-                        );
+                        if (commandInput != null) {
 
-                        esconderReator();
+                            commandInput.setText(
+                                    texto
+                            );
 
-                        adicionarBalaoVisual(
-                                "VOCÊ",
-                                texto
-                        );
-
-                        processarComando(
-                                texto
-                        );
+                            commandInput.setSelection(
+                                    commandInput.length()
+                            );
+                        }
                     }
 
                     @Override
                     public void onPartialResults(
-                            android.os.Bundle partialResults
+                            Bundle partialResults
                     ) {
                     }
 
                     @Override
                     public void onEvent(
                             int eventType,
-                            android.os.Bundle params
+                            Bundle params
                     ) {
                     }
                 }
@@ -2237,7 +2346,8 @@ public class MainActivity extends Activity {
 
         intent.putExtra(
                 RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+                RecognizerIntent
+                        .LANGUAGE_MODEL_FREE_FORM
         );
 
         intent.putExtra(
@@ -2246,8 +2356,8 @@ public class MainActivity extends Activity {
         );
 
         intent.putExtra(
-                RecognizerIntent.EXTRA_PARTIAL_RESULTS,
-                false
+                RecognizerIntent.EXTRA_PREFER_OFFLINE,
+                true
         );
 
         try {
@@ -2258,15 +2368,16 @@ public class MainActivity extends Activity {
 
         } catch (Exception e) {
 
+            ouvindo = false;
+
             Toast.makeText(
                     this,
-                    "Não foi possível iniciar o microfone.",
+                    "Não foi possível iniciar o reconhecimento offline.",
                     Toast.LENGTH_SHORT
             ).show();
         }
     }
-
-    // ============================================================
+          // ============================================================
     // NORMALIZAÇÃO DE TEXTO
     // ============================================================
 
@@ -2289,7 +2400,7 @@ public class MainActivity extends Activity {
                 );
 
         return normalizado
-                .toLowerCase(Locale.getDefault())
+                .toLowerCase(Locale.ROOT)
                 .trim();
     }
 
@@ -2623,10 +2734,6 @@ public class MainActivity extends Activity {
         // --------------------------------------------------------
         // BATERIA COMPLETA
         // --------------------------------------------------------
-        // IMPORTANTE:
-        // Este bloco vem ANTES da consulta simples da bateria.
-        // Assim "informações completas da bateria" não cai
-        // no comando simples.
 
         if (contem(
                 comando,
@@ -2648,7 +2755,7 @@ public class MainActivity extends Activity {
         }
 
         // --------------------------------------------------------
-        // HORA / DATA / BATERIA SIMPLES
+        // HORA / DATA / BATERIA
         // --------------------------------------------------------
 
         boolean pediuHora =
@@ -2947,8 +3054,8 @@ public class MainActivity extends Activity {
             modoOnline = false;
 
             responder(
-                    "Modo offline ativado. "
-                            + "O JARVIS não realizará conexões online."
+                    "Modo offline ativado. " +
+                            "O JARVIS não realizará conexões online."
             );
 
             return;
@@ -2967,9 +3074,9 @@ public class MainActivity extends Activity {
             modoOnline = true;
 
             responder(
-                    "Modo online selecionado. "
-                            + "A implementação atual ainda não possui "
-                            + "uma conexão de inteligência artificial online."
+                    "Modo online selecionado. " +
+                            "A implementação atual ainda não possui " +
+                            "uma conexão de inteligência artificial online."
             );
 
             return;
@@ -3005,8 +3112,8 @@ public class MainActivity extends Activity {
         )) {
 
             responder(
-                    "O controle da lanterna ainda não está implementado "
-                            + "nesta versão."
+                    "O controle da lanterna ainda não está implementado " +
+                            "nesta versão."
             );
 
             return;
@@ -3026,8 +3133,8 @@ public class MainActivity extends Activity {
         )) {
 
             responder(
-                    "A consulta de clima ainda depende de uma conexão online "
-                            + "e da implementação de localização."
+                    "A consulta de clima ainda depende de uma conexão online " +
+                            "e da implementação de localização."
             );
 
             return;
@@ -3038,8 +3145,8 @@ public class MainActivity extends Activity {
         // --------------------------------------------------------
 
         responder(
-                "Entendi o comando, mas essa função ainda não está "
-                        + "implementada nesta versão local."
+                "Entendi o comando, mas essa função ainda não está " +
+                        "implementada nesta versão local."
         );
     }
 
@@ -3074,8 +3181,7 @@ public class MainActivity extends Activity {
                         -1
                 );
 
-        int porcentagem =
-                -1;
+        int porcentagem = -1;
 
         if (nivel >= 0 &&
                 escala > 0) {
@@ -3255,10 +3361,13 @@ public class MainActivity extends Activity {
         );
 
         if (porcentagem >= 0) {
+
             resposta.append(
                     porcentagem
             ).append("%");
+
         } else {
+
             resposta.append(
                     "indisponível"
             );
@@ -3827,349 +3936,362 @@ public class MainActivity extends Activity {
                 gb
         );
     }
+      // ============================================================
+// MENU
+// ============================================================
 
-    // ============================================================
-    // ELEMENTOS DE MENU
-    // ============================================================
+private LinearLayout criarLayoutMenu() {
 
-    private LinearLayout criarLayoutMenu() {
+    LinearLayout layout = new LinearLayout(this);
+    layout.setOrientation(LinearLayout.VERTICAL);
+    layout.setPadding(
+            dp(18),
+            dp(18),
+            dp(18),
+            dp(18)
+    );
 
-        LinearLayout layout =
-                new LinearLayout(this);
+    ScrollView scrollView = new ScrollView(this);
 
-        layout.setOrientation(
-                LinearLayout.VERTICAL
-        );
+    menuConteudo = new LinearLayout(this);
+    menuConteudo.setOrientation(LinearLayout.VERTICAL);
 
-        layout.setBackgroundColor(
-                Color.BLACK
-        );
+    scrollView.addView(
+            menuConteudo,
+            new ScrollView.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+    );
 
-        layout.setPadding(
-                dp(16),
-                dp(20),
-                dp(16),
-                dp(20)
-        );
+    layout.addView(
+            scrollView,
+            new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    0,
+                    1f
+            )
+    );
 
-        ScrollView scroll =
-                new ScrollView(this);
+    scrollView.post(
+            () -> scrollView.fullScroll(View.FOCUS_UP)
+    );
 
-        scroll.addView(layout);
+    return layout;
+}
 
-        // A tela retornada é o próprio layout interno.
-        // O conteúdo continua rolável através dos itens.
-        return layout;
-    }
+private void adicionarTituloMenu(
+        LinearLayout layout,
+        String titulo
+) {
 
-    private void adicionarTituloMenu(
-            LinearLayout layout,
-            String titulo
-    ) {
+    TextView texto = criarTexto(
+            titulo,
+            22,
+            Color.WHITE
+    );
 
-        TextView texto =
-                criarTexto(
-                        titulo,
-                        20,
-                        Color.WHITE
-                );
+    texto.setTypeface(
+            Typeface.DEFAULT,
+            Typeface.BOLD
+    );
 
-        texto.setGravity(
-                Gravity.CENTER
-        );
+    texto.setPadding(
+            0,
+            dp(8),
+            0,
+            dp(18)
+    );
 
-        texto.setTypeface(
-                null,
-                android.graphics.Typeface.BOLD
-        );
+    layout.addView(texto);
+}
 
-        layout.addView(
-                texto,
-                new LinearLayout.LayoutParams(
-                        -1,
-                        dp(60)
-                )
-        );
-    }
+private void adicionarTextoConfiguracao(
+        LinearLayout layout,
+        String texto
+) {
 
-    private void adicionarTextoConfiguracao(
-            LinearLayout layout,
-            String titulo,
-            String valor
-    ) {
+    TextView item = criarTexto(
+            texto,
+            15,
+            Color.LTGRAY
+    );
 
-        TextView texto =
-                criarTexto(
-                        titulo +
-                                "\n" +
-                                valor,
-                        14,
-                        Color.LTGRAY
-                );
+    item.setPadding(
+            dp(4),
+            dp(8),
+            dp(4),
+            dp(12)
+    );
 
-        texto.setPadding(
-                dp(12),
-                dp(14),
-                dp(12),
-                dp(14)
-        );
+    layout.addView(item);
+}
 
-        layout.addView(
-                texto,
-                new LinearLayout.LayoutParams(
-                        -1,
-                        -2
-                )
-        );
-    }
+private void adicionarBotaoTela(
+        LinearLayout layout,
+        String texto,
+        View.OnClickListener listener
+) {
 
-    private void adicionarBotaoTela(
-            LinearLayout layout,
-            String texto,
-            Runnable acao
-    ) {
+    Button botao = criarBotao(texto);
 
-        Button botao =
-                criarBotao(
-                        texto
-                );
+    botao.setOnClickListener(listener);
 
-        botao.setOnClickListener(
-                v -> acao.run()
-        );
+    layout.addView(
+            botao,
+            parametrosBotao()
+    );
+}
 
-        layout.addView(
-                botao,
-                parametrosBotao()
-        );
-    }
+private Button criarBotao(String texto) {
 
-    private Button criarBotao(
-            String texto
-    ) {
+    Button botao = new Button(this);
 
-        Button botao =
-                new Button(this);
+    botao.setText(texto);
+    botao.setTextColor(Color.WHITE);
+    botao.setTextSize(15);
+    botao.setAllCaps(false);
+    botao.setGravity(Gravity.CENTER);
+    botao.setBackgroundColor(
+            Color.rgb(30, 30, 30)
+    );
 
-        botao.setText(texto);
+    return botao;
+}
 
-        botao.setTextColor(
-                Color.WHITE
-        );
+private LinearLayout.LayoutParams parametrosBotao() {
 
-        botao.setAllCaps(false);
-
-        botao.setBackgroundColor(
-                Color.rgb(
-                        25,
-                        25,
-                        25
-                )
-        );
-
-        return botao;
-    }
-
-    private LinearLayout.LayoutParams parametrosBotao() {
-
-        LinearLayout.LayoutParams params =
-                new LinearLayout.LayoutParams(
-                        -1,
-                        dp(54)
-                );
-
-        params.setMargins(
-                0,
-                dp(5),
-                0,
-                dp(5)
-        );
-
-        return params;
-    }
-
-    private TextView criarTexto(
-            String texto,
-            float tamanho,
-            int cor
-    ) {
-
-        TextView view =
-                new TextView(this);
-
-        view.setText(texto);
-
-        view.setTextSize(
-                tamanho
-        );
-
-        view.setTextColor(
-                cor
-        );
-
-        return view;
-    }
-
-    // ============================================================
-    // VOLTAR PARA A TELA PRINCIPAL
-    // ============================================================
-
-    private void voltarTela() {
-
-        configurarTela();
-    }
-
-    // ============================================================
-    // RELÓGIO
-    // ============================================================
-
-    private void iniciarRelogio() {
-
-        clockHandler =
-                new Handler();
-
-        Runnable atualizar =
-                new Runnable() {
-
-                    @Override
-                    public void run() {
-
-                        if (clockText != null) {
-
-                            clockText.setText(
-                                    new SimpleDateFormat(
-                                            "HH:mm:ss",
-                                            Locale.getDefault()
-                                    ).format(
-                                            new Date()
-                                    )
-                            );
-                        }
-
-                        if (clockHandler != null) {
-
-                            clockHandler.postDelayed(
-                                    this,
-                                    1000
-                            );
-                        }
-                    }
-                };
-
-        clockHandler.post(
-                atualizar
-        );
-    }
-
-    // ============================================================
-    // REATOR ARC
-    // ============================================================
-
-    private class ReactorView
-            extends View {
-
-        private final Paint paint =
-                new Paint(
-                        Paint.ANTI_ALIAS_FLAG
-                );
-
-        public ReactorView(
-                android.content.Context context
-        ) {
-
-            super(context);
-
-            setLayerType(
-                    View.LAYER_TYPE_SOFTWARE,
-                    null
+    LinearLayout.LayoutParams params =
+            new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    dp(52)
             );
-        }
+
+    params.setMargins(
+            0,
+            dp(5),
+            0,
+            dp(5)
+    );
+
+    return params;
+}
+
+private TextView criarTexto(
+        String texto,
+        float tamanho,
+        int cor
+) {
+
+    TextView view = new TextView(this);
+
+    view.setText(texto);
+    view.setTextSize(tamanho);
+    view.setTextColor(cor);
+    view.setGravity(Gravity.CENTER_VERTICAL);
+
+    return view;
+}
+
+private void voltarTela() {
+
+    configurarTela();
+}
+
+private void iniciarRelogio() {
+
+    if (relogioHandler == null) {
+        relogioHandler = new Handler(
+                Looper.getMainLooper()
+        );
+    }
+
+    if (relogioRunnable != null) {
+        relogioHandler.removeCallbacks(
+                relogioRunnable
+        );
+    }
+
+    relogioRunnable = new Runnable() {
 
         @Override
-        protected void onDraw(
-                Canvas canvas
-        ) {
+        public void run() {
 
-            super.onDraw(canvas);
+            if (relogioTexto != null) {
 
-            float cx =
-                    getWidth() / 2f;
+                String hora =
+                        new SimpleDateFormat(
+                                "HH:mm",
+                                Locale.getDefault()
+                        ).format(
+                                new Date()
+                        );
 
-            float cy =
-                    getHeight() / 2f;
+                relogioTexto.setText(hora);
+            }
 
-            float raio =
-                    Math.min(
-                            getWidth(),
-                            getHeight()
-                    ) * 0.32f;
-
-            paint.setStyle(
-                    Paint.Style.STROKE
+            relogioHandler.postDelayed(
+                    this,
+                    1000
             );
-
-            paint.setStrokeWidth(
-                    dp(5)
-            );
-
-            paint.setColor(
-                    Color.WHITE
-            );
-
-            paint.setShadowLayer(
-                    dp(12),
-                    0,
-                    0,
-                    Color.WHITE
-            );
-
-            canvas.drawCircle(
-                    cx,
-                    cy,
-                    raio,
-                    paint
-            );
-
-            paint.clearShadowLayer();
-
-            paint.setStrokeWidth(
-                    dp(2)
-            );
-
-            paint.setColor(
-                    Color.GRAY
-            );
-
-            canvas.drawCircle(
-                    cx,
-                    cy,
-                    raio * 0.72f,
-                    paint
-            );
-
-            paint.setStyle(
-                    Paint.Style.FILL
-            );
-
-            paint.setColor(
-                    Color.WHITE
-            );
-
-            paint.setShadowLayer(
-                    dp(20),
-                    0,
-                    0,
-                    Color.WHITE
-            );
-
-            canvas.drawCircle(
-                    cx,
-                    cy,
-                    raio * 0.40f,
-                    paint
-            );
-
-            paint.clearShadowLayer();
         }
+    };
+
+    relogioHandler.post(
+            relogioRunnable
+    );
+}
+
+// ============================================================
+// REATOR ARC
+// ============================================================
+
+private class ReactorView extends View {
+
+    private final Paint paint =
+            new Paint(Paint.ANTI_ALIAS_FLAG);
+
+    public ReactorView(Context context) {
+
+        super(context);
+
+        setLayerType(
+                View.LAYER_TYPE_SOFTWARE,
+                null
+        );
     }
- }
+
+    @Override
+    protected void onDraw(Canvas canvas) {
+
+        super.onDraw(canvas);
+
+        float cx = getWidth() / 2f;
+        float cy = getHeight() / 2f;
+
+        float raio =
+                Math.min(
+                        getWidth(),
+                        getHeight()
+                ) * 0.32f;
+
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeWidth(dp(3));
+        paint.setColor(
+                Color.rgb(120, 190, 255)
+        );
+
+        paint.setShadowLayer(
+                dp(14),
+                0,
+                0,
+                Color.rgb(80, 170, 255)
+        );
+
+        canvas.drawCircle(
+                cx,
+                cy,
+                raio,
+                paint
+        );
+
+        paint.clearShadowLayer();
+
+        paint.setStrokeWidth(dp(2));
+
+        canvas.drawCircle(
+                cx,
+                cy,
+                raio * 0.72f,
+                paint
+        );
+
+        canvas.drawCircle(
+                cx,
+                cy,
+                raio * 0.40f,
+                paint
+        );
+
+        paint.setStyle(Paint.Style.FILL);
+
+        paint.setColor(
+                Color.rgb(150, 220, 255)
+        );
+
+        paint.setShadowLayer(
+                dp(18),
+                0,
+                0,
+                Color.rgb(70, 170, 255)
+        );
+
+        canvas.drawCircle(
+                cx,
+                cy,
+                raio * 0.18f,
+                paint
+        );
+
+        paint.clearShadowLayer();
+
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeWidth(dp(2));
+
+        Path path = new Path();
+
+        path.moveTo(
+                cx,
+                cy - raio * 0.72f
+        );
+
+        path.lineTo(
+                cx + raio * 0.18f,
+                cy - raio * 0.18f
+        );
+
+        path.lineTo(
+                cx + raio * 0.72f,
+                cy
+        );
+
+        path.lineTo(
+                cx + raio * 0.18f,
+                cy + raio * 0.18f
+        );
+
+        path.lineTo(
+                cx,
+                cy + raio * 0.72f
+        );
+
+        path.lineTo(
+                cx - raio * 0.18f,
+                cy + raio * 0.18f
+        );
+
+        path.lineTo(
+                cx - raio * 0.72f,
+                cy
+        );
+
+        path.lineTo(
+                cx - raio * 0.18f,
+                cy - raio * 0.18f
+        );
+
+        path.close();
+
+        canvas.drawPath(
+                path,
+                paint
+        );
+    }
+}
+
+// ============================================================
+// FIM DA MAINACTIVITY
+// ============================================================
+
+
+  }
