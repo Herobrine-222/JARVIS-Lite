@@ -400,7 +400,8 @@ public class MainActivity extends Activity {
                 speechRecognizer.destroy();
             } catch (Exception e) {
             }
-                speechRecognizer = null;
+
+            speechRecognizer = null;
         }
     }
 
@@ -803,7 +804,7 @@ public class MainActivity extends Activity {
         if (tts == null || !ttsReady) {
             TextView indisponivel = criarTexto("O mecanismo de voz ainda está inicializando.");
             indisponivel.setTextColor(Color.GRAY);
-                  lista.addView(indisponivel, parametrosTexto());
+            lista.addView(indisponivel, parametrosTexto());
         } else {
             List<Voice> vozes = new java.util.ArrayList<>();
             for (Voice voz : tts.getVoices()) {
@@ -1588,7 +1589,7 @@ public class MainActivity extends Activity {
 
             if (consulta.isEmpty()) {
                 responder("Diga qual memória você quer que eu esqueça.");
-            } else if (memoria.forget(consulta)) {
+            } else if (memoria.forget(consulta) > 0) {
                 responder("Entendido. Apaguei da memória local o que correspondia a essa informação.");
             } else {
                 responder("Não encontrei uma memória correspondente.");
@@ -1609,7 +1610,7 @@ public class MainActivity extends Activity {
 
     private String normalizarMemoria(String texto) {
         String normalizado = java.text.Normalizer.normalize(
-                   texto == null ? "" : texto,
+                texto == null ? "" : texto,
                 java.text.Normalizer.Form.NFD
         );
         normalizado = normalizado.replaceAll(
