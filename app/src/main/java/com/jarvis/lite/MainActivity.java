@@ -1,3 +1,5 @@
+
+
 package com.jarvis.lite;
 
 import android.Manifest;
@@ -136,16 +138,6 @@ public class MainActivity extends Activity {
 
         arquivosMidiaAtivados =
                 preferencias.getBoolean("arquivos_midia_ativos", false);
-
-        try {
-            stopService(
-                    new Intent(
-                            this,
-                            JarvisVoiceService.class
-                    )
-            );
-        } catch (Exception ignored) {
-        }
 
         configurarTela();
         restaurarChatPrincipal();
@@ -395,6 +387,12 @@ public class MainActivity extends Activity {
 
                             if (reactorView != null) {
                                 reactorView.setOuvindo(false);
+                            }
+
+                            if (error == SpeechRecognizer.ERROR_NO_MATCH
+                                    || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
+                                liberarReconhecedor();
+                                return;
                             }
 
                             String mensagem;
@@ -912,6 +910,8 @@ public class MainActivity extends Activity {
         setContentView(root);
     }
 
+
+
     private void abrirMenuJarvis() {
         telaAtual = TELA_MENU_JARVIS;
 
@@ -941,8 +941,8 @@ public class MainActivity extends Activity {
 
         adicionarBotaoTela(
                 layout,
-                "Comando de voz",
-                this::abrirComandoVoz
+                "Personalizar voz",
+                this::abrirGerenciarVoz
         );
 
         adicionarBotaoTela(
@@ -1584,6 +1584,12 @@ public class MainActivity extends Activity {
 
         adicionarBotaoTela(
                 layout,
+                "CONFIGURAR COMANDO DE ATIVAÇÃO",
+                this::abrirComandoVoz
+        );
+
+        adicionarBotaoTela(
+                layout,
                 "VOLTAR",
                 this::abrirGerenciarJarvis
         );
@@ -1881,6 +1887,8 @@ public class MainActivity extends Activity {
 
         return params;
     }
+
+
 
     private void abrirPrivacidade() {
 
@@ -2185,7 +2193,7 @@ public class MainActivity extends Activity {
 
         LinearLayout layout =
                 criarTelaBase(
-                        "COMANDO DE VOZ",
+                        "PERSONALIZAR VOZ",
                         "ATIVAÇÃO DO JARVIS"
                 );
 
@@ -2737,6 +2745,8 @@ public class MainActivity extends Activity {
         );
     }
 
+
+
     private void processarComando(
             String comandoOriginal) {
 
@@ -2854,6 +2864,12 @@ public class MainActivity extends Activity {
         )
                 || comando.equals(
                 "informacao da bateria"
+        )
+                || comando.equals(
+                "informacoes de bateria"
+        )
+                || comando.equals(
+                "informacao de bateria"
         )
                 || comando.equals(
                 "dados da bateria"
@@ -3185,6 +3201,13 @@ public class MainActivity extends Activity {
             return;
         }
 
+        String resultadoCalculo = calcularExpressaoSimples(original);
+
+        if (resultadoCalculo != null) {
+            responder(resultadoCalculo);
+            return;
+        }
+
         if (comando.contains("jarvis")
                 && (comando.contains(
                         "esta ai"
@@ -3203,6 +3226,84 @@ public class MainActivity extends Activity {
         responder(
                 "Entendi. Essa frase é uma conversa, mas ainda não corresponde a um comando local implementado."
         );
+    }
+
+    /**
+     * Calculadora local deliberadamente limitada a operações aritméticas
+     * simples. Não executa código, comandos do sistema ou expressões
+     * arbitrárias.
+     */
+    private String calcularExpressaoSimples(String texto) {
+
+        if (texto == null) {
+            return null;
+        }
+
+        String valor = texto.trim().toLowerCase(Locale.ROOT);
+
+        valor = valor.replace("quanto é", "");
+        valor = valor.replace("quanto e", "");
+        valor = valor.replace("calcule", "");
+        valor = valor.replace("calcular", "");
+        valor = valor.replace("resultado de", "");
+        valor = valor.replace("qual é", "");
+        valor = valor.replace("qual e", "");
+        valor = valor.replace("?", "");
+        valor = valor.trim();
+
+        if (valor.isEmpty() || valor.length() > 60) {
+            return null;
+        }
+
+        valor = valor
+                .replace("vezes", "*")
+                .replace("multiplicado por", "*")
+                .replace("dividido por", "/")
+                .replace("mais", "+")
+                .replace("menos", "-");
+
+        if (valor.matches("[0-9]+([.,][0-9]+)?\\s*[+\\-*/]\\s*[0-9]+([.,][0-9]+)?")) {
+            String expressao = valor.replace(',', '.').replaceAll("\\s+", "");
+            java.util.regex.Matcher matcher = java.util.regex.Pattern
+                    .compile("([0-9]+(?:\\.[0-9]+)?)([+\\-*/])([0-9]+(?:\\.[0-9]+)?)")
+                    .matcher(expressao);
+
+            if (!matcher.matches()) {
+                return null;
+            }
+
+            double a = Double.parseDouble(matcher.group(1));
+            double b = Double.parseDouble(matcher.group(3));
+            double resultado;
+
+            switch (matcher.group(2)) {
+                case "+":
+                    resultado = a + b;
+                    break;
+                case "-":
+                    resultado = a - b;
+                    break;
+                case "*":
+                    resultado = a * b;
+                    break;
+                case "/":
+                    if (b == 0) {
+                        return "Não é possível dividir por zero.";
+                    }
+                    resultado = a / b;
+                    break;
+                default:
+                    return null;
+            }
+
+            if (resultado == Math.rint(resultado)) {
+                return "O resultado é " + String.format(Locale.getDefault(), "%.0f", resultado) + ".";
+            }
+
+            return "O resultado é " + String.format(Locale.getDefault(), "%.4f", resultado) + ".";
+        }
+
+        return null;
     }
 
     private boolean processarMemoriaSocial(
@@ -3700,6 +3801,8 @@ public class MainActivity extends Activity {
 
         return false;
     }
+
+
 
     private String normalizar(
             String texto) {
@@ -4635,6 +4738,8 @@ public class MainActivity extends Activity {
         // de seleção do histórico.
     }
 
+
+
     private void confirmarApagarSelecionadas() {
 
         if (mensagensSelecionadas.isEmpty()) {
@@ -4823,787 +4928,5 @@ public class MainActivity extends Activity {
                             );
 
             String resultado =
-                    bateria
-                            + "\n"
-                            + temperatura
-                            + "\n"
-                            + (
-                            carregando
-                                    ? "A bateria está carregando."
-                                    : "A bateria não está carregando."
-                    );
-
-            if (voltagem > 0) {
-
-                resultado +=
-                        " Tensão: "
-                                + voltagem
-                                + " mV.";
-            }
-
-            return resultado;
-
-        } catch (Exception e) {
-
-            return bateria
-                    + "\n"
-                    + temperatura;
-        }
-    }
-
-    private String obterEstadoCarregamento() {
-
-        try {
-
-            Intent intent =
-                    registerReceiver(
-                            null,
-                            new IntentFilter(
-                                    Intent.ACTION_BATTERY_CHANGED
-                            )
-                    );
-
-            if (intent == null) {
-
-                return "Não consegui consultar o estado de carregamento.";
-            }
-
-            int status =
-                    intent.getIntExtra(
-                            BatteryManager.EXTRA_STATUS,
-                            -1
-                    );
-
-            if (status ==
-                    BatteryManager.BATTERY_STATUS_CHARGING) {
-
-                return "A bateria está carregando.";
-
-            } else if (
-                    status ==
-                            BatteryManager.BATTERY_STATUS_FULL) {
-
-                return "A bateria está totalmente carregada.";
-
-            } else if (
-                    status ==
-                            BatteryManager.BATTERY_STATUS_DISCHARGING) {
-
-                return "A bateria não está carregando.";
-
-            } else {
-
-                return "O estado de carregamento não está disponível no momento.";
-            }
-
-        } catch (Exception e) {
-
-            return "Não consegui consultar o estado de carregamento.";
-        }
-    }
-
-    private String obterMemoriaEArmazenamento() {
-
-        return obterInformacoesRam()
-                + "\n"
-                + obterInformacoesArmazenamento();
-    }
-
-    private String obterInformacoesRam() {
-
-        try {
-
-            ActivityManager am =
-                    (ActivityManager)
-                            getSystemService(
-                                    ACTIVITY_SERVICE
-                            );
-
-            ActivityManager.MemoryInfo mi =
-                    new ActivityManager.MemoryInfo();
-
-            if (am == null) {
-
-                return "Não consegui obter informações da RAM.";
-            }
-
-            am.getMemoryInfo(mi);
-
-            long total =
-                    mi.totalMem;
-
-            long livre =
-                    mi.availMem;
-
-            long usada =
-                    Math.max(
-                            0L,
-                            total - livre
-                    );
-
-            return "RAM em uso: "
-                    + formatarBytes(usada)
-                    + " de "
-                    + formatarBytes(total)
-                    + ".\n"
-                    + "RAM disponível: "
-                    + formatarBytes(livre)
-                    + ".";
-
-        } catch (Exception e) {
-
-            return "Não consegui obter informações da RAM.";
-        }
-    }
-
-    private String obterInformacoesArmazenamento() {
-
-        try {
-
-            android.os.StatFs stat =
-                    new android.os.StatFs(
-                            android.os.Environment
-                                    .getDataDirectory()
-                                    .getAbsolutePath()
-                    );
-
-            long total =
-                    stat.getTotalBytes();
-
-            long livre =
-                    stat.getAvailableBytes();
-
-            long usado =
-                    Math.max(
-                            0L,
-                            total - livre
-                    );
-
-            return "Armazenamento acessível em uso: "
-                    + formatarBytes(usado)
-                    + " de "
-                    + formatarBytes(total)
-                    + ".\n"
-                    + "Espaço livre acessível: "
-                    + formatarBytes(livre)
-                    + ".";
-
-        } catch (Exception e) {
-
-            return "Não consegui obter informações do armazenamento.";
-        }
-    }     private String formatarBytes(
-            long bytes) {
-
-        if (bytes < 1024) {
-            return bytes + " B";
-        }
-
-        double v =
-                bytes / 1024.0;
-
-        if (v < 1024) {
-
-            return String.format(
-                    Locale.getDefault(),
-                    "%.1f KB",
-                    v
-            );
-        }
-
-        v /= 1024.0;
-
-        if (v < 1024) {
-
-            return String.format(
-                    Locale.getDefault(),
-                    "%.1f MB",
-                    v
-            );
-        }
-
-        v /= 1024.0;
-
-        return String.format(
-                Locale.getDefault(),
-                "%.2f GB",
-                v
-        );
-    }
-
-    private String obterBateria() {
-
-        try {
-
-            BatteryManager batteryManager =
-                    (BatteryManager)
-                            getSystemService(
-                                    BATTERY_SERVICE
-                            );
-
-            if (batteryManager == null) {
-
-                return "Não consegui obter o nível da bateria.";
-            }
-
-            int nivel =
-                    batteryManager.getIntProperty(
-                            BatteryManager
-                                    .BATTERY_PROPERTY_CAPACITY
-                    );
-
-            if (nivel < 0) {
-
-                return "Não consegui obter o nível da bateria.";
-            }
-
-            return "A bateria está em "
-                    + nivel
-                    + "%.";
-
-        } catch (Exception e) {
-
-            return "Não consegui obter o nível da bateria.";
-        }
-    }
-
-    private String obterTemperatura() {
-
-        try {
-
-            Intent bateria =
-                    registerReceiver(
-                            null,
-                            new IntentFilter(
-                                    Intent.ACTION_BATTERY_CHANGED
-                            )
-                    );
-
-            if (bateria == null) {
-
-                return "Não consegui obter a temperatura do aparelho.";
-            }
-
-            int temperatura =
-                    bateria.getIntExtra(
-                            BatteryManager.EXTRA_TEMPERATURE,
-                            Integer.MIN_VALUE
-                    );
-
-            if (temperatura ==
-                    Integer.MIN_VALUE) {
-
-                return "A temperatura informada pelo sistema não está disponível neste momento.";
-            }
-
-            double celsius =
-                    temperatura / 10.0;
-
-            return String.format(
-                    Locale.getDefault(),
-                    "A temperatura informada pelo sistema é %.1f graus Celsius.",
-                    celsius
-            );
-
-        } catch (Exception e) {
-
-            return "Não consegui obter a temperatura do aparelho.";
-        }
-    }
-
-    private String obterStatus() {
-
-        String hora =
-                new SimpleDateFormat(
-                        "HH:mm:ss",
-                        Locale.getDefault()
-                ).format(
-                        new Date()
-                );
-
-        return "Status do sistema: "
-                + obterBateria()
-                + " "
-                + obterEstadoCarregamento()
-                + " Hora "
-                + hora
-                + ". Modo "
-                + (
-                modoOnline
-                        ? "ONLINE selecionado."
-                        : "OFFLINE ativo."
-        );
-    }
-
-    private void responder(
-            String mensagem) {
-
-        if (mensagem == null
-                || mensagem.trim().isEmpty()) {
-
-            return;
-        }
-
-        adicionarMensagem(
-                "JARVIS",
-                mensagem
-        );
-
-        falar(mensagem);
-    }
-
-    private void adicionarMensagem(
-            String autor,
-            String mensagem) {
-
-        if (chatContainer == null) {
-            return;
-        }
-
-        preferencias.edit()
-                .putBoolean(
-                        "chat_oculto",
-                        false
-                )
-                .apply();
-
-        salvarMensagem(
-                autor,
-                mensagem
-        );
-
-        LinearLayout linha =
-                new LinearLayout(this);
-
-        linha.setOrientation(
-                LinearLayout.VERTICAL
-        );
-
-        linha.setGravity(
-                "VOCÊ".equals(autor)
-                        ? Gravity.END
-                        : Gravity.START
-        );
-
-        linha.setPadding(
-                0,
-                dp(4),
-                0,
-                dp(4)
-        );
-
-        TextView nome =
-                new TextView(this);
-
-        nome.setText(autor);
-        nome.setTextSize(10);
-        nome.setTextColor(Color.GRAY);
-
-        nome.setGravity(
-                "VOCÊ".equals(autor)
-                        ? Gravity.END
-                        : Gravity.START
-        );
-
-        TextView balao =
-                new TextView(this);
-
-        balao.setText(mensagem);
-        balao.setTextSize(14);
-        balao.setTextColor(Color.WHITE);
-        balao.setGravity(
-                Gravity.CENTER_VERTICAL
-        );
-
-        balao.setPadding(
-                dp(14),
-                dp(10),
-                dp(14),
-                dp(10)
-        );
-
-        GradientDrawable fundo =
-                new GradientDrawable();
-
-        fundo.setCornerRadius(
-                dp(18)
-        );
-
-        fundo.setColor(
-                "VOCÊ".equals(autor)
-                        ? Color.rgb(34, 34, 34)
-                        : Color.rgb(18, 18, 18)
-        );
-
-        fundo.setStroke(
-                dp(1),
-                Color.rgb(65, 65, 65)
-        );
-
-        balao.setBackground(
-                fundo
-        );
-
-        LinearLayout.LayoutParams nomeParams =
-                new LinearLayout.LayoutParams(
-                        dp(260),
-                        -2
-                );
-
-        nomeParams.gravity =
-                "VOCÊ".equals(autor)
-                        ? Gravity.END
-                        : Gravity.START;
-
-        nomeParams.setMargins(
-                dp(4),
-                0,
-                dp(4),
-                dp(2)
-        );
-
-        linha.addView(
-                nome,
-                nomeParams
-        );
-
-        LinearLayout.LayoutParams balaoParams =
-                new LinearLayout.LayoutParams(
-                        dp(260),
-                        -2
-                );
-
-        balaoParams.gravity =
-                "VOCÊ".equals(autor)
-                        ? Gravity.END
-                        : Gravity.START;
-
-        balaoParams.setMargins(
-                dp(4),
-                0,
-                dp(4),
-                0
-        );
-
-        linha.addView(
-                balao,
-                balaoParams
-        );
-
-        chatContainer.addView(
-                linha,
-                new LinearLayout.LayoutParams(
-                        -1,
-                        -2
-                )
-        );
-
-        AlphaAnimation aparecer =
-                new AlphaAnimation(
-                        0f,
-                        1f
-                );
-
-        aparecer.setDuration(220);
-
-        TranslateAnimation subir =
-                new TranslateAnimation(
-                        0,
-                        0,
-                        dp(10),
-                        0
-                );
-
-        subir.setDuration(220);
-
-        AnimationSet entradaAnimada =
-                new AnimationSet(true);
-
-        entradaAnimada.addAnimation(
-                aparecer
-        );
-
-        entradaAnimada.addAnimation(
-                subir
-        );
-
-        linha.startAnimation(
-                entradaAnimada
-        );
-
-        if (chatScroll != null) {
-
-            chatScroll.postDelayed(
-                    () -> chatScroll.fullScroll(
-                            View.FOCUS_DOWN
-                    ),
-                    80
-            );
-        }
-    }
-
-    private class ReactorView
-            extends View {
-
-        private final Paint paint =
-                new Paint(
-                        Paint.ANTI_ALIAS_FLAG
-                );
-
-        private float rotacao = 0f;
-        private boolean ouvindoLocal = false;
-
-        private final Handler handler =
-                new Handler();
-
-        private final Runnable animacao =
-                new Runnable() {
-
-                    @Override
-                    public void run() {
-
-                        if (ouvindoLocal) {
-                            rotacao += 3.0f;
-                        } else {
-                            rotacao += 1.2f;
-                        }
-
-                        if (rotacao >= 360f) {
-                            rotacao -= 360f;
-                        }
-
-                        invalidate();
-
-                        handler.postDelayed(
-                                this,
-                                16
-                        );
-                    }
-                };
-
-        public ReactorView(
-                android.content.Context context) {
-
-            super(context);
-
-            setLayerType(
-                    View.LAYER_TYPE_SOFTWARE,
-                    null
-            );
-
-            handler.post(
-                    animacao
-            );
-        }
-
-        public void setOuvindo(
-                boolean valor) {
-
-            ouvindoLocal =
-                    valor;
-
-            invalidate();
-        }
-
-        @Override
-        protected void onDraw(
-                Canvas canvas) {
-
-            super.onDraw(canvas);
-
-            float centroX =
-                    getWidth() / 2f;
-
-            float centroY =
-                    getHeight() / 2f;
-
-            float raioMax =
-                    Math.min(
-                            getWidth(),
-                            getHeight()
-                    ) * 0.38f;
-
-            paint.setStyle(
-                    Paint.Style.FILL
-            );
-
-            paint.setColor(
-                    Color.rgb(
-                            255,
-                            210,
-                            0
-                    )
-            );
-
-            paint.setShadowLayer(
-                    ouvindoLocal
-                            ? 45f
-                            : 28f,
-                    0f,
-                    0f,
-                    Color.rgb(
-                            255,
-                            180,
-                            0
-                    )
-            );
-
-            canvas.drawCircle(
-                    centroX,
-                    centroY,
-                    raioMax * 0.19f,
-                    paint
-            );
-
-            paint.clearShadowLayer();
-
-            paint.setStyle(
-                    Paint.Style.STROKE
-            );
-
-            paint.setStrokeWidth(
-                    ouvindoLocal
-                            ? 4.5f
-                            : 3.2f
-            );
-
-            paint.setColor(
-                    Color.rgb(
-                            255,
-                            220,
-                            20
-                    )
-            );
-
-            for (int i = 0; i < 8; i++) {
-
-                float raio =
-                        raioMax
-                                - (i * 10.5f);
-
-                canvas.save();
-
-                float direcao =
-                        (i % 2 == 0)
-                                ? 1f
-                                : -1f;
-
-                canvas.rotate(
-                        rotacao * direcao,
-                        centroX,
-                        centroY
-                );
-
-                RectF oval =
-                        new RectF(
-                                centroX - raio,
-                                centroY - raio,
-                                centroX + raio,
-                                centroY + raio
-                        );
-
-                canvas.drawArc(
-                        oval,
-                        15f,
-                        285f,
-                        false,
-                        paint
-                );
-
-                canvas.drawArc(
-                        oval,
-                        320f,
-                        25f,
-                        false,
-                        paint
-                );
-
-                canvas.restore();
-            }
-
-            paint.setStyle(
-                    Paint.Style.FILL
-            );
-
-            paint.setColor(
-                    Color.WHITE
-            );
-
-            paint.setShadowLayer(
-                    ouvindoLocal
-                            ? 35f
-                            : 22f,
-                    0f,
-                    0f,
-                    Color.YELLOW
-            );
-
-            canvas.drawCircle(
-                    centroX,
-                    centroY,
-                    raioMax * 0.115f,
-                    paint
-            );
-
-            paint.clearShadowLayer();
-
-            paint.setColor(
-                    Color.rgb(
-                            255,
-                            215,
-                            0
-                    )
-            );
-
-            canvas.drawCircle(
-                    centroX,
-                    centroY,
-                    raioMax * 0.065f,
-                    paint
-            );
-        }
-
-        @Override
-        protected void onDetachedFromWindow() {
-
-            handler.removeCallbacks(
-                    animacao
-            );
-
-            super.onDetachedFromWindow();
-        }
-    }
-
-    @Override
-    public void onBackPressed() {
-        voltarSistema();
-    }
-
-    @Override
-    protected void onDestroy() {
-
-        if (clockHandler != null) {
-
-            clockHandler.removeCallbacksAndMessages(
-                    null
-            );
-        }
-
-        pararReconhecimento();
-
-        if (tts != null) {
-
-            try {
-
-                tts.stop();
-                tts.shutdown();
-
-            } catch (Exception ignored) {
-            }
-
-            tts = null;
-        }
-
-        super.onDestroy();
-    }
-}
+                    bater
+Pré-visualização truncada devido ao tamanho do arquivo
