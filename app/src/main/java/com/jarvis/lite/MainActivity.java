@@ -2,6 +2,7 @@ package com.jarvis.lite;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.ActivityManager;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
@@ -30,7 +31,10 @@ import android.speech.tts.Voice;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowInsets;
+import android.view.WindowManager;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -43,6 +47,9 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.Locale;
 import java.util.List;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 public class MainActivity extends Activity {
 
@@ -87,11 +94,16 @@ public class MainActivity extends Activity {
     private static final int TELA_COMANDO_VOZ = 5;
     private static final int TELA_GERENCIAR_VOZ = 6;
     private static final int TELA_MEMORIA = 7;
+    private static final int TELA_HISTORICO = 8;
+
+    private final ArrayList<Integer> mensagensSelecionadas = new ArrayList<>();
     private int telaAtual = TELA_PRINCIPAL;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
 
         if (Build.VERSION.SDK_INT >= 21) {
             getWindow().setStatusBarColor(Color.BLACK);
@@ -110,6 +122,7 @@ public class MainActivity extends Activity {
         memoriaAutomatica = preferencias.getBoolean("memoria_automatica", true);
 
         configurarTela();
+        restaurarChatPrincipal();
         iniciarRelogio();
         iniciarVoz();
 
@@ -122,15 +135,11 @@ public class MainActivity extends Activity {
             );
         }
 
-        adicionarMensagem(
-                "JARVIS",
-                "À sua disposição. Sistemas locais operacionais."
-        );
-
-        adicionarMensagem(
-                "JARVIS",
-                "Modo OFFLINE ativo."
-        );
+        if (!preferencias.getBoolean("chat_inicializado", false)) {
+            adicionarMensagem("JARVIS", saudacaoPorHorario());
+            adicionarMensagem("JARVIS", modoOnline ? "Modo ONLINE ativo." : "Modo OFFLINE ativo.");
+            preferencias.edit().putBoolean("chat_inicializado", true).apply();
+        }
     }
 
     private int dp(int valor) {
@@ -503,33 +512,43 @@ public class MainActivity extends Activity {
         entrada.setOrientation(LinearLayout.HORIZONTAL);
         entrada.setGravity(Gravity.CENTER_VERTICAL);
 
+        GradientDrawable campoFundo = new GradientDrawable();
+        campoFundo.setColor(Color.rgb(17, 17, 17));
+        campoFundo.setCornerRadius(dp(22));
+        campoFundo.setStroke(dp(1), Color.rgb(70, 70, 70));
+
         commandInput = new EditText(this);
         commandInput.setHint("Digite uma mensagem...");
-        commandInput.setHintTextColor(Color.GRAY);
+        commandInput.setHintTextColor(Color.rgb(145, 145, 145));
         commandInput.setTextColor(Color.WHITE);
         commandInput.setSingleLine(true);
-        entrada.addView(commandInput, new LinearLayout.LayoutParams(0, dp(48), 1));
+        commandInput.setTextSize(15);
+        commandInput.setPadding(dp(16), 0, dp(14), 0);
+        commandInput.setBackground(campoFundo);
+        commandInput.setOnFocusChangeListener((v, focused) -> {
+            if (focused && chatScroll != null) {
+                chatScroll.postDelayed(() -> chatScroll.fullScroll(View.FOCUS_DOWN), 180);
+            }
+        });
+        entrada.addView(commandInput, new LinearLayout.LayoutParams(0, dp(52), 1));
 
-        Button microfone = new Button(this);
-        microfone.setText("🎙");
-        microfone.setTextSize(16);
+        Button microfone = criarBotao("◉");
+        microfone.setTextSize(20);
         microfone.setOnClickListener(v -> {
             if (!ouvindo) iniciarReconhecimento();
             else pararReconhecimento();
         });
-        entrada.addView(microfone, new LinearLayout.LayoutParams(dp(58), dp(48)));
-        root.addView(entrada, new LinearLayout.LayoutParams(-1, dp(48)));
+        LinearLayout.LayoutParams micParams = new LinearLayout.LayoutParams(dp(56), dp(52));
+        micParams.leftMargin = dp(6);
+        entrada.addView(microfone, micParams);
+        root.addView(entrada, new LinearLayout.LayoutParams(-1, dp(58)));
 
-        Button executar = new Button(this);
-        executar.setText("ENVIAR");
-        executar.setOnClickListener(v -> {
-            String comando = commandInput.getText().toString().trim();
-            if (comando.isEmpty()) return;
-            adicionarMensagem("VOCÊ", comando);
-            processarComando(comando);
-            commandInput.setText("");
-        });
-        root.addView(executar, new LinearLayout.LayoutParams(-1, dp(44)));
+        Button executar = criarBotao("➤");
+        executar.setTextSize(20);
+        executar.setOnClickListener(v -> enviarTextoDigitado());
+        LinearLayout.LayoutParams enviarParams = new LinearLayout.LayoutParams(dp(58), dp(48));
+        enviarParams.gravity = Gravity.CENTER_HORIZONTAL;
+        root.addView(executar, enviarParams);
 
         setContentView(root);
     }
@@ -568,6 +587,10 @@ public class MainActivity extends Activity {
                 "🧠 MEMÓRIA DO JARVIS",
                 this::abrirMemoriaJarvis
         );
+
+        adicionarBotaoTela(layout, "HISTÓRICO DE CONVERSAS", this::abrirHistoricoConversas);
+        adicionarBotaoTela(layout, "EXPORTAR CONVERSAS", this::exportarConversas);
+        adicionarBotaoTela(layout, "LIMPAR CONVERSAS DA TELA", this::limparConversasDaTela);
 
         adicionarBotaoTela(
                 layout,
@@ -979,47 +1002,62 @@ public class MainActivity extends Activity {
 
     private void abrirVerificacao() {
         telaAtual = TELA_VERIFICACAO;
-        LinearLayout layout =
-                criarTelaBase(
-                        "VERIFICAÇÃO DO APARELHO",
-                        "VERIFICAÇÃO BÁSICA"
-                );
+        LinearLayout layout = criarTelaBase("VERIFICAÇÃO DO APARELHO", "VERIFICAÇÃO LOCAL DO JARVIS");
 
-        TextView resultado = criarTexto(
-                "Resultado:\n"
-                        + "Nenhuma ameaça pode ser confirmada por esta verificação básica.\n\n"
-                        + "Esta função apenas consulta informações acessíveis ao aplicativo."
-        );
+        ReactorView verificador = new ReactorView(this);
+        layout.addView(verificador, new LinearLayout.LayoutParams(-1, dp(190)));
 
+        TextView resultado = criarTexto(resultadoVerificacao());
+        resultado.setTextSize(17);
+        resultado.setGravity(Gravity.CENTER);
         layout.addView(resultado, parametrosTexto());
 
         TextView ultima = criarTexto(textoUltimaVerificacao());
+        ultima.setGravity(Gravity.CENTER);
         layout.addView(ultima, parametrosTexto());
 
+        TextView apps = criarTexto(listaAppsVerificados());
+        apps.setTextSize(13);
+        layout.addView(apps, parametrosTexto());
+
         Button verificar = criarBotao("VERIFICAR");
-
         verificar.setOnClickListener(v -> {
-            executarVerificacao();
-
-            ultima.setText(textoUltimaVerificacao());
-
-            resultado.setText(
-                    "Resultado:\n"
-                            + "Verificação básica concluída.\n\n"
-                            + "O JARVIS não encontrou informações que permitam confirmar uma ameaça.\n\n"
-                            + "Esta função não substitui o Google Play Protect."
-            );
+            verificar.setEnabled(false);
+            resultado.setText("VERIFICANDO\nVerificação em andamento...");
+            ultima.setText("Analisando aplicativos instalados...");
+            verificador.setOuvindo(true);
+            new Handler().postDelayed(() -> {
+                executarVerificacao();
+                verificador.setOuvindo(false);
+                resultado.setText(resultadoVerificacao());
+                ultima.setText(textoUltimaVerificacao());
+                apps.setText(listaAppsVerificados());
+                verificar.setEnabled(true);
+            }, 2500);
         });
-
         layout.addView(verificar, parametrosBotao());
-
-        adicionarBotaoTela(
-                layout,
-                "VOLTAR",
-                this::abrirMenuJarvis
-        );
-
+        adicionarBotaoTela(layout, "VOLTAR", this::abrirMenuJarvis);
         setContentView(layout);
+    }
+
+    private String resultadoVerificacao() {
+        return "Nenhum app nocivo encontrado\n\nO JARVIS não encontrou sinais básicos de risco dentro do escopo que um aplicativo comum pode verificar.\n\nEsta verificação não substitui o Google Play Protect.";
+    }
+
+    private String listaAppsVerificados() {
+        if (ultimaVerificacao == 0L) return "APPS VERIFICADOS RECENTEMENTE\n\nNenhuma verificação foi executada ainda.";
+        StringBuilder out = new StringBuilder("APPS VERIFICADOS RECENTEMENTE\n\n");
+        try {
+            List<ApplicationInfo> apps = getPackageManager().getInstalledApplications(PackageManager.GET_META_DATA);
+            int limite = Math.min(apps.size(), 12);
+            String dataHora = new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(new Date(ultimaVerificacao));
+            for (int i=0;i<limite;i++) {
+                ApplicationInfo a = apps.get(i);
+                CharSequence label = getPackageManager().getApplicationLabel(a);
+                out.append("• ").append(label).append(" — App verificado às ").append(dataHora).append("\n");
+            }
+        } catch (Exception e) { out.append("Não foi possível listar os aplicativos."); }
+        return out.toString();
     }
 
     private void executarVerificacao() {
@@ -1354,6 +1392,7 @@ public class MainActivity extends Activity {
             case TELA_VERIFICACAO:
             case TELA_COMANDO_VOZ:
             case TELA_MEMORIA:
+            case TELA_HISTORICO:
                 abrirMenuJarvis();
                 break;
             case TELA_GERENCIAR_VOZ:
@@ -1473,7 +1512,13 @@ public class MainActivity extends Activity {
         if (comando.contains("bateria")
                 || comando.contains("carga")) {
 
-            responder(obterBateria());
+            responder(obterInformacoesBateriaCompletas());
+            return;
+        }
+
+        if (comando.contains("ram") || comando.contains("memoria ram") || comando.contains("memoria de armazenamento")
+                || comando.contains("armazenamento") || comando.contains("espaco livre") || comando.contains("espaco")) {
+            responder(obterMemoriaEArmazenamento());
             return;
         }
 
@@ -1558,11 +1603,23 @@ public class MainActivity extends Activity {
         }
 
         if (contemAlgum(c, "bom dia", "boa tarde", "boa noite")) {
-            return saudacaoPorHorario();
+            int hora = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
+            if (c.equals("bom dia") && hora >= 12) {
+                return hora >= 18
+                        ? "Na verdade, boa noite. Já está de noite por aqui. Como foi seu dia hoje?"
+                        : "Na verdade, boa tarde. Já passou da manhã. Como posso ajudar?";
+            }
+            if (c.equals("boa tarde") && hora >= 18) {
+                return "Na verdade, boa noite. Já está de noite. Como foi seu dia hoje?";
+            }
+            if (c.equals("boa noite") && hora >= 5 && hora < 18) {
+                return "Ainda não é noite por aqui. " + saudacaoPorHorario() + " Como posso ajudar?";
+            }
+            return saudacaoConversacional(c);
         }
 
         if (contemAlgum(c, "ola", "oi", "e ai", "fala jarvis", "fala ai")) {
-            return saudacaoPorHorario();
+            return saudacaoConversacional(c);
         }
 
         if (contemAlgum(c, "como voce esta", "como voce ta", "como voce esta", "como voce ta", "tudo bem com voce", "tudo bem com você")) {
@@ -1866,6 +1923,198 @@ public class MainActivity extends Activity {
                 .show();
     }
 
+    private String saudacaoConversacional(String entrada) {
+        int hora = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
+        String periodo = hora < 12 ? "Bom dia" : (hora < 18 ? "Boa tarde" : "Boa noite");
+        if (entrada != null && normalizar(entrada).equals("ola")) {
+            return "Olá. " + periodo + "! Como posso ajudar?";
+        }
+        return periodo + ". Estou à disposição. O que você precisa?";
+    }
+
+    private void enviarTextoDigitado() {
+        if (commandInput == null) return;
+        String comando = commandInput.getText().toString().trim();
+        if (comando.isEmpty()) return;
+        adicionarMensagem("VOCÊ", comando);
+        commandInput.setText("");
+        esconderTeclado();
+        processarComando(comando);
+    }
+
+    private void esconderTeclado() {
+        try {
+            InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+            if (imm != null && commandInput != null) {
+                imm.hideSoftInputFromWindow(commandInput.getWindowToken(), 0);
+            }
+            if (commandInput != null) commandInput.clearFocus();
+        } catch (Exception ignored) { }
+    }
+
+    private void salvarMensagem(String autor, String mensagem) {
+        try {
+            JSONArray array = new JSONArray(preferencias.getString("chat_historico", "[]"));
+            JSONObject item = new JSONObject();
+            item.put("autor", autor == null ? "" : autor);
+            item.put("texto", mensagem == null ? "" : mensagem);
+            item.put("hora", System.currentTimeMillis());
+            array.put(item);
+            while (array.length() > 500) {
+                JSONArray novo = new JSONArray();
+                for (int i = 1; i < array.length(); i++) novo.put(array.get(i));
+                array = novo;
+            }
+            preferencias.edit().putString("chat_historico", array.toString()).apply();
+        } catch (Exception ignored) { }
+    }
+
+    private JSONArray obterHistorico() {
+        try { return new JSONArray(preferencias.getString("chat_historico", "[]")); }
+        catch (Exception e) { return new JSONArray(); }
+    }
+
+    private void restaurarChatPrincipal() {
+        if (chatContainer == null || preferencias.getBoolean("chat_oculto", false)) return;
+        JSONArray array = obterHistorico();
+        for (int i = 0; i < array.length(); i++) {
+            JSONObject item = array.optJSONObject(i);
+            if (item != null) adicionarMensagemVisual(item.optString("autor", "JARVIS"), item.optString("texto", ""));
+        }
+    }
+
+    private void adicionarMensagemVisual(String autor, String mensagem) {
+        if (chatContainer == null) return;
+        LinearLayout linha = new LinearLayout(this);
+        linha.setOrientation(LinearLayout.VERTICAL);
+        linha.setGravity("VOCÊ".equals(autor) ? Gravity.END : Gravity.START);
+        linha.setPadding(0, dp(4), 0, dp(4));
+        TextView nome = criarTexto(autor);
+        nome.setTextSize(10); nome.setTextColor(Color.GRAY);
+        nome.setGravity("VOCÊ".equals(autor) ? Gravity.END : Gravity.START);
+        TextView balao = criarTexto(mensagem);
+        balao.setTextSize(14); balao.setPadding(dp(14), dp(10), dp(14), dp(10));
+        GradientDrawable fundo = new GradientDrawable();
+        fundo.setCornerRadius(dp(18));
+        fundo.setColor("VOCÊ".equals(autor) ? Color.rgb(34,34,34) : Color.rgb(18,18,18));
+        fundo.setStroke(dp(1), Color.rgb(65,65,65));
+        balao.setBackground(fundo);
+        LinearLayout.LayoutParams np = new LinearLayout.LayoutParams(dp(280), -2);
+        np.gravity = "VOCÊ".equals(autor) ? Gravity.END : Gravity.START;
+        linha.addView(nome, np);
+        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(dp(280), -2);
+        bp.gravity = np.gravity;
+        linha.addView(balao, bp);
+        chatContainer.addView(linha, new LinearLayout.LayoutParams(-1,-2));
+    }
+
+    private void limparConversasDaTela() {
+        if (chatContainer != null) chatContainer.removeAllViews();
+        preferencias.edit().putBoolean("chat_oculto", true).apply();
+        esconderTeclado();
+    }
+
+    private void abrirHistoricoConversas() {
+        telaAtual = TELA_HISTORICO;
+        mensagensSelecionadas.clear();
+        LinearLayout layout = criarTelaBase("HISTÓRICO DE CONVERSAS", "CONVERSAS SALVAS LOCALMENTE");
+        JSONArray array = obterHistorico();
+        if (array.length() == 0) {
+            layout.addView(criarTexto("Nenhuma conversa salva ainda."), parametrosTexto());
+        } else {
+            TextView dica = criarTexto("Toque e segure uma conversa para selecioná-la. Você pode selecionar várias.");
+            dica.setTextColor(Color.LTGRAY);
+            layout.addView(dica, parametrosTexto());
+            for (int i = 0; i < array.length(); i++) {
+                final int indice = i;
+                JSONObject item = array.optJSONObject(i);
+                if (item == null) continue;
+                CheckBox box = new CheckBox(this);
+                String autor = item.optString("autor", "JARVIS");
+                String texto = item.optString("texto", "");
+                String data = new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(new Date(item.optLong("hora",0L)));
+                box.setText(autor + " • " + data + "\n" + texto);
+                box.setTextColor(Color.WHITE);
+                box.setOnLongClickListener(v -> { box.setChecked(true); if (!mensagensSelecionadas.contains(indice)) mensagensSelecionadas.add(indice); atualizarHistoricoAcoes(); return true; });
+                box.setOnClickListener(v -> { if (box.isChecked()) { if (!mensagensSelecionadas.contains(indice)) mensagensSelecionadas.add(indice); } else mensagensSelecionadas.remove(Integer.valueOf(indice)); atualizarHistoricoAcoes(); });
+                layout.addView(box, parametrosTexto());
+            }
+        }
+        adicionarBotaoTela(layout, "APAGAR CONVERSA SELECIONADA", this::confirmarApagarSelecionadas);
+        adicionarBotaoTela(layout, "VOLTAR", this::abrirMenuJarvis);
+        setContentView(layout);
+    }
+
+    private void atualizarHistoricoAcoes() { }
+
+    private void confirmarApagarSelecionadas() {
+        if (mensagensSelecionadas.isEmpty()) { responder("Selecione pelo menos uma conversa no histórico."); return; }
+        new android.app.AlertDialog.Builder(this)
+                .setMessage("Tem certeza que você quer apagar as conversas selecionadas?")
+                .setNegativeButton("CANCELAR", null)
+                .setPositiveButton("SIM", (d,w) -> apagarSelecionadas())
+                .show();
+    }
+
+    private void apagarSelecionadas() {
+        try {
+            JSONArray old = obterHistorico(), novo = new JSONArray();
+            for (int i=0;i<old.length();i++) if (!mensagensSelecionadas.contains(i)) novo.put(old.get(i));
+            preferencias.edit().putString("chat_historico", novo.toString()).apply();
+            mensagensSelecionadas.clear();
+            abrirHistoricoConversas();
+        } catch (Exception ignored) { }
+    }
+
+    private void exportarConversas() {
+        JSONArray array = obterHistorico();
+        StringBuilder texto = new StringBuilder("JARVIS Lite — Histórico de conversas\n\n");
+        for (int i=0;i<array.length();i++) {
+            JSONObject item = array.optJSONObject(i);
+            if (item == null) continue;
+            String data = new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(new Date(item.optLong("hora",0L)));
+            texto.append("[").append(data).append("] ").append(item.optString("autor", "JARVIS")).append(": ").append(item.optString("texto", "")).append("\n");
+        }
+        Intent share = new Intent(Intent.ACTION_SEND);
+        share.setType("text/plain");
+        share.putExtra(Intent.EXTRA_TEXT, texto.toString());
+        startActivity(Intent.createChooser(share, "Exportar conversas"));
+    }
+
+    private String obterInformacoesBateriaCompletas() {
+        String bateria = obterBateria();
+        String temperatura = obterTemperatura();
+        try {
+            Intent intent = registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+            int status = intent == null ? -1 : intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1);
+            boolean carregando = status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL;
+            int voltagem = intent == null ? -1 : intent.getIntExtra(BatteryManager.EXTRA_VOLTAGE, -1);
+            return bateria + "\n" + temperatura + "\n" + (carregando ? "A bateria está carregando." : "A bateria não está carregando.") + (voltagem > 0 ? " Tensão: " + voltagem + " mV." : "");
+        } catch (Exception e) { return bateria + "\n" + temperatura; }
+    }
+
+    private String obterMemoriaEArmazenamento() {
+        ActivityManager am = (ActivityManager) getSystemService(ACTIVITY_SERVICE);
+        ActivityManager.MemoryInfo mi = new ActivityManager.MemoryInfo();
+        if (am != null) am.getMemoryInfo(mi);
+        long totalRam = mi.totalMem, livreRam = mi.availMem;
+        android.os.StatFs stat = new android.os.StatFs(android.os.Environment.getDataDirectory().getAbsolutePath());
+        long total = stat.getTotalBytes(), livre = stat.getAvailableBytes();
+        return "RAM: " + formatarBytes(totalRam - livreRam) + " em uso de " + formatarBytes(totalRam) + ".\n" +
+                "Armazenamento acessível: " + formatarBytes(total-livre) + " em uso de " + formatarBytes(total) + ".\n" +
+                "Espaço livre acessível: " + formatarBytes(livre) + ".";
+    }
+
+    private String formatarBytes(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+        double v = bytes / 1024.0;
+        if (v < 1024) return String.format(Locale.getDefault(), "%.1f KB", v);
+        v /= 1024.0;
+        if (v < 1024) return String.format(Locale.getDefault(), "%.1f MB", v);
+        v /= 1024.0;
+        return String.format(Locale.getDefault(), "%.2f GB", v);
+    }
+
     private String obterBateria() {
         try {
             BatteryManager batteryManager =
@@ -1949,6 +2198,9 @@ public class MainActivity extends Activity {
         if (chatContainer == null) {
             return;
         }
+
+        preferencias.edit().putBoolean("chat_oculto", false).apply();
+        salvarMensagem(autor, mensagem);
 
         LinearLayout linha = new LinearLayout(this);
         linha.setOrientation(LinearLayout.VERTICAL);
