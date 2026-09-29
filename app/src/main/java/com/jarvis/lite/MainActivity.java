@@ -1,5 +1,3 @@
-
-
 package com.jarvis.lite;
 
 import android.Manifest;
