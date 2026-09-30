@@ -812,7 +812,7 @@ public class MainActivity extends Activity {
                 dp(16),
                 0,
                 dp(14),
-                0
+                                0
         );
 
         commandInput.setBackground(
@@ -1627,8 +1627,7 @@ public class MainActivity extends Activity {
             String nome =
                     preferencias.getString(
                             "voz_tts",
-                            ""
-                    );
+                                                       ""                      );
 
             if (!nome.isEmpty()) {
 
@@ -2443,8 +2442,7 @@ public class MainActivity extends Activity {
         scroll.setFillViewport(true);
         scroll.setClipToPadding(false);
         scroll.setNestedScrollingEnabled(true);
-
-        LinearLayout conteudo =
+                LinearLayout conteudo =
                 new LinearLayout(this);
 
         conteudo.setOrientation(
@@ -2676,592 +2674,592 @@ public class MainActivity extends Activity {
                             Settings.ACTION_APPLICATION_DETAILS_SETTINGS
                     );
 
-            intent.setData(
-                    Uri.parse(
-                            "package:"
-                                    + getPackageName()
-                    )
-            );
-
-            startActivity(intent);
-
-        } catch (Exception ignored) {
-        }
-    }
-
-    private void iniciarRelogio() {
-
-        if (clockHandler != null) {
-            clockHandler.removeCallbacksAndMessages(null);
-        }
-
-        clockHandler =
-                new Handler();
-
-        Runnable atualizar =
-                new Runnable() {
-
-                    @Override
-                    public void run() {
-
-                        if (clockText != null) {
-
-                            String hora =
-                                    new SimpleDateFormat(
-                                            "HH:mm:ss",
-                                            Locale.getDefault()
-                                    ).format(
-                                            new Date()
-                                    );
-
-                            String data =
-                                    new SimpleDateFormat(
-                                            "dd/MM/yyyy",
-                                            Locale.getDefault()
-                                    ).format(
-                                            new Date()
-                                    );
-
-                            clockText.setText(
-                                    hora
-                                            + "  •  "
-                                            + data
-                            );
-                        }
-
-                        if (clockHandler != null) {
-                            clockHandler.postDelayed(
-                                    this,
-                                    1000
-                            );
-                        }
-                    }
-                };
-
-        clockHandler.post(
-                atualizar
-        );
-    }
-
-
-
-    private void processarComando(
-            String comandoOriginal) {
-
-        if (comandoOriginal == null) {
-            return;
-        }
-
-        String original =
-                comandoOriginal.trim();
-
-        if (original.isEmpty()) {
-            return;
-        }
-
-        /*
-         * A ordem é importante:
-         *
-         * 1. Memória explícita/social.
-         * 2. Conversa.
-         * 3. Comandos objetivos.
-         *
-         * Isso impede que uma frase como
-         * "pode me chamar de Santiago"
-         * seja confundida com outro comando.
-         */
-
-        if (processarMemoriaSocial(original)) {
-            return;
-        }
-
-        String comando =
-                normalizar(original);
-
-        if (processarComandoMemoria(original)) {
-            return;
-        }
-
-        String respostaInteracao =
-                processarInteracaoConversacional(
-                        original
-                );
-
-        if (respostaInteracao != null) {
-
-            responder(
-                    respostaInteracao
-            );
-
-            return;
-        }
-
-        if (comando.equals("ajuda")
-                || comando.equals("comandos")
-                || comando.equals("me mostre os comandos")
-                || comando.equals("quais sao os comandos")) {
-
-            responder(
-                    "Comandos disponíveis: hora, data, bateria, porcentagem da bateria, temperatura, estado de carregamento, RAM, armazenamento, status, memória, privacidade e verificação."
-            );
-
-            return;
-        }
-
-        if (comando.equals("hora")
-                || comando.equals("que horas sao")
-                || comando.equals("qual a hora")
-                || comando.equals("me diga a hora")) {
-
-            String hora =
-                    new SimpleDateFormat(
-                            "HH:mm:ss",
-                            Locale.getDefault()
-                    ).format(
-                            new Date()
-                    );
-
-            responder(
-                    "Agora são "
-                            + hora
-            );
-
-            return;
-        }
-
-        if (comando.equals("data")
-                || comando.equals("qual a data")
-                || comando.equals("qual a data de hoje")
-                || comando.equals("que dia e hoje")
-                || comando.equals("qual e o dia de hoje")) {
-
-            String data =
-                    new SimpleDateFormat(
-                            "dd/MM/yyyy",
-                            Locale.getDefault()
-                    ).format(
-                            new Date()
-                    );
-
-            responder(
-                    "A data atual é "
-                            + data
-            );
-
-            return;
-        }
-
-        /*
-         * Informações completas da bateria.
-         * Aqui NÃO usamos simplesmente contains("bateria"),
-         * pois isso fazia perguntas específicas receberem
-         * uma resposta muito grande.
-         */
-        if (comando.equals(
-                "informacoes da bateria"
-        )
-                || comando.equals(
-                "informacao da bateria"
-        )
-                || comando.equals(
-                "informacoes de bateria"
-        )
-                || comando.equals(
-                "informacao de bateria"
-        )
-                || comando.equals(
-                "dados da bateria"
-        )
-                || comando.equals(
-                "dados sobre a bateria"
-        )
-                || comando.equals(
-                "estado completo da bateria"
-        )
-                || comando.equals(
-                "status da bateria"
-        )) {
-
-            if (!statusAtivado) {
-
-                responder(
-                        "O acesso ao status do aparelho está desativado no Gerenciar JARVIS."
-                );
-
-            } else {
-
-                responder(
-                        obterInformacoesBateriaCompletas()
-                );
-            }
-
-            return;
-        }
-
-        /*
-         * Apenas porcentagem.
-         */
-        if (comando.equals(
-                "porcentagem da bateria"
-        )
-                || comando.equals(
-                "porcentagem de bateria"
-        )
-                || comando.equals(
-                "nivel da bateria"
-        )
-                || comando.equals(
-                "nivel de bateria"
-        )
-                || comando.equals(
-                "quanto de bateria tem"
-        )
-                || comando.equals(
-                "quanta bateria tem"
-        )
-                || comando.equals(
-                "quanto resta de bateria"
-        )) {
-
-            if (!statusAtivado) {
-
-                responder(
-                        "O acesso ao status do aparelho está desativado no Gerenciar JARVIS."
-                );
-
-            } else {
-
-                responder(
-                        obterBateria()
-                );
-            }
-
-            return;
-        }
-
-        /*
-         * Temperatura.
-         */
-        if (comando.equals("temperatura")
-                || comando.equals(
-                "temperatura da bateria"
-        )
-                || comando.equals(
-                "temperatura do celular"
-        )
-                || comando.equals(
-                "temperatura do aparelho"
-        )
-                || comando.equals(
-                "qual a temperatura"
-        )
-                || comando.equals(
-                "qual a temperatura do celular"
-        )) {
-
-            if (!statusAtivado) {
-
-                responder(
-                        "O acesso ao status do aparelho está desativado no Gerenciar JARVIS."
-                );
-
-            } else {
-
-                responder(
-                        obterTemperatura()
-                );
-            }
-
-            return;
-        }
-
-        /*
-         * Estado de carregamento.
-         */
-        if (comando.equals(
-                "estado de carregamento"
-        )
-                || comando.equals(
-                "estado do carregamento"
-        )
-                || comando.equals(
-                "bateria esta carregando"
-        )
-                || comando.equals(
-                "a bateria esta carregando"
-        )
-                || comando.equals(
-                "esta carregando"
-        )
-                || comando.equals(
-                "esta carregando a bateria"
-        )) {
-
-            if (!statusAtivado) {
-
-                responder(
-                        "O acesso ao status do aparelho está desativado no Gerenciar JARVIS."
-                );
-
-            } else {
-
-                responder(
-                        obterEstadoCarregamento()
-                );
-            }
-
-            return;
-        }
-
-        /*
-         * RAM.
-         */
-        if (comando.equals("ram")
-                || comando.equals("memoria ram")
-                || comando.equals("memoria do celular")
-                || comando.equals("memoria do aparelho")
-                || comando.equals("quanto de ram tenho")
-                || comando.equals("quanta ram tenho")
-                || comando.equals("quanto de memoria ram tenho")) {
-
-            if (!statusAtivado) {
-
-                responder(
-                        "O acesso ao status do aparelho está desativado no Gerenciar JARVIS."
-                );
-
-            } else {
-
-                responder(
-                        obterInformacoesRam()
-                );
-            }
-
-            return;
-        }
-
-        /*
-         * Armazenamento.
-         */
-        if (comando.equals("armazenamento")
-                || comando.equals(
-                "memoria de armazenamento"
-        )
-                || comando.equals(
-                "espaco de armazenamento"
-        )
-                || comando.equals(
-                "espaco livre"
-        )
-                || comando.equals(
-                "quanto de armazenamento tenho"
-        )
-                || comando.equals(
-                "quanto de espaco tenho"
-        )) {
-
-            if (!statusAtivado) {
-
-                responder(
-                        "O acesso ao status do aparelho está desativado no Gerenciar JARVIS."
-                );
-
-            } else {
-
-                responder(
-                        obterInformacoesArmazenamento()
-                );
-            }
-
-            return;
-        }
-
-        /*
-         * RAM + armazenamento.
-         */
-        if (comando.equals(
-                "ram e armazenamento"
-        )
-                || comando.equals(
-                "memoria ram e armazenamento"
-        )
-                || comando.equals(
-                "memoria e armazenamento"
-        )
-                || comando.equals(
-                "informacoes de memoria e armazenamento"
-        )
-                || comando.equals(
-                "informacoes do armazenamento e ram"
-        )) {
-
-            if (!statusAtivado) {
-
-                responder(
-                        "O acesso ao status do aparelho está desativado no Gerenciar JARVIS."
-                );
-
-            } else {
-
-                responder(
-                        obterMemoriaEArmazenamento()
-                );
-            }
-
-            return;
-        }
-
-        /*
-         * Status geral.
-         */
-        if (comando.equals("status")
-                || comando.equals(
-                "status do aparelho"
-        )
-                || comando.equals(
-                "status do celular"
-        )
-                || comando.equals(
-                "estado do aparelho"
-        )
-                || comando.equals(
-                "estado do celular"
-        )
-                || comando.equals(
-                "informacoes do aparelho"
-        )
-                || comando.equals(
-                "informacoes do celular"
-        )) {
-
-            if (!statusAtivado) {
-
-                responder(
-                        "O acesso ao status do aparelho está desativado no Gerenciar JARVIS."
-                );
-
-            } else {
-
-                responder(
-                        obterStatus()
-                );
-            }
-
-            return;
-        }
-
-        if (comando.equals("privacidade")
-                || comando.equals(
-                "abrir privacidade"
-        )
-                || comando.equals(
-                "configuracoes de privacidade"
-        )) {
-
-            abrirPrivacidade();
-            return;
-        }
-
-        if (comando.equals(
-                "verificacao"
-        )
-                || comando.equals(
-                "verificacao do aparelho"
-        )
-                || comando.equals(
-                "verificar aparelho"
-        )
-                || comando.equals(
-                "fazer verificacao"
-        )) {
-
-            abrirVerificacao();
-            return;
-        }
-
-        if (comando.equals(
-                "quem e voce"
-        )
-                || comando.equals(
-                "quem voce e"
-        )
-                || comando.equals(
-                "qual seu nome"
-        )
-                || comando.equals(
-                "qual e seu nome"
-        )) {
-
-            responder(
-                    "Eu sou o JARVIS Lite, um assistente local do projeto."
-            );
-
-            return;
-        }
-
-        String resultadoCalculo = calcularExpressaoSimples(original);
-
-        if (resultadoCalculo != null) {
-            responder(resultadoCalculo);
-            return;
-        }
-
-        if (comando.contains("jarvis")
-                && (comando.contains(
-                        "esta ai"
+        intent.setData(
+                Uri.parse(
+                        "package:"
+                                + getPackageName()
                 )
-                || comando.contains(
-                        "voce esta ai"
-                ))) {
+        );
 
-            responder(
-                    "À sua disposição. Sistemas operacionais online. Em que posso ajudar?"
+        startActivity(intent);
+
+    } catch (Exception ignored) {
+    }
+}
+
+private void iniciarRelogio() {
+
+    if (clockHandler != null) {
+        clockHandler.removeCallbacksAndMessages(null);
+    }
+
+    clockHandler =
+            new Handler();
+
+    Runnable atualizar =
+            new Runnable() {
+
+                @Override
+                public void run() {
+
+                    if (clockText != null) {
+
+                        String hora =
+                                new SimpleDateFormat(
+                                        "HH:mm:ss",
+                                        Locale.getDefault()
+                                ).format(
+                                        new Date()
+                                );
+
+                        String data =
+                                new SimpleDateFormat(
+                                        "dd/MM/yyyy",
+                                        Locale.getDefault()
+                                ).format(
+                                        new Date()
+                                );
+
+                        clockText.setText(
+                                hora
+                                        + "  •  "
+                                        + data
+                        );
+                    }
+
+                    if (clockHandler != null) {
+                        clockHandler.postDelayed(
+                                this,
+                                1000
+                        );
+                    }
+                }
+            };
+
+    clockHandler.post(
+            atualizar
+    );
+}
+
+
+
+private void processarComando(
+        String comandoOriginal) {
+
+    if (comandoOriginal == null) {
+        return;
+    }
+
+    String original =
+            comandoOriginal.trim();
+
+    if (original.isEmpty()) {
+        return;
+    }
+
+    /*
+     * A ordem é importante:
+     *
+     * 1. Memória explícita/social.
+     * 2. Conversa.
+     * 3. Comandos objetivos.
+     *
+     * Isso impede que uma frase como
+     * "pode me chamar de Santiago"
+     * seja confundida com outro comando.
+     */
+
+    if (processarMemoriaSocial(original)) {
+        return;
+    }
+
+    String comando =
+            normalizar(original);
+
+    if (processarComandoMemoria(original)) {
+        return;
+    }
+
+    String respostaInteracao =
+            processarInteracaoConversacional(
+                    original
             );
 
-            return;
-        }
+    if (respostaInteracao != null) {
 
         responder(
-                "Entendi. Essa frase é uma conversa, mas ainda não corresponde a um comando local implementado."
+                respostaInteracao
         );
+
+        return;
     }
 
-    /**
-     * Calculadora local deliberadamente limitada a operações aritméticas
-     * simples. Não executa código, comandos do sistema ou expressões
-     * arbitrárias.
+    if (comando.equals("ajuda")
+            || comando.equals("comandos")
+            || comando.equals("me mostre os comandos")
+            || comando.equals("quais sao os comandos")) {
+
+        responder(
+                "Comandos disponíveis: hora, data, bateria, porcentagem da bateria, temperatura, estado de carregamento, RAM, armazenamento, status, memória, privacidade e verificação."
+        );
+
+        return;
+    }
+
+    if (comando.equals("hora")
+            || comando.equals("que horas sao")
+            || comando.equals("qual a hora")
+            || comando.equals("me diga a hora")) {
+
+        String hora =
+                new SimpleDateFormat(
+                        "HH:mm:ss",
+                        Locale.getDefault()
+                ).format(
+                        new Date()
+                );
+
+        responder(
+                "Agora são "
+                        + hora
+        );
+
+        return;
+    }
+
+    if (comando.equals("data")
+            || comando.equals("qual a data")
+            || comando.equals("qual a data de hoje")
+            || comando.equals("que dia e hoje")
+            || comando.equals("qual e o dia de hoje")) {
+
+        String data =
+                new SimpleDateFormat(
+                        "dd/MM/yyyy",
+                        Locale.getDefault()
+                ).format(
+                        new Date()
+                );
+
+        responder(
+                "A data atual é "
+                        + data
+        );
+
+        return;
+    }
+
+    /*
+     * Informações completas da bateria.
+     * Aqui NÃO usamos simplesmente contains("bateria"),
+     * pois isso fazia perguntas específicas receberem
+     * uma resposta muito grande.
      */
-    private String calcularExpressaoSimples(String texto) {
+    if (comando.equals(
+            "informacoes da bateria"
+    )
+            || comando.equals(
+            "informacao da bateria"
+    )
+            || comando.equals(
+            "informacoes de bateria"
+    )
+            || comando.equals(
+            "informacao de bateria"
+    )
+            || comando.equals(
+            "dados da bateria"
+    )
+            || comando.equals(
+            "dados sobre a bateria"
+    )
+            || comando.equals(
+            "estado completo da bateria"
+    )
+            || comando.equals(
+            "status da bateria"
+    )) {
 
-        if (texto == null) {
-            return null;
+        if (!statusAtivado) {
+
+            responder(
+                    "O acesso ao status do aparelho está desativado no Gerenciar JARVIS."
+            );
+
+        } else {
+
+            responder(
+                    obterInformacoesBateriaCompletas()
+            );
         }
 
-        String valor = texto.trim().toLowerCase(Locale.ROOT);
+        return;
+    }
 
-        valor = valor.replace("quanto é", "");
-        valor = valor.replace("quanto e", "");
-        valor = valor.replace("calcule", "");
-        valor = valor.replace("calcular", "");
-        valor = valor.replace("resultado de", "");
-        valor = valor.replace("qual é", "");
-        valor = valor.replace("qual e", "");
-        valor = valor.replace("?", "");
-        valor = valor.trim();
+    /*
+     * Apenas porcentagem.
+     */
+    if (comando.equals(
+            "porcentagem da bateria"
+    )
+            || comando.equals(
+            "porcentagem de bateria"
+    )
+            || comando.equals(
+            "nivel da bateria"
+    )
+            || comando.equals(
+            "nivel de bateria"
+    )
+            || comando.equals(
+            "quanto de bateria tem"
+    )
+            || comando.equals(
+            "quanta bateria tem"
+    )
+            || comando.equals(
+            "quanto resta de bateria"
+    )) {
 
-        if (valor.isEmpty() || valor.length() > 60) {
-            return null;
+        if (!statusAtivado) {
+
+            responder(
+                    "O acesso ao status do aparelho está desativado no Gerenciar JARVIS."
+            );
+
+        } else {
+
+            responder(
+                    obterBateria()
+            );
         }
 
-        valor = valor
-                .replace("vezes", "*")
-                .replace("multiplicado por", "*")
-                .replace("dividido por", "/")
-                .replace("mais", "+")
-                .replace("menos", "-");
+        return;
+    }
 
-        if (valor.matches("[0-9]+([.,][0-9]+)?\\s*[+\\-*/]\\s*[0-9]+([.,][0-9]+)?")) {
-            String expressao = valor.replace(',', '.').replaceAll("\\s+", "");
+    /*
+     * Temperatura.
+     */
+    if (comando.equals("temperatura")
+            || comando.equals(
+            "temperatura da bateria"
+    )
+            || comando.equals(
+            "temperatura do celular"
+    )
+            || comando.equals(
+            "temperatura do aparelho"
+    )
+            || comando.equals(
+            "qual a temperatura"
+    )
+            || comando.equals(
+            "qual a temperatura do celular"
+    )) {
+
+        if (!statusAtivado) {
+
+            responder(
+                    "O acesso ao status do aparelho está desativado no Gerenciar JARVIS."
+            );
+
+        } else {
+
+            responder(
+                    obterTemperatura()
+            );
+        }
+
+        return;
+    }
+
+    /*
+     * Estado de carregamento.
+     */
+    if (comando.equals(
+            "estado de carregamento"
+    )
+            || comando.equals(
+            "estado do carregamento"
+    )
+            || comando.equals(
+            "bateria esta carregando"
+    )
+            || comando.equals(
+            "a bateria esta carregando"
+    )
+            || comando.equals(
+            "esta carregando"
+    )
+            || comando.equals(
+            "esta carregando a bateria"
+    )) {
+
+        if (!statusAtivado) {
+
+            responder(
+                    "O acesso ao status do aparelho está desativado no Gerenciar JARVIS."
+            );
+
+        } else {
+
+            responder(
+                    obterEstadoCarregamento()
+            );
+        }
+
+        return;
+    }
+
+    /*
+     * RAM.
+     */
+    if (comando.equals("ram")
+            || comando.equals("memoria ram")
+            || comando.equals("memoria do celular")
+            || comando.equals("memoria do aparelho")
+            || comando.equals("quanto de ram tenho")
+            || comando.equals("quanta ram tenho")
+            || comando.equals("quanto de memoria ram tenho")) {
+
+        if (!statusAtivado) {
+
+            responder(
+                    "O acesso ao status do aparelho está desativado no Gerenciar JARVIS."
+            );
+
+        } else {
+
+            responder(
+                    obterInformacoesRam()
+            );
+        }
+
+        return;
+    }
+
+    /*
+     * Armazenamento.
+     */
+    if (comando.equals("armazenamento")
+            || comando.equals(
+            "memoria de armazenamento"
+    )
+            || comando.equals(
+            "espaco de armazenamento"
+    )
+            || comando.equals(
+            "espaco livre"
+    )
+            || comando.equals(
+            "quanto de armazenamento tenho"
+    )
+            || comando.equals(
+            "quanto de espaco tenho"
+    )) {
+
+        if (!statusAtivado) {
+
+            responder(
+                    "O acesso ao status do aparelho está desativado no Gerenciar JARVIS."
+            );
+
+        } else {
+
+            responder(
+                    obterInformacoesArmazenamento()
+            );
+        }
+
+        return;
+    }
+
+    /*
+     * RAM + armazenamento.
+     */
+    if (comando.equals(
+            "ram e armazenamento"
+    )
+            || comando.equals(
+            "memoria ram e armazenamento"
+    )
+            || comando.equals(
+            "memoria e armazenamento"
+    )
+            || comando.equals(
+            "informacoes de memoria e armazenamento"
+    )
+            || comando.equals(
+            "informacoes do armazenamento e ram"
+    )) {
+
+        if (!statusAtivado) {
+
+            responder(
+                    "O acesso ao status do aparelho está desativado no Gerenciar JARVIS."
+            );
+
+        } else {
+
+            responder(
+                    obterMemoriaEArmazenamento()
+            );
+        }
+
+        return;
+    }
+
+    /*
+     * Status geral.
+     */
+    if (comando.equals("status")
+            || comando.equals(
+            "status do aparelho"
+    )
+            || comando.equals(
+            "status do celular"
+    )
+            || comando.equals(
+            "estado do aparelho"
+    )
+            || comando.equals(
+            "estado do celular"
+    )
+            || comando.equals(
+            "informacoes do aparelho"
+    )
+            || comando.equals(
+            "informacoes do celular"
+    )) {
+
+        if (!statusAtivado) {
+
+            responder(
+                    "O acesso ao status do aparelho está desativado no Gerenciar JARVIS."
+            );
+
+        } else {
+
+            responder(
+                    obterStatus()
+            );
+        }
+
+        return;
+    }
+
+    if (comando.equals("privacidade")
+            || comando.equals(
+            "abrir privacidade"
+    )
+            || comando.equals(
+            "configuracoes de privacidade"
+    )) {
+
+        abrirPrivacidade();
+        return;
+    }
+
+    if (comando.equals(
+            "verificacao"
+    )
+            || comando.equals(
+            "verificacao do aparelho"
+    )
+            || comando.equals(
+            "verificar aparelho"
+    )
+            || comando.equals(
+            "fazer verificacao"
+    )) {
+
+        abrirVerificacao();
+        return;
+    }
+
+    if (comando.equals(
+            "quem e voce"
+    )
+            || comando.equals(
+            "quem voce e"
+    )
+            || comando.equals(
+            "qual seu nome"
+    )
+            || comando.equals(
+            "qual e seu nome"
+    )) {
+
+        responder(
+                "Eu sou o JARVIS Lite, um assistente local do projeto."
+        );
+
+        return;
+    }
+
+    String resultadoCalculo = calcularExpressaoSimples(original);
+
+    if (resultadoCalculo != null) {
+        responder(resultadoCalculo);
+        return;
+    }
+
+    if (comando.contains("jarvis")
+            && (comando.contains(
+                    "esta ai"
+            )
+            || comando.contains(
+                    "voce esta ai"
+            ))) {
+
+        responder(
+                "À sua disposição. Sistemas operacionais online. Em que posso ajudar?"
+        );
+
+        return;
+    }
+
+    responder(
+            "Entendi. Essa frase é uma conversa, mas ainda não corresponde a um comando local implementado."
+    );
+}
+
+/**
+ * Calculadora local deliberadamente limitada a operações aritméticas
+ * simples. Não executa código, comandos do sistema ou expressões
+ * arbitrárias.
+ */
+private String calcularExpressaoSimples(String texto) {
+
+    if (texto == null) {
+        return null;
+    }
+
+    String valor = texto.trim().toLowerCase(Locale.ROOT);
+
+    valor = valor.replace("quanto é", "");
+    valor = valor.replace("quanto e", "");
+    valor = valor.replace("calcule", "");
+    valor = valor.replace("calcular", "");
+    valor = valor.replace("resultado de", "");
+    valor = valor.replace("qual é", "");
+    valor = valor.replace("qual e", "");
+    valor = valor.replace("?", "");
+    valor = valor.trim();
+
+    if (valor.isEmpty() || valor.length() > 60) {
+        return null;
+    }
+
+    valor = valor
+            .replace("vezes", "*")
+            .replace("multiplicado por", "*")
+            .replace("dividido por", "/")
+            .replace("mais", "+")
+            .replace("menos", "-");
+
+    if (valor.matches("[0-9]+([.,][0-9]+)?\\s*[+\\-*/]\\s*[0-9]+([.,][0-9]+)?")) {
+                    String expressao = valor.replace(',', '.').replaceAll("\\s+", "");
             java.util.regex.Matcher matcher = java.util.regex.Pattern
                     .compile("([0-9]+(?:\\.[0-9]+)?)([+\\-*/])([0-9]+(?:\\.[0-9]+)?)")
                     .matcher(expressao);
@@ -3466,7 +3464,9 @@ public class MainActivity extends Activity {
         }
 
         return null;
-    }     private String processarInteracaoConversacional(
+    }
+
+    private String processarInteracaoConversacional(
             String entrada) {
 
         if (entrada == null) {
@@ -4077,7 +4077,7 @@ public class MainActivity extends Activity {
 
         return nome.isEmpty()
                 ? null
-                : nome;
+                            : nome;
     }
 
     private void abrirMemoriaJarvis() {
@@ -4233,7 +4233,9 @@ public class MainActivity extends Activity {
 
         return periodo
                 + ". Estou à disposição. O que você precisa?";
-            }     private void enviarTextoDigitado() {
+    }
+
+    private void enviarTextoDigitado() {
 
         if (commandInput == null) {
             return;
@@ -4893,7 +4895,7 @@ public class MainActivity extends Activity {
         try {
 
             Intent intent =
-                    registerReceiver(
+                                    registerReceiver(
                             null,
                             new IntentFilter(
                                     Intent.ACTION_BATTERY_CHANGED
@@ -4926,5 +4928,787 @@ public class MainActivity extends Activity {
                             );
 
             String resultado =
-                    bater
-Pré-visualização truncada devido ao tamanho do arquivo
+                    bateria
+                            + "\n"
+                            + temperatura
+                            + "\n"
+                            + (
+                            carregando
+                                    ? "A bateria está carregando."
+                                    : "A bateria não está carregando."
+                    );
+
+            if (voltagem > 0) {
+
+                resultado +=
+                        " Tensão: "
+                                + voltagem
+                                + " mV.";
+            }
+
+            return resultado;
+
+        } catch (Exception e) {
+
+            return bateria
+                    + "\n"
+                    + temperatura;
+        }
+    }
+
+    private String obterEstadoCarregamento() {
+
+        try {
+
+            Intent intent =
+                    registerReceiver(
+                            null,
+                            new IntentFilter(
+                                    Intent.ACTION_BATTERY_CHANGED
+                            )
+                    );
+
+            if (intent == null) {
+
+                return "Não consegui consultar o estado de carregamento.";
+            }
+
+            int status =
+                    intent.getIntExtra(
+                            BatteryManager.EXTRA_STATUS,
+                            -1
+                    );
+
+            if (status ==
+                    BatteryManager.BATTERY_STATUS_CHARGING) {
+
+                return "A bateria está carregando.";
+
+            } else if (
+                    status ==
+                            BatteryManager.BATTERY_STATUS_FULL) {
+
+                return "A bateria está totalmente carregada.";
+
+            } else if (
+                    status ==
+                            BatteryManager.BATTERY_STATUS_DISCHARGING) {
+
+                return "A bateria não está carregando.";
+
+            } else {
+
+                return "O estado de carregamento não está disponível no momento.";
+            }
+
+        } catch (Exception e) {
+
+            return "Não consegui consultar o estado de carregamento.";
+        }
+    }
+
+    private String obterMemoriaEArmazenamento() {
+
+        return obterInformacoesRam()
+                + "\n"
+                + obterInformacoesArmazenamento();
+    }
+
+    private String obterInformacoesRam() {
+
+        try {
+
+            ActivityManager am =
+                    (ActivityManager)
+                            getSystemService(
+                                    ACTIVITY_SERVICE
+                            );
+
+            ActivityManager.MemoryInfo mi =
+                    new ActivityManager.MemoryInfo();
+
+            if (am == null) {
+
+                return "Não consegui obter informações da RAM.";
+            }
+
+            am.getMemoryInfo(mi);
+
+            long total =
+                    mi.totalMem;
+
+            long livre =
+                    mi.availMem;
+
+            long usada =
+                    Math.max(
+                            0L,
+                            total - livre
+                    );
+
+            return "RAM em uso: "
+                    + formatarBytes(usada)
+                    + " de "
+                    + formatarBytes(total)
+                    + ".\n"
+                    + "RAM disponível: "
+                    + formatarBytes(livre)
+                    + ".";
+
+        } catch (Exception e) {
+
+            return "Não consegui obter informações da RAM.";
+        }
+    }
+
+    private String obterInformacoesArmazenamento() {
+
+        try {
+
+            android.os.StatFs stat =
+                    new android.os.StatFs(
+                            android.os.Environment
+                                    .getDataDirectory()
+                                    .getAbsolutePath()
+                    );
+
+            long total =
+                    stat.getTotalBytes();
+
+            long livre =
+                    stat.getAvailableBytes();
+
+            long usado =
+                    Math.max(
+                            0L,
+                            total - livre
+                    );
+
+            return "Armazenamento acessível em uso: "
+                    + formatarBytes(usado)
+                    + " de "
+                    + formatarBytes(total)
+                    + ".\n"
+                    + "Espaço livre acessível: "
+                    + formatarBytes(livre)
+                    + ".";
+
+        } catch (Exception e) {
+
+            return "Não consegui obter informações do armazenamento.";
+        }
+    }     private String formatarBytes(
+            long bytes) {
+
+        if (bytes < 1024) {
+            return bytes + " B";
+        }
+
+        double v =
+                bytes / 1024.0;
+
+        if (v < 1024) {
+
+            return String.format(
+                    Locale.getDefault(),
+                    "%.1f KB",
+                    v
+            );
+        }
+
+        v /= 1024.0;
+
+        if (v < 1024) {
+
+            return String.format(
+                    Locale.getDefault(),
+                    "%.1f MB",
+                    v
+            );
+        }
+
+        v /= 1024.0;
+
+        return String.format(
+                Locale.getDefault(),
+                "%.2f GB",
+                v
+        );
+    }
+
+    private String obterBateria() {
+
+        try {
+
+            BatteryManager batteryManager =
+                    (BatteryManager)
+                            getSystemService(
+                                    BATTERY_SERVICE
+                            );
+
+            if (batteryManager == null) {
+
+                return "Não consegui obter o nível da bateria.";
+            }
+
+            int nivel =
+                    batteryManager.getIntProperty(
+                            BatteryManager
+                                    .BATTERY_PROPERTY_CAPACITY
+                    );
+
+            if (nivel < 0) {
+
+                return "Não consegui obter o nível da bateria.";
+            }
+
+            return "A bateria está em "
+                    + nivel
+                    + "%.";
+
+        } catch (Exception e) {
+
+            return "Não consegui obter o nível da bateria.";
+        }
+    }
+
+    private String obterTemperatura() {
+
+        try {
+
+            Intent bateria =
+                    registerReceiver(
+                            null,
+                            new IntentFilter(
+                                    Intent.ACTION_BATTERY_CHANGED
+                            )
+                    );
+
+            if (bateria == null) {
+
+                return "Não consegui obter a temperatura do aparelho.";
+            }
+
+            int temperatura =
+                    bateria.getIntExtra(
+                            BatteryManager.EXTRA_TEMPERATURE,
+                            Integer.MIN_VALUE
+                    );
+
+            if (temperatura ==
+                    Integer.MIN_VALUE) {
+
+                return "A temperatura informada pelo sistema não está disponível neste momento.";
+            }
+
+            double celsius =
+                    temperatura / 10.0;
+
+            return String.format(
+                    Locale.getDefault(),
+                    "A temperatura informada pelo sistema é %.1f graus Celsius.",
+                    celsius
+            );
+
+        } catch (Exception e) {
+
+            return "Não consegui obter a temperatura do aparelho.";
+        }
+    }
+
+    private String obterStatus() {
+
+        String hora =
+                new SimpleDateFormat(
+                        "HH:mm:ss",
+                        Locale.getDefault()
+                ).format(
+                        new Date()
+                );
+
+        return "Status do sistema: "
+                + obterBateria()
+                + " "
+                + obterEstadoCarregamento()
+                + " Hora "
+                + hora
+                + ". Modo "
+                + (
+                modoOnline
+                        ? "ONLINE selecionado."
+                        : "OFFLINE ativo."
+        );
+    }
+
+    private void responder(
+            String mensagem) {
+
+        if (mensagem == null
+                || mensagem.trim().isEmpty()) {
+
+            return;
+        }
+
+        adicionarMensagem(
+                "JARVIS",
+                mensagem
+        );
+
+        falar(mensagem);
+    }
+
+    private void adicionarMensagem(
+            String autor,
+            String mensagem) {
+
+        if (chatContainer == null) {
+            return;
+        }
+
+        preferencias.edit()
+                .putBoolean(
+                        "chat_oculto",
+                        false
+                )
+                .apply();
+
+        salvarMensagem(
+                autor,
+                mensagem
+        );
+
+        LinearLayout linha =
+                new LinearLayout(this);
+
+        linha.setOrientation(
+                LinearLayout.VERTICAL
+        );
+
+        linha.setGravity(
+                "VOCÊ".equals(autor)
+                        ? Gravity.END
+                        : Gravity.START
+        );
+
+        linha.setPadding(
+                0,
+                dp(4),
+                0,
+                dp(4)
+        );
+
+        TextView nome =
+                new TextView(this);
+
+        nome.setText(autor);
+        nome.setTextSize(10);
+        nome.setTextColor(Color.GRAY);
+
+        nome.setGravity(
+                "VOCÊ".equals(autor)
+                        ? Gravity.END
+                        : Gravity.START
+        );
+
+        TextView balao =
+                new TextView(this);
+
+        balao.setText(mensagem);
+        balao.setTextSize(14);
+        balao.setTextColor(Color.WHITE);
+        balao.setGravity(
+                Gravity.CENTER_VERTICAL
+        );
+
+        balao.setPadding(
+                dp(14),
+                dp(10),
+                dp(14),
+                dp(10)
+        );
+
+        GradientDrawable fundo =
+                new GradientDrawable();
+
+        fundo.setCornerRadius(
+                dp(18)
+        );
+
+        fundo.setColor(
+                "VOCÊ".equals(autor)
+                        ? Color.rgb(34, 34, 34)
+                        : Color.rgb(18, 18, 18)
+        );
+
+        fundo.setStroke(
+                dp(1),
+                Color.rgb(65, 65, 65)
+        );
+
+        balao.setBackground(
+                fundo
+        );
+
+        LinearLayout.LayoutParams nomeParams =
+                new LinearLayout.LayoutParams(
+                        dp(260),
+                        -2
+                );
+
+        nomeParams.gravity =
+                "VOCÊ".equals(autor)
+                        ? Gravity.END
+                        : Gravity.START;
+
+        nomeParams.setMargins(
+                dp(4),
+                0,
+                dp(4),
+                dp(2)
+        );
+
+        linha.addView(
+                nome,
+                nomeParams
+        );
+
+        LinearLayout.LayoutParams balaoParams =
+                new LinearLayout.LayoutParams(
+                        dp(260),
+                        -2
+                );
+
+        balaoParams.gravity =
+                "VOCÊ".equals(autor)
+                        ? Gravity.END
+                        : Gravity.START;
+
+        balaoParams.setMargins(
+                dp(4),
+                0,
+                dp(4),
+                0
+        );
+
+        linha.addView(
+                balao,
+                balaoParams
+        );
+
+        chatContainer.addView(
+                linha,
+                new LinearLayout.LayoutParams(
+                        -1,
+                        -2
+                )
+        );
+
+        AlphaAnimation aparecer =
+                new AlphaAnimation(
+                        0f,
+                        1f
+                );
+
+        aparecer.setDuration(220);
+
+        TranslateAnimation subir =
+                new TranslateAnimation(
+                        0,
+                        0,
+                        dp(10),
+                        0
+                );
+
+        subir.setDuration(220);
+
+        AnimationSet entradaAnimada =
+                new AnimationSet(true);
+
+        entradaAnimada.addAnimation(
+                aparecer
+        );
+
+        entradaAnimada.addAnimation(
+                subir
+        );
+
+        linha.startAnimation(
+                entradaAnimada
+        );
+
+        if (chatScroll != null) {
+
+            chatScroll.postDelayed(
+                    () -> chatScroll.fullScroll(
+                            View.FOCUS_DOWN
+                    ),
+                    80
+            );
+        }
+    }
+
+    private class ReactorView
+            extends View {
+
+        private final Paint paint =
+                new Paint(
+                        Paint.ANTI_ALIAS_FLAG
+                );
+
+        private float rotacao = 0f;
+        private boolean ouvindoLocal = false;
+
+        private final Handler handler =
+                new Handler();
+
+        private final Runnable animacao =
+                new Runnable() {
+
+                    @Override
+                    public void run() {
+
+                        if (ouvindoLocal) {
+                            rotacao += 3.0f;
+                        } else {
+                            rotacao += 1.2f;
+                        }
+
+                        if (rotacao >= 360f) {
+                            rotacao -= 360f;
+                        }
+
+                        invalidate();
+
+                        handler.postDelayed(
+                                this,
+                                16
+                        );
+                    }
+                };
+
+        public ReactorView(
+                android.content.Context context) {
+
+            super(context);
+
+            setLayerType(
+                    View.LAYER_TYPE_SOFTWARE,
+                    null
+            );
+
+            handler.post(
+                    animacao
+            );
+        }
+
+        public void setOuvindo(
+                boolean valor) {
+
+            ouvindoLocal =
+                    valor;
+
+            invalidate();
+        }
+
+        @Override
+        protected void onDraw(
+                Canvas canvas) {
+
+            super.onDraw(canvas);
+
+            float centroX =
+                    getWidth() / 2f;
+
+            float centroY =
+                    getHeight() / 2f;
+
+            float raioMax =
+                    Math.min(
+                            getWidth(),
+                            getHeight()
+                    ) * 0.38f;
+
+            paint.setStyle(
+                    Paint.Style.FILL
+            );
+
+            paint.setColor(
+                    Color.rgb(
+                            255,
+                            210,
+                            0
+                    )
+            );
+
+            paint.setShadowLayer(
+                    ouvindoLocal
+                            ? 45f
+                            : 28f,
+                    0f,
+                    0f,
+                    Color.rgb(
+                            255,
+                            180,
+                            0
+                    )
+            );
+
+            canvas.drawCircle(
+                    centroX,
+                    centroY,
+                    raioMax * 0.19f,
+                    paint
+            );
+
+            paint.clearShadowLayer();
+
+            paint.setStyle(
+                    Paint.Style.STROKE
+            );
+
+            paint.setStrokeWidth(
+                    ouvindoLocal
+                            ? 4.5f
+                            : 3.2f
+            );
+
+            paint.setColor(
+                    Color.rgb(
+                            255,
+                            220,
+                            20
+                    )
+            );
+
+            for (int i = 0; i < 8; i++) {
+
+                float raio =
+                        raioMax
+                                - (i * 10.5f);
+
+                canvas.save();
+
+                float direcao =
+                        (i % 2 == 0)
+                                ? 1f
+                                : -1f;
+
+                canvas.rotate(
+                        rotacao * direcao,
+                        centroX,
+                        centroY
+                );
+
+                RectF oval =
+                        new RectF(
+                                centroX - raio,
+                                centroY - raio,
+                                centroX + raio,
+                                centroY + raio
+                        );
+
+                canvas.drawArc(
+                        oval,
+                        15f,
+                        285f,
+                        false,
+                        paint
+                );
+
+                canvas.drawArc(
+                        oval,
+                        320f,
+                        25f,
+                        false,
+                        paint
+                );
+
+                canvas.restore();
+            }
+
+            paint.setStyle(
+                    Paint.Style.FILL
+            );
+
+            paint.setColor(
+                    Color.WHITE
+            );
+
+            paint.setShadowLayer(
+                    ouvindoLocal
+                            ? 35f
+                            : 22f,
+                    0f,
+                    0f,
+                    Color.YELLOW
+            );
+
+            canvas.drawCircle(
+                    centroX,
+                    centroY,
+                    raioMax * 0.115f,
+                    paint
+            );
+
+            paint.clearShadowLayer();
+
+            paint.setColor(
+                    Color.rgb(
+                            255,
+                            215,
+                            0
+                    )
+            );
+
+            canvas.drawCircle(
+                    centroX,
+                    centroY,
+                    raioMax * 0.065f,
+                    paint
+            );
+        }
+
+        @Override
+        protected void onDetachedFromWindow() {
+
+            handler.removeCallbacks(
+                    animacao
+            );
+
+            super.onDetachedFromWindow();
+        }
+    }
+
+    @Override
+    public void onBackPressed() {
+        voltarSistema();
+    }
+
+    @Override
+    protected void onDestroy() {
+
+        if (clockHandler != null) {
+
+            clockHandler.removeCallbacksAndMessages(
+                    null
+            );
+        }
+
+        pararReconhecimento();
+
+        if (tts != null) {
+
+            try {
+
+                tts.stop();
+                tts.shutdown();
+
+            } catch (Exception ignored) {
+            }
+
+            tts = null;
+        }
+
+        super.onDestroy();
+    }
+}
