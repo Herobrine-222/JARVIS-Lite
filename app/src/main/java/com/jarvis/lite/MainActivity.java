@@ -896,14 +896,16 @@ microfone.setOnClickListener(
                 )
         );
 
-        Button executar =
-                criarBotao("➤");
+        ImageButton executar = new ImageButton(this);
 
-        executar.setTextSize(20);
+executar.setImageResource(R.drawable.ic_jarvis_send);
+executar.setBackgroundColor(Color.TRANSPARENT);
+executar.setColorFilter(Color.WHITE);
+executar.setContentDescription("Enviar");
 
-        executar.setOnClickListener(
-                v -> enviarTextoDigitado()
-        );
+executar.setOnClickListener(
+        v -> enviarTextoDigitado()
+);
 
         LinearLayout.LayoutParams enviarParams =
                 new LinearLayout.LayoutParams(
@@ -1176,7 +1178,7 @@ microfone.setOnClickListener(
 
         adicionarControleInterno(
                 layout,
-                "🎙  MICROFONE",
+                "MICROFONE",
                 "Permite que o JARVIS use o microfone para reconhecimento de voz.",
                 () -> microfoneAtivado,
                 valor -> {
@@ -1619,15 +1621,15 @@ microfone.setOnClickListener(
 
         if (n.contains("male")
                 || n.contains("mascul")) {
-            return "🎙 VOZ MASCULINA";
+            return "VOZ MASCULINA";
         }
 
         if (n.contains("female")
                 || n.contains("feminin")) {
-            return "🎙 VOZ FEMININA";
+            return "VOZ FEMININA";
         }
 
-        return "🎙 VOZ DISPONÍVEL";
+        return "VOZ DISPONÍVEL";
     }
 
     private void aplicarVozSalva() {
@@ -2580,15 +2582,43 @@ microfone.setOnClickListener(
     }
 
     private Button criarBotao(
-            String texto) {
+        String texto) {
 
-        Button button =
-                new Button(this);
+    Button button =
+            new Button(this);
 
-        button.setText(texto);
+    button.setText(texto);
+    button.setTextColor(Color.WHITE);
+    button.setTextSize(15);
+    button.setAllCaps(false);
 
-        return button;
-    }
+    button.setPadding(
+            dp(18),
+            dp(12),
+            dp(18),
+            dp(12)
+    );
+
+    android.graphics.drawable.GradientDrawable fundo =
+            new android.graphics.drawable.GradientDrawable();
+
+    fundo.setColor(
+            Color.rgb(28, 30, 35)
+    );
+
+    fundo.setCornerRadius(
+            dp(18)
+    );
+
+    fundo.setStroke(
+            dp(1),
+            Color.rgb(60, 62, 68)
+    );
+
+    button.setBackground(fundo);
+
+    return button;
+                      }
 
     private void adicionarBotaoTela(
             LinearLayout layout,
