@@ -609,16 +609,17 @@ public class MainActivity extends Activity {
                 Gravity.CENTER_VERTICAL
         );
 
-        Button menu =
-                new Button(this);
+        ImageButton menu = new ImageButton(this);
 
-        menu.setText("☰");
-        menu.setTextSize(22);
-        menu.setTextColor(Color.WHITE);
+menu.setImageResource(R.drawable.ic_jarvis_menu);
+menu.setBackgroundColor(Color.TRANSPARENT);
+menu.setColorFilter(Color.WHITE);
 
-        menu.setOnClickListener(
-                v -> abrirMenuJarvis()
-        );
+menu.setContentDescription("Menu");
+
+menu.setOnClickListener(
+        v -> abrirMenuJarvis()
+);
 
         header.addView(
                 menu,
