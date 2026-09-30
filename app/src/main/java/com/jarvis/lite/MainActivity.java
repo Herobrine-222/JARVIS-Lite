@@ -858,21 +858,22 @@ menu.setOnClickListener(
                 )
         );
 
-        Button microfone =
-                criarBotao("◉");
+        ImageButton microfone = new ImageButton(this);
 
-        microfone.setTextSize(20);
+microfone.setImageResource(R.drawable.ic_jarvis_mic);
+microfone.setBackgroundColor(Color.TRANSPARENT);
+microfone.setColorFilter(Color.WHITE);
+microfone.setContentDescription("Microfone");
 
-        microfone.setOnClickListener(
-                v -> {
-
-                    if (!ouvindo) {
-                        iniciarReconhecimento();
-                    } else {
-                        pararReconhecimento();
-                    }
-                }
-        );
+microfone.setOnClickListener(
+        v -> {
+            if (!ouvindo) {
+                iniciarReconhecimento();
+            } else {
+                pararReconhecimento();
+            }
+        }
+);
 
         LinearLayout.LayoutParams micParams =
                 new LinearLayout.LayoutParams(
