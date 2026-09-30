@@ -187,41 +187,53 @@ public class MainActivity extends Activity {
         );
     }
 
-    private void configurarAreaSegura(View root) {
-        if (Build.VERSION.SDK_INT >= 30) {
+   private void configurarAreaSegura(View root) {
 
-            root.setOnApplyWindowInsetsListener(
-                    (v, insets) -> {
+    if (Build.VERSION.SDK_INT >= 30) {
 
-                        Insets barras =
-                                insets.getInsets(
-                                        WindowInsets.Type.statusBars()
-                                                | WindowInsets.Type.navigationBars()
-                                );
+        root.setOnApplyWindowInsetsListener(
+                (v, insets) -> {
 
-                        v.setPadding(
-                                dp(18),
-                                dp(10) + barras.top,
-                                dp(18),
-                                dp(24) + barras.bottom
-                        );
+                    Insets barras =
+                            insets.getInsets(
+                                    WindowInsets.Type.statusBars()
+                                            | WindowInsets.Type.navigationBars()
+                            );
 
-                        return insets;
-                    }
-            );
+                    Insets teclado =
+                            insets.getInsets(
+                                    WindowInsets.Type.ime()
+                            );
 
-            root.requestApplyInsets();
+                    int parteInferior =
+                            Math.max(
+                                    barras.bottom,
+                                    teclado.bottom
+                            );
 
-        } else {
+                    v.setPadding(
+                            dp(18),
+                            dp(10) + barras.top,
+                            dp(18),
+                            dp(24) + parteInferior
+                    );
 
-            root.setPadding(
-                    dp(18),
-                    dp(10),
-                    dp(18),
-                    dp(24)
-            );
-        }
+                    return insets;
+                }
+        );
+
+        root.requestApplyInsets();
+
+    } else {
+
+        root.setPadding(
+                dp(18),
+                dp(10),
+                dp(18),
+                dp(24)
+        );
     }
+} 
 
     private void iniciarVoz() {
         try {
