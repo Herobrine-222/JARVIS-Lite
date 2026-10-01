@@ -2388,14 +2388,28 @@ executar.setOnClickListener(
                 Gravity.CENTER_VERTICAL
         );
 
-        Button voltar =
-                criarBotao("‹");
+        ImageButton voltar =
+        new ImageButton(this);
 
-        voltar.setTextSize(26);
+voltar.setImageResource(
+        R.drawable.ic_jarvis_back
+);
 
-        voltar.setOnClickListener(
-                v -> voltarSistema()
-        );
+voltar.setBackgroundColor(
+        Color.TRANSPARENT
+);
+
+voltar.setColorFilter(
+        Color.WHITE
+);
+
+voltar.setContentDescription(
+        "Voltar"
+);
+
+voltar.setOnClickListener(
+        v -> voltarSistema()
+);
 
         header.addView(
                 voltar,
