@@ -586,139 +586,163 @@ public class MainActivity extends Activity {
 
         telaAtual = TELA_PRINCIPAL;
 
-        LinearLayout root =
-                new LinearLayout(this);
+LinearLayout root =
+        new LinearLayout(this);
 
-        root.setOrientation(
-                LinearLayout.VERTICAL
+root.setOrientation(
+        LinearLayout.VERTICAL
+);
+
+root.setBackgroundColor(
+        Color.BLACK
+);
+
+configurarAreaSegura(root);
+
+/* =========================
+   CABEÇALHO DO JARVIS
+   ========================= */
+
+LinearLayout header =
+        new LinearLayout(this);
+
+header.setOrientation(
+        LinearLayout.HORIZONTAL
+);
+
+header.setGravity(
+        Gravity.CENTER_VERTICAL
+);
+
+header.setPadding(
+        dp(4),
+        0,
+        dp(4),
+        0
+);
+
+/* =========================
+   MINI REATOR
+   ========================= */
+
+reactorView =
+        new ReactorView(this);
+
+reactorView.setOnClickListener(
+        v -> {
+
+            if (!ouvindo) {
+
+                iniciarReconhecimento();
+
+            } else {
+
+                pararReconhecimento();
+
+                adicionarMensagem(
+                        "JARVIS",
+                        "Reconhecimento interrompido."
+                );
+            }
+        }
+);
+
+LinearLayout.LayoutParams reactorParams =
+        new LinearLayout.LayoutParams(
+                dp(42),
+                dp(42)
         );
 
-        root.setBackgroundColor(
-                Color.BLACK
-        );
+reactorParams.setMargins(
+        dp(2),
+        dp(2),
+        dp(8),
+        dp(2)
+);
 
-        configurarAreaSegura(root);
+header.addView(
+        reactorView,
+        reactorParams
+);
 
-        LinearLayout header =
-                new LinearLayout(this);
+/* =========================
+   NOME DO JARVIS
+   ========================= */
 
-        header.setOrientation(
-                LinearLayout.HORIZONTAL
-        );
+TextView titulo =
+        new TextView(this);
 
-        header.setGravity(
-                Gravity.CENTER_VERTICAL
-        );
+titulo.setText(
+        "Jarvis"
+);
 
-        ImageButton menu = new ImageButton(this);
+titulo.setTextSize(
+        21
+);
 
-menu.setImageResource(R.drawable.ic_jarvis_menu);
-menu.setBackgroundColor(Color.TRANSPARENT);
-menu.setColorFilter(Color.WHITE);
+titulo.setTextColor(
+        Color.WHITE
+);
 
-menu.setContentDescription("Menu");
+titulo.setGravity(
+        Gravity.CENTER_VERTICAL
+);
+
+header.addView(
+        titulo,
+        new LinearLayout.LayoutParams(
+                0,
+                dp(48),
+                1
+        )
+);
+
+/* =========================
+   MENU
+   ========================= */
+
+ImageButton menu =
+        new ImageButton(this);
+
+menu.setImageResource(
+        R.drawable.ic_jarvis_menu
+);
+
+menu.setBackgroundColor(
+        Color.TRANSPARENT
+);
+
+menu.setColorFilter(
+        Color.WHITE
+);
+
+menu.setContentDescription(
+        "Menu"
+);
 
 menu.setOnClickListener(
         v -> abrirMenuJarvis()
 );
 
-        header.addView(
-                menu,
-                new LinearLayout.LayoutParams(
-                        dp(58),
-                        dp(48)
-                )
-        );
+header.addView(
+        menu,
+        new LinearLayout.LayoutParams(
+                dp(48),
+                dp(48)
+        )
+);
 
-        TextView titulo =
-                new TextView(this);
+/* =========================
+   ADICIONA O CABEÇALHO
+   ========================= */
 
-        titulo.setText("J.A.R.V.I.S");
-        titulo.setTextSize(24);
-        titulo.setTextColor(Color.WHITE);
-        titulo.setGravity(
-                Gravity.CENTER_VERTICAL
-        );
-
-        header.addView(
-                titulo,
-                new LinearLayout.LayoutParams(
-                        0,
-                        dp(48),
-                        1
-                )
-        );
-
-        root.addView(
-                header,
-                new LinearLayout.LayoutParams(
-                        -1,
-                        dp(48)
-                )
-        );
-
-        TextView subtitulo =
-                new TextView(this);
-
-        subtitulo.setText(
-                "ASSISTENTE LOCAL • OFFLINE"
-        );
-
-        subtitulo.setTextSize(11);
-        subtitulo.setTextColor(Color.GRAY);
-        subtitulo.setGravity(
-                Gravity.CENTER_VERTICAL
-        );
-
-        root.addView(
-                subtitulo,
-                new LinearLayout.LayoutParams(
-                        -1,
-                        dp(24)
-                )
-        );
-
-        clockText =
-                new TextView(this);
-
-        clockText.setTextSize(21);
-        clockText.setTextColor(Color.WHITE);
-        clockText.setGravity(Gravity.CENTER);
-
-        root.addView(
-                clockText,
-                new LinearLayout.LayoutParams(
-                        -1,
-                        dp(50)
-                )
-        );
-
-        reactorView =
-                new ReactorView(this);
-
-        reactorView.setOnClickListener(
-                v -> {
-
-                    if (!ouvindo) {
-                        iniciarReconhecimento();
-                    } else {
-                        pararReconhecimento();
-                        adicionarMensagem(
-                                "JARVIS",
-                                "Reconhecimento interrompido."
-                        );
-                    }
-                }
-        );
-
-        root.addView(
-                reactorView,
-                new LinearLayout.LayoutParams(
-                        -1,
-                        dp(190)
-                )
-        );
-
+root.addView(
+        header,
+        new LinearLayout.LayoutParams(
+                -1,
+                dp(52)
+        )
+);
         TextView modo =
                 new TextView(this);
 
