@@ -1,10 +1,9 @@
 package com.jarvis.lite;
 
 import android.os.Bundle;
-import android.service.voice.VoiceInteractionSessionService;
 
 public class VoiceInteractionSessionService
-        extends VoiceInteractionSessionService {
+        extends android.service.voice.VoiceInteractionSessionService {
 
     @Override
     public android.service.voice.VoiceInteractionSession onNewSession(
@@ -14,4 +13,4 @@ public class VoiceInteractionSessionService
                 this
         );
     }
-        }
+}
