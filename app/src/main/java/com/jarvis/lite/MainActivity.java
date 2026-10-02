@@ -3303,9 +3303,33 @@ private void processarComando(
         return;
     }
 
+    String contextoMemoria =
+        memoriaAutomatica
+                ? memoria.relevantContext(
+                        original,
+                        6
+                )
+                : "";
+
+String respostaCerebro =
+        cerebro.process(
+                original,
+                contextoMemoria
+        );
+
+if (respostaCerebro != null
+        && !respostaCerebro.trim().isEmpty()) {
+
     responder(
-            "Entendi. Essa frase é uma conversa, mas ainda não corresponde a um comando local implementado."
+            respostaCerebro
     );
+
+    return;
+}
+
+responder(
+        "Entendi. Essa frase é uma conversa, mas ainda não corresponde a um comando local implementado."
+);
 }
 
 /**
