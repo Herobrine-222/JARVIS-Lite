@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -34,6 +35,7 @@ import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ImageButton;
+import android.widget.ProgressBar;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -60,6 +62,13 @@ public class MainActivity extends Activity {
     private LinearLayout chatContainer;
     private ScrollView chatScroll;
     private EditText commandInput;
+    private TextView homeDateText;
+    private TextView homeWeatherText;
+    private boolean chatMode = false;
+
+    private boolean verificacaoEncontrouSuspeito = false;
+    private String nomeAppSuspeito = "";
+    private String detalheAppSuspeito = "";
 
     private Handler clockHandler;
 
@@ -583,372 +592,332 @@ private final JarvisBrain cerebro =
         }
     }
 
+
     private void configurarTela() {
 
         telaAtual = TELA_PRINCIPAL;
+        chatMode = false;
 
-LinearLayout root =
-        new LinearLayout(this);
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(Color.rgb(1, 7, 16));
+        configurarAreaSegura(root);
 
-root.setOrientation(
-        LinearLayout.VERTICAL
-);
+        // Cabeçalho: J.A.R.V.I.S. + engrenagem/menu.
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setPadding(dp(10), 0, dp(10), 0);
 
-root.setBackgroundColor(
-        Color.BLACK
-);
+        TextView titulo = new TextView(this);
+        titulo.setText("J.A.R.V.I.S");
+        titulo.setTextSize(24);
+        titulo.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD);
+        titulo.setTextColor(Color.rgb(80, 205, 255));
+        titulo.setGravity(Gravity.CENTER_VERTICAL);
 
-configurarAreaSegura(root);
+        header.addView(titulo, new LinearLayout.LayoutParams(0, dp(58), 1));
 
-/* =========================
-   CABEÇALHO DO JARVIS
-   ========================= */
+        ImageButton menu = new ImageButton(this);
+        menu.setImageResource(R.drawable.ic_jarvis_menu);
+        menu.setBackgroundColor(Color.TRANSPARENT);
+        menu.setColorFilter(Color.rgb(80, 205, 255));
+        menu.setContentDescription("Menu");
+        menu.setOnClickListener(v -> abrirMenuJarvis());
+        header.addView(menu, new LinearLayout.LayoutParams(dp(52), dp(52)));
 
-LinearLayout header =
-        new LinearLayout(this);
+        root.addView(header, new LinearLayout.LayoutParams(-1, dp(62)));
 
-header.setOrientation(
-        LinearLayout.HORIZONTAL
-);
+        // Relógio grande da tela inicial.
+        clockText = criarTexto("");
+        clockText.setTextSize(38);
+        clockText.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD);
+        clockText.setTextColor(Color.rgb(120, 215, 255));
+        clockText.setGravity(Gravity.CENTER);
+        root.addView(clockText, new LinearLayout.LayoutParams(-1, dp(72)));
 
-header.setGravity(
-        Gravity.CENTER_VERTICAL
-);
+        homeDateText = criarTexto("");
+        homeDateText.setTextSize(16);
+        homeDateText.setTextColor(Color.WHITE);
+        homeDateText.setGravity(Gravity.CENTER);
+        root.addView(homeDateText, new LinearLayout.LayoutParams(-1, dp(30)));
 
-header.setPadding(
-        dp(4),
-        0,
-        dp(4),
-        0
-);
+        // Clima: usa apenas informação configurada/obtida pelo próprio app.
+        homeWeatherText = criarTexto("");
+        homeWeatherText.setTextSize(14);
+        homeWeatherText.setTextColor(Color.LTGRAY);
+        homeWeatherText.setGravity(Gravity.CENTER);
+        homeWeatherText.setPadding(dp(12), dp(4), dp(12), dp(4));
+        root.addView(homeWeatherText, new LinearLayout.LayoutParams(-1, dp(52)));
 
-/* =========================
-   MINI REATOR
-   ========================= */
-
-reactorView =
-        new ReactorView(this);
-
-reactorView.setOnClickListener(
-        v -> {
-
+        // Reator central.
+        reactorView = new ReactorView(this);
+        reactorView.setOnClickListener(v -> {
             if (!ouvindo) {
-
                 iniciarReconhecimento();
-
             } else {
-
                 pararReconhecimento();
+                adicionarMensagem("JARVIS", "Reconhecimento interrompido.");
+            }
+        });
 
-                adicionarMensagem(
-                        "JARVIS",
-                        "Reconhecimento interrompido."
-                );
+        LinearLayout.LayoutParams reactorParams =
+                new LinearLayout.LayoutParams(dp(250), dp(250));
+        reactorParams.gravity = Gravity.CENTER_HORIZONTAL;
+        reactorParams.topMargin = dp(4);
+        reactorParams.bottomMargin = dp(8);
+
+        root.addView(reactorView, reactorParams);
+
+        // Botão da verificação permanece na tela inicial, como na referência.
+        LinearLayout verificarCard = criarPainelNeon();
+        TextView escudo = criarTexto("◈");
+        escudo.setTextSize(28);
+        escudo.setTextColor(Color.rgb(80, 205, 255));
+        escudo.setGravity(Gravity.CENTER);
+
+        LinearLayout textos = new LinearLayout(this);
+        textos.setOrientation(LinearLayout.VERTICAL);
+        TextView vt = criarTexto("VERIFICAR APARELHO");
+        vt.setTextSize(15);
+        vt.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD);
+        vt.setTextColor(Color.WHITE);
+
+        TextView vd = criarTexto("Mantenha seu dispositivo seguro");
+        vd.setTextSize(11);
+        vd.setTextColor(Color.LTGRAY);
+
+        textos.addView(vt);
+        textos.addView(vd);
+
+        verificarCard.addView(escudo, new LinearLayout.LayoutParams(dp(48), dp(58)));
+        verificarCard.addView(textos, new LinearLayout.LayoutParams(0, dp(58), 1));
+
+        verificarCard.setOnClickListener(v -> abrirVerificacao());
+
+        LinearLayout.LayoutParams verificarParams =
+                new LinearLayout.LayoutParams(-1, dp(70));
+        verificarParams.setMargins(dp(14), dp(4), dp(14), dp(8));
+        root.addView(verificarCard, verificarParams);
+
+        // A caixa "Digite uma mensagem..." continua no rodapé da tela inicial.
+        LinearLayout entrada = criarEntradaMensagem(() -> {
+            abrirChatIA();
+            if (commandInput != null) {
+                commandInput.requestFocus();
+                InputMethodManager imm =
+                        (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+                if (imm != null) {
+                    imm.showSoftInput(commandInput, InputMethodManager.SHOW_IMPLICIT);
+                }
+            }
+        });
+
+        root.addView(entrada, new LinearLayout.LayoutParams(-1, dp(64)));
+
+        TextView modo = criarTexto(
+                modoOnline ? "● MODO ONLINE EM USO" : "● MODO OFFLINE EM USO"
+        );
+        modo.setTextSize(10);
+        modo.setTextColor(Color.rgb(80, 205, 255));
+        modo.setGravity(Gravity.CENTER);
+        root.addView(modo, new LinearLayout.LayoutParams(-1, dp(22)));
+
+        atualizarInformacoesTelaInicial();
+        setContentView(root);
+        iniciarRelogio();
+    }
+
+    private void atualizarInformacoesTelaInicial() {
+
+        if (homeDateText != null) {
+            homeDateText.setText(
+                    new SimpleDateFormat("dd MMM", Locale.getDefault())
+                            .format(new Date())
+                            .toUpperCase(Locale.getDefault())
+            );
+        }
+
+        if (homeWeatherText != null) {
+            String cidade = preferencias.getString("cidade_clima", "");
+            if (cidade.isEmpty()) {
+                homeWeatherText.setText("☁  Clima não configurado");
+            } else {
+                homeWeatherText.setText("☁  " + cidade + "  •  clima disponível no modo ONLINE");
             }
         }
-);
+    }
 
-LinearLayout.LayoutParams reactorParams =
-        new LinearLayout.LayoutParams(
-                dp(42),
-                dp(42)
-        );
+    private LinearLayout criarEntradaMensagem(Runnable aoFocar) {
 
-reactorParams.setMargins(
-        dp(2),
-        dp(2),
-        dp(8),
-        dp(2)
-);
+        LinearLayout entrada = new LinearLayout(this);
+        entrada.setOrientation(LinearLayout.HORIZONTAL);
+        entrada.setGravity(Gravity.CENTER_VERTICAL);
+        entrada.setPadding(dp(10), dp(4), dp(10), dp(4));
 
-header.addView(
-        reactorView,
-        reactorParams
-);
+        GradientDrawable campoFundo = new GradientDrawable();
+        campoFundo.setColor(Color.rgb(3, 13, 25));
+        campoFundo.setCornerRadius(dp(22));
+        campoFundo.setStroke(dp(1), Color.rgb(0, 150, 255));
 
-/* =========================
-   NOME DO JARVIS
-   ========================= */
-
-TextView titulo =
-        new TextView(this);
-
-titulo.setText(
-        "Jarvis"
-);
-
-titulo.setTextSize(
-        21
-);
-
-titulo.setTextColor(
-        Color.WHITE
-);
-
-titulo.setGravity(
-        Gravity.CENTER_VERTICAL
-);
-
-header.addView(
-        titulo,
-        new LinearLayout.LayoutParams(
-                0,
-                dp(48),
-                1
-        )
-);
-
-/* =========================
-   MENU
-   ========================= */
-
-ImageButton menu =
-        new ImageButton(this);
-
-menu.setImageResource(
-        R.drawable.ic_jarvis_menu
-);
-
-menu.setBackgroundColor(
-        Color.TRANSPARENT
-);
-
-menu.setColorFilter(
-        Color.WHITE
-);
-
-menu.setContentDescription(
-        "Menu"
-);
-
-menu.setOnClickListener(
-        v -> abrirMenuJarvis()
-);
-
-header.addView(
-        menu,
-        new LinearLayout.LayoutParams(
-                dp(48),
-                dp(48)
-        )
-);
-
-/* =========================
-   ADICIONA O CABEÇALHO
-   ========================= */
-
-root.addView(
-        header,
-        new LinearLayout.LayoutParams(
-                -1,
-                dp(52)
-        )
-);
-        TextView modo =
-                new TextView(this);
-
-        modo.setText(
-                modoOnline
-                        ? "● MODO ONLINE EM USO"
-                        : "● MODO OFFLINE EM USO"
-        );
-
-        modo.setTextSize(13);
-        modo.setTextColor(Color.WHITE);
-        modo.setGravity(Gravity.CENTER);
-
-        root.addView(
-                modo,
-                new LinearLayout.LayoutParams(
-                        -1,
-                        dp(30)
-                )
-        );
-
-        chatScroll =
-                new ScrollView(this);
-
-        chatScroll.setFillViewport(true);
-        chatScroll.setClipToPadding(false);
-
-        chatContainer =
-                new LinearLayout(this);
-
-        chatContainer.setOrientation(
-                LinearLayout.VERTICAL
-        );
-
-        chatContainer.setPadding(
-                dp(8),
-                dp(8),
-                dp(8),
-                dp(12)
-        );
-
-        chatScroll.addView(chatContainer);
-
-        LinearLayout.LayoutParams scrollParams =
-                new LinearLayout.LayoutParams(
-                        -1,
-                        0,
-                        1
-                );
-
-        scrollParams.topMargin = dp(4);
-        scrollParams.bottomMargin = dp(4);
-
-        root.addView(
-                chatScroll,
-                scrollParams
-        );
-
-        LinearLayout entrada =
-                new LinearLayout(this);
-
-        entrada.setOrientation(
-                LinearLayout.HORIZONTAL
-        );
-
-        entrada.setGravity(
-                Gravity.CENTER_VERTICAL
-        );
-
-        GradientDrawable campoFundo =
-                new GradientDrawable();
-
-        campoFundo.setColor(
-                Color.rgb(17, 17, 17)
-        );
-
-        campoFundo.setCornerRadius(
-                dp(22)
-        );
-
-        campoFundo.setStroke(
-                dp(1),
-                Color.rgb(70, 70, 70)
-        );
-
-        commandInput =
-                new EditText(this);
-
-        commandInput.setHint(
-                "Digite uma mensagem..."
-        );
-
-        commandInput.setHintTextColor(
-                Color.rgb(145, 145, 145)
-        );
-
-        commandInput.setTextColor(
-                Color.WHITE
-        );
-
+        commandInput = new EditText(this);
+        commandInput.setHint("Digite uma mensagem...");
+        commandInput.setHintTextColor(Color.rgb(125, 145, 165));
+        commandInput.setTextColor(Color.WHITE);
         commandInput.setSingleLine(true);
-        commandInput.setTextSize(15);
+        commandInput.setTextSize(14);
+        commandInput.setPadding(dp(16), 0, dp(12), 0);
+        commandInput.setBackground(campoFundo);
 
-        commandInput.setPadding(
-                dp(16),
-                0,
-                dp(14),
-                                0
-        );
-
-        commandInput.setBackground(
-                campoFundo
-        );
-
-        commandInput.setOnFocusChangeListener(
-                (v, focused) -> {
-
-                    if (focused
-                            && chatScroll != null) {
-
-                        chatScroll.postDelayed(
-                                () -> chatScroll
-                                        .fullScroll(
-                                                View.FOCUS_DOWN
-                                        ),
-                                180
-                        );
-                    }
-                }
-        );
+        commandInput.setOnFocusChangeListener((v, focused) -> {
+            if (focused && aoFocar != null && !chatMode) {
+                aoFocar.run();
+            }
+        });
 
         entrada.addView(
                 commandInput,
-                new LinearLayout.LayoutParams(
-                        0,
-                        dp(52),
-                        1
-                )
+                new LinearLayout.LayoutParams(0, dp(52), 1)
         );
 
         ImageButton microfone = new ImageButton(this);
-
-microfone.setImageResource(R.drawable.ic_jarvis_mic);
-microfone.setBackgroundColor(Color.TRANSPARENT);
-microfone.setColorFilter(Color.WHITE);
-microfone.setContentDescription("Microfone");
-
-microfone.setOnClickListener(
-        v -> {
-            if (!ouvindo) {
-                iniciarReconhecimento();
-            } else {
-                pararReconhecimento();
+        microfone.setImageResource(R.drawable.ic_jarvis_mic);
+        microfone.setBackgroundColor(Color.TRANSPARENT);
+        microfone.setColorFilter(Color.rgb(80, 205, 255));
+        microfone.setContentDescription("Microfone");
+        microfone.setOnClickListener(v -> {
+            if (!chatMode) {
+                abrirChatIA();
             }
-        }
-);
+            if (!ouvindo) iniciarReconhecimento();
+            else pararReconhecimento();
+        });
 
-        LinearLayout.LayoutParams micParams =
-                new LinearLayout.LayoutParams(
-                        dp(56),
-                        dp(52)
-                );
+        entrada.addView(microfone, new LinearLayout.LayoutParams(dp(52), dp(52)));
 
-        micParams.leftMargin = dp(6);
+        return entrada;
+    }
 
-        entrada.addView(
-                microfone,
-                micParams
-        );
 
+    private LinearLayout criarPainelNeon() {
+
+        LinearLayout painel = new LinearLayout(this);
+        painel.setOrientation(LinearLayout.HORIZONTAL);
+        painel.setGravity(Gravity.CENTER_VERTICAL);
+        painel.setPadding(dp(10), dp(6), dp(10), dp(6));
+
+        GradientDrawable fundo = new GradientDrawable();
+        fundo.setColor(Color.rgb(3, 13, 25));
+        fundo.setCornerRadius(dp(16));
+        fundo.setStroke(dp(1), Color.rgb(0, 160, 255));
+        painel.setBackground(fundo);
+
+        return painel;
+    }
+
+    private void abrirChatIA() {
+
+        if (chatMode) return;
+
+        chatMode = true;
+        telaAtual = TELA_PRINCIPAL;
+
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(Color.rgb(1, 7, 16));
+        configurarAreaSegura(root);
+
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+
+        ImageButton voltar = new ImageButton(this);
+        voltar.setImageResource(R.drawable.ic_jarvis_back);
+        voltar.setBackgroundColor(Color.TRANSPARENT);
+        voltar.setColorFilter(Color.WHITE);
+        voltar.setContentDescription("Voltar");
+        voltar.setOnClickListener(v -> {
+            esconderTeclado();
+            configurarTela();
+        });
+        header.addView(voltar, new LinearLayout.LayoutParams(dp(52), dp(52)));
+
+        LinearLayout titulos = new LinearLayout(this);
+        titulos.setOrientation(LinearLayout.VERTICAL);
+        titulos.setGravity(Gravity.CENTER_VERTICAL);
+
+        TextView titulo = criarTexto("J.A.R.V.I.S");
+        titulo.setTextSize(21);
+        titulo.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD);
+        titulo.setTextColor(Color.WHITE);
+
+        TextView estado = criarTexto("●");
+        estado.setTextSize(13);
+        estado.setTextColor(Color.rgb(50, 230, 130));
+
+        LinearLayout tituloLinha = new LinearLayout(this);
+        tituloLinha.setGravity(Gravity.CENTER_VERTICAL);
+        tituloLinha.addView(titulo);
+        tituloLinha.addView(estado, new LinearLayout.LayoutParams(dp(30), dp(40)));
+
+        titulos.addView(tituloLinha);
+        header.addView(titulos, new LinearLayout.LayoutParams(0, dp(56), 1));
+
+        ImageButton info = new ImageButton(this);
+        info.setImageResource(R.drawable.ic_jarvis_menu);
+        info.setBackgroundColor(Color.TRANSPARENT);
+        info.setColorFilter(Color.rgb(80, 205, 255));
+        info.setContentDescription("Menu");
+        info.setOnClickListener(v -> abrirMenuJarvis());
+        header.addView(info, new LinearLayout.LayoutParams(dp(52), dp(52)));
+
+        root.addView(header, new LinearLayout.LayoutParams(-1, dp(58)));
+
+        chatScroll = new ScrollView(this);
+        chatScroll.setFillViewport(true);
+        chatScroll.setClipToPadding(false);
+
+        chatContainer = new LinearLayout(this);
+        chatContainer.setOrientation(LinearLayout.VERTICAL);
+        chatContainer.setPadding(dp(12), dp(10), dp(12), dp(10));
+
+        chatScroll.addView(chatContainer);
         root.addView(
-                entrada,
-                new LinearLayout.LayoutParams(
-                        -1,
-                        dp(58)
-                )
+                chatScroll,
+                new LinearLayout.LayoutParams(-1, 0, 1)
         );
 
-        ImageButton executar = new ImageButton(this);
+        restaurarChatPrincipal();
 
-executar.setImageResource(R.drawable.ic_jarvis_send);
-executar.setBackgroundColor(Color.TRANSPARENT);
-executar.setColorFilter(Color.WHITE);
-executar.setContentDescription("Enviar");
+        // Reator pequeno, igual ao modo conversa da referência.
+        ReactorView miniReator = new ReactorView(this);
+        LinearLayout.LayoutParams miniParams =
+                new LinearLayout.LayoutParams(dp(120), dp(120));
+        miniParams.gravity = Gravity.CENTER_HORIZONTAL;
+        root.addView(miniReator, miniParams);
 
-executar.setOnClickListener(
-        v -> enviarTextoDigitado()
-);
+        LinearLayout entrada = criarEntradaMensagem(null);
+        root.addView(entrada, new LinearLayout.LayoutParams(-1, dp(64)));
+
+        ImageButton enviar = new ImageButton(this);
+        enviar.setImageResource(R.drawable.ic_jarvis_send);
+        enviar.setBackgroundColor(Color.TRANSPARENT);
+        enviar.setColorFilter(Color.rgb(80, 205, 255));
+        enviar.setContentDescription("Enviar");
+        enviar.setOnClickListener(v -> enviarTextoDigitado());
 
         LinearLayout.LayoutParams enviarParams =
-                new LinearLayout.LayoutParams(
-                        dp(58),
-                        dp(48)
-                );
-
-        enviarParams.gravity =
-                Gravity.CENTER_HORIZONTAL;
-
-        root.addView(
-                executar,
-                enviarParams
-        );
+                new LinearLayout.LayoutParams(dp(52), dp(48));
+        enviarParams.gravity = Gravity.CENTER_HORIZONTAL;
+        root.addView(enviar, enviarParams);
 
         setContentView(root);
+
+        if (commandInput != null) {
+            commandInput.setText("");
+        }
     }
+
 
 
 
@@ -1968,127 +1937,432 @@ executar.setOnClickListener(
         setContentView(layout);
     }
 
+
     private void abrirVerificacao() {
 
-        telaAtual =
-                TELA_VERIFICACAO;
+        telaAtual = TELA_VERIFICACAO;
 
-        LinearLayout layout =
-                criarTelaBase(
-                        "VERIFICAÇÃO DO APARELHO",
-                        "VERIFICAÇÃO LOCAL DO JARVIS"
-                );
-
-        ReactorView verificador =
-                new ReactorView(this);
-
-        layout.addView(
-                verificador,
-                new LinearLayout.LayoutParams(
-                        -1,
-                        dp(190)
-                )
+        LinearLayout layout = criarTelaBase(
+                "VERIFICAÇÃO DO APARELHO",
+                "ANÁLISE BÁSICA DO JARVIS"
         );
 
-        TextView resultado =
-                criarTexto(
-                        resultadoVerificacao()
-                );
+        ImageButton voltar = null; // o cabeçalho da tela base já fornece o retorno.
 
-        resultado.setTextSize(17);
-        resultado.setGravity(
-                Gravity.CENTER
+        TextView titulo = criarTexto("Verificando seu aparelho...");
+        titulo.setTextSize(21);
+        titulo.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD);
+        titulo.setTextColor(Color.WHITE);
+        titulo.setGravity(Gravity.CENTER);
+        layout.addView(titulo, parametrosTexto());
+
+        TextView subtitulo = criarTexto(
+                "Analisando aplicativos e arquivos\nem busca de ameaças."
         );
+        subtitulo.setTextSize(13);
+        subtitulo.setTextColor(Color.LTGRAY);
+        subtitulo.setGravity(Gravity.CENTER);
+        layout.addView(subtitulo, parametrosTexto());
 
-        layout.addView(
-                resultado,
-                parametrosTexto()
+        ReactorView scanner = new ReactorView(this);
+        LinearLayout.LayoutParams scannerParams =
+                new LinearLayout.LayoutParams(-1, dp(210));
+        scannerParams.gravity = Gravity.CENTER_HORIZONTAL;
+        layout.addView(scanner, scannerParams);
+
+        ProgressBar progresso = new ProgressBar(
+                this,
+                null,
+                android.R.attr.progressBarStyleHorizontal
         );
+        progresso.setMax(100);
+        progresso.setProgress(0);
+        progresso.setIndeterminate(false);
 
-        TextView ultima =
-                criarTexto(
-                        textoUltimaVerificacao()
-                );
+        GradientDrawable barraFundo = new GradientDrawable();
+        barraFundo.setColor(Color.rgb(4, 18, 30));
+        barraFundo.setCornerRadius(dp(10));
+        barraFundo.setStroke(dp(1), Color.rgb(0, 150, 255));
+        progresso.setBackground(barraFundo);
 
-        ultima.setGravity(
-                Gravity.CENTER
+        LinearLayout.LayoutParams barraParams =
+                new LinearLayout.LayoutParams(-1, dp(12));
+        barraParams.setMargins(dp(18), dp(8), dp(18), dp(4));
+        layout.addView(progresso, barraParams);
+
+        TextView porcentagem = criarTexto("0%");
+        porcentagem.setTextSize(13);
+        porcentagem.setTextColor(Color.rgb(80, 205, 255));
+        porcentagem.setGravity(Gravity.CENTER);
+        layout.addView(porcentagem, new LinearLayout.LayoutParams(-1, dp(30)));
+
+        TextView status1 = criarTexto("○  Analisando aplicativos...");
+        TextView status2 = criarTexto("○  Verificando arquivos...");
+        TextView status3 = criarTexto("○  Checando permissões...");
+
+        status1.setTextSize(13);
+        status2.setTextSize(13);
+        status3.setTextSize(13);
+
+        status1.setTextColor(Color.rgb(80, 205, 255));
+        status2.setTextColor(Color.GRAY);
+        status3.setTextColor(Color.GRAY);
+
+        layout.addView(status1, parametrosTexto());
+        layout.addView(status2, parametrosTexto());
+        layout.addView(status3, parametrosTexto());
+
+        TextView observacao = criarTexto(
+                "Isso pode levar alguns minutos."
         );
+        observacao.setTextSize(11);
+        observacao.setTextColor(Color.GRAY);
+        observacao.setGravity(Gravity.CENTER);
+        layout.addView(observacao, parametrosTexto());
 
-        layout.addView(
-                ultima,
-                parametrosTexto()
-        );
+        Button iniciar = criarBotao("INICIAR VERIFICAÇÃO");
+        iniciar.setOnClickListener(v -> {
 
-        TextView apps =
-                criarTexto(
-                        listaAppsVerificados()
-                );
+            iniciar.setEnabled(false);
+            verificacaoEncontrouSuspeito = false;
+            nomeAppSuspeito = "";
+            detalheAppSuspeito = "";
 
-        apps.setTextSize(13);
+            scanner.setOuvindo(true);
 
-        layout.addView(
-                apps,
-                parametrosTexto()
-        );
+            final Handler h = new Handler();
+            final int[] p = {0};
 
-        Button verificar =
-                criarBotao("VERIFICAR");
+            Runnable andamento = new Runnable() {
+                @Override
+                public void run() {
 
-        verificar.setOnClickListener(
-                v -> {
+                    p[0] = Math.min(100, p[0] + 4);
+                    progresso.setProgress(p[0]);
+                    porcentagem.setText(p[0] + "%");
 
-                    verificar.setEnabled(false);
+                    if (p[0] >= 20) {
+                        status1.setText("✓  Aplicativos analisados...");
+                        status1.setTextColor(Color.rgb(70, 230, 150));
+                        status2.setTextColor(Color.rgb(80, 205, 255));
+                        status2.setText("○  Verificando arquivos...");
+                    }
 
-                    resultado.setText(
-                            "VERIFICANDO\n"
-                                    + "Verificação em andamento..."
-                    );
+                    if (p[0] >= 60) {
+                        status2.setText("✓  Arquivos acessíveis verificados...");
+                        status2.setTextColor(Color.rgb(70, 230, 150));
+                        status3.setTextColor(Color.rgb(80, 205, 255));
+                        status3.setText("○  Checando permissões...");
+                    }
 
-                    ultima.setText(
-                            "Analisando aplicativos instalados..."
-                    );
+                    if (p[0] >= 96) {
+                        status3.setText("✓  Permissões básicas verificadas...");
+                        status3.setTextColor(Color.rgb(70, 230, 150));
+                    }
 
-                    verificador.setOuvindo(true);
+                    if (p[0] < 100) {
+                        h.postDelayed(this, 80);
+                        return;
+                    }
 
-                    new Handler().postDelayed(
-                            () -> {
+                    h.removeCallbacks(this);
 
-                                executarVerificacao();
+                    new Thread(() -> {
+                        executarVerificacao();
 
-                                verificador.setOuvindo(false);
-
-                                resultado.setText(
-                                        resultadoVerificacao()
-                                );
-
-                                ultima.setText(
-                                        textoUltimaVerificacao()
-                                );
-
-                                apps.setText(
-                                        listaAppsVerificados()
-                                );
-
-                                verificar.setEnabled(true);
-                            },
-                            2500
-                    );
+                        runOnUiThread(() -> {
+                            scanner.setOuvindo(false);
+                            iniciar.setEnabled(true);
+                            abrirResultadoVerificacao();
+                        });
+                    }).start();
                 }
-        );
+            };
 
-        layout.addView(
-                verificar,
-                parametrosBotao()
-        );
+            h.post(andamento);
+        });
 
-        adicionarBotaoTela(
-                layout,
-                "VOLTAR",
-                this::abrirMenuJarvis
-        );
+        layout.addView(iniciar, parametrosBotao());
+
+        Button voltarBotao = criarBotao("VOLTAR");
+        voltarBotao.setOnClickListener(v -> abrirMenuJarvis());
+        layout.addView(voltarBotao, parametrosBotao());
 
         setContentView(layout);
     }
+
+    private void abrirResultadoVerificacao() {
+
+        LinearLayout layout = criarTelaBase(
+                verificacaoEncontrouSuspeito
+                        ? "RESULTADO DA VERIFICAÇÃO (COM ALERTA)"
+                        : "RESULTADO DA VERIFICAÇÃO (SEM AMEAÇAS)",
+                "ANÁLISE BÁSICA DO JARVIS"
+        );
+
+        LinearLayout icone = criarPainelResultado(
+                verificacaoEncontrouSuspeito
+                        ? "!"
+                        : "✓",
+                verificacaoEncontrouSuspeito
+                        ? Color.rgb(255, 70, 70)
+                        : Color.rgb(55, 235, 165)
+        );
+
+        LinearLayout.LayoutParams iconeParams =
+                new LinearLayout.LayoutParams(-1, dp(190));
+        layout.addView(icone, iconeParams);
+
+        TextView titulo = criarTexto(
+                verificacaoEncontrouSuspeito
+                        ? "Foi encontrado um app\nsupostamente malicioso,\nverifique se foi você que instalou."
+                        : "Seu telefone parece estar seguro,\ntenha um bom dia."
+        );
+        titulo.setTextSize(18);
+        titulo.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD);
+        titulo.setGravity(Gravity.CENTER);
+        titulo.setTextColor(Color.WHITE);
+        layout.addView(titulo, parametrosTexto());
+
+        if (verificacaoEncontrouSuspeito) {
+
+            LinearLayout app = criarPainelNeon();
+
+            TextView simbolo = criarTexto("⚠");
+            simbolo.setTextSize(24);
+            simbolo.setTextColor(Color.rgb(255, 90, 90));
+            simbolo.setGravity(Gravity.CENTER);
+
+            LinearLayout dados = new LinearLayout(this);
+            dados.setOrientation(LinearLayout.VERTICAL);
+
+            TextView nome = criarTexto(
+                    nomeAppSuspeito.isEmpty()
+                            ? "App suspeito"
+                            : nomeAppSuspeito
+            );
+            nome.setTextSize(14);
+            nome.setTextColor(Color.WHITE);
+
+            TextView detalhe = criarTexto(
+                    detalheAppSuspeito.isEmpty()
+                            ? "Fonte: desconhecida"
+                            : detalheAppSuspeito
+            );
+            detalhe.setTextSize(11);
+            detalhe.setTextColor(Color.LTGRAY);
+
+            dados.addView(nome);
+            dados.addView(detalhe);
+
+            app.addView(simbolo, new LinearLayout.LayoutParams(dp(52), dp(58)));
+            app.addView(dados, new LinearLayout.LayoutParams(0, dp(58), 1));
+
+            LinearLayout.LayoutParams appParams =
+                    new LinearLayout.LayoutParams(-1, dp(76));
+            appParams.setMargins(dp(10), dp(8), dp(10), dp(8));
+            layout.addView(app, appParams);
+
+        } else {
+
+            TextView detalhe = criarTexto(
+                    "Nenhuma ameaça foi encontrada\nna verificação básica."
+            );
+            detalhe.setTextSize(14);
+            detalhe.setTextColor(Color.rgb(80, 205, 255));
+            detalhe.setGravity(Gravity.CENTER);
+            layout.addView(detalhe, parametrosTexto());
+        }
+
+        Button ok = criarBotao("OK");
+        ok.setOnClickListener(v -> abrirMenuJarvis());
+        layout.addView(ok, parametrosBotao());
+
+        setContentView(layout);
+    }
+
+    private LinearLayout criarPainelResultado(String simbolo, int cor) {
+
+        LinearLayout painel = new LinearLayout(this);
+        painel.setGravity(Gravity.CENTER);
+
+        GradientDrawable fundo = new GradientDrawable();
+        fundo.setShape(GradientDrawable.OVAL);
+        fundo.setColor(Color.rgb(3, 13, 25));
+        fundo.setStroke(dp(3), cor);
+        painel.setBackground(fundo);
+
+        TextView texto = criarTexto(simbolo);
+        texto.setTextSize(76);
+        texto.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD);
+        texto.setTextColor(cor);
+        texto.setGravity(Gravity.CENTER);
+
+        painel.addView(texto, new LinearLayout.LayoutParams(dp(150), dp(150)));
+
+        return painel;
+    }
+
+    private String resultadoVerificacao() {
+        if (ultimaVerificacao == 0L) {
+            return "VERIFICAÇÃO AINDA NÃO EXECUTADA";
+        }
+
+        return verificacaoEncontrouSuspeito
+                ? "Foi encontrado um aplicativo que merece revisão."
+                : "Nenhuma ameaça foi encontrada na verificação básica.";
+    }
+
+    private String listaAppsVerificados() {
+
+        if (ultimaVerificacao == 0L) {
+            return "Nenhuma verificação foi executada ainda.";
+        }
+
+        StringBuilder out = new StringBuilder();
+
+        try {
+            List<ApplicationInfo> apps =
+                    getPackageManager().getInstalledApplications(
+                            PackageManager.GET_META_DATA
+                    );
+
+            int limite = Math.min(apps.size(), 12);
+
+            for (int i = 0; i < limite; i++) {
+                ApplicationInfo a = apps.get(i);
+                CharSequence label =
+                        getPackageManager().getApplicationLabel(a);
+
+                out.append("• ")
+                        .append(label)
+                        .append("\n");
+            }
+
+        } catch (Exception e) {
+            out.append("Não foi possível listar os aplicativos.");
+        }
+
+        return out.toString();
+    }
+
+    private void executarVerificacao() {
+
+        verificacaoEncontrouSuspeito = false;
+        nomeAppSuspeito = "";
+        detalheAppSuspeito = "";
+
+        try {
+
+            PackageManager pm = getPackageManager();
+
+            List<ApplicationInfo> apps =
+                    pm.getInstalledApplications(
+                            PackageManager.GET_META_DATA
+                    );
+
+            for (ApplicationInfo appInfo : apps) {
+
+                if (appInfo == null
+                        || appInfo.packageName == null
+                        || getPackageName().equals(appInfo.packageName)) {
+                    continue;
+                }
+
+                if ((appInfo.flags & ApplicationInfo.FLAG_SYSTEM) != 0) {
+                    continue;
+                }
+
+                String installer = "";
+
+                try {
+                    if (Build.VERSION.SDK_INT >= 30) {
+                        android.content.pm.InstallSourceInfo info =
+                                pm.getInstallSourceInfo(appInfo.packageName);
+                        if (info != null && info.getInstallingPackageName() != null) {
+                            installer = info.getInstallingPackageName();
+                        }
+                    } else {
+                        String old = pm.getInstallerPackageName(appInfo.packageName);
+                        installer = old == null ? "" : old;
+                    }
+                } catch (Exception ignored) {
+                }
+
+                String[] requested = new String[0];
+
+                try {
+                    PackageInfo pi = pm.getPackageInfo(
+                            appInfo.packageName,
+                            PackageManager.GET_PERMISSIONS
+                    );
+                    if (pi.requestedPermissions != null) {
+                        requested = pi.requestedPermissions;
+                    }
+                } catch (Exception ignored) {
+                }
+
+                int sensiveis = 0;
+                for (String perm : requested) {
+                    if (Manifest.permission.RECORD_AUDIO.equals(perm)
+                            || Manifest.permission.ACCESS_FINE_LOCATION.equals(perm)
+                            || Manifest.permission.ACCESS_COARSE_LOCATION.equals(perm)
+                            || Manifest.permission.READ_CONTACTS.equals(perm)
+                            || Manifest.permission.CAMERA.equals(perm)
+                            || Manifest.permission.READ_SMS.equals(perm)
+                            || Manifest.permission.CALL_PHONE.equals(perm)) {
+                        sensiveis++;
+                    }
+                }
+
+                // Heurística deliberadamente conservadora:
+                // origem desconhecida + várias permissões sensíveis.
+                // Isso NÃO prova que o app é malware.
+                if (installer.isEmpty() && sensiveis >= 4) {
+
+                    verificacaoEncontrouSuspeito = true;
+
+                    CharSequence label =
+                            pm.getApplicationLabel(appInfo);
+
+                    nomeAppSuspeito =
+                            label == null
+                                    ? appInfo.packageName
+                                    : label.toString();
+
+                    detalheAppSuspeito =
+                            "Fonte: desconhecida • permissões sensíveis detectadas";
+
+                    break;
+                }
+            }
+
+        } catch (Exception ignored) {
+        }
+
+        ultimaVerificacao = System.currentTimeMillis();
+
+        preferencias.edit()
+                .putLong("ultima_verificacao", ultimaVerificacao)
+                .apply();
+    }
+
+    private String textoUltimaVerificacao() {
+
+        if (ultimaVerificacao == 0L) {
+            return "Verificação realizada: nunca.";
+        }
+
+        String horario =
+                new SimpleDateFormat(
+                        "dd/MM/yyyy HH:mm:ss",
+                        Locale.getDefault()
+                ).format(new Date(ultimaVerificacao));
+
+        return "Verificação realizada em:\n" + horario;
+    }
+
+
 
     private String resultadoVerificacao() {
         if (ultimaVerificacao == 0L) {
@@ -2771,59 +3045,51 @@ voltar.setOnClickListener(
     }
 }
 
-private void iniciarRelogio() {
 
-    if (clockHandler != null) {
-        clockHandler.removeCallbacksAndMessages(null);
+    private void iniciarRelogio() {
+
+        if (clockHandler != null) {
+            clockHandler.removeCallbacksAndMessages(null);
+        }
+
+        clockHandler = new Handler();
+
+        Runnable atualizar = new Runnable() {
+
+            @Override
+            public void run() {
+
+                Date agora = new Date();
+
+                if (clockText != null) {
+                    clockText.setText(
+                            new SimpleDateFormat(
+                                    "HH:mm",
+                                    Locale.getDefault()
+                            ).format(agora)
+                    );
+                }
+
+                if (homeDateText != null) {
+                    homeDateText.setText(
+                            new SimpleDateFormat(
+                                    "dd MMM",
+                                    Locale.getDefault()
+                            ).format(agora)
+                                    .toUpperCase(Locale.getDefault())
+                    );
+                }
+
+                if (clockHandler != null) {
+                    clockHandler.postDelayed(this, 1000);
+                }
+            }
+        };
+
+        clockHandler.post(atualizar);
     }
 
-    clockHandler =
-            new Handler();
 
-    Runnable atualizar =
-            new Runnable() {
-
-                @Override
-                public void run() {
-
-                    if (clockText != null) {
-
-                        String hora =
-                                new SimpleDateFormat(
-                                        "HH:mm:ss",
-                                        Locale.getDefault()
-                                ).format(
-                                        new Date()
-                                );
-
-                        String data =
-                                new SimpleDateFormat(
-                                        "dd/MM/yyyy",
-                                        Locale.getDefault()
-                                ).format(
-                                        new Date()
-                                );
-
-                        clockText.setText(
-                                hora
-                                        + "  •  "
-                                        + data
-                        );
-                    }
-
-                    if (clockHandler != null) {
-                        clockHandler.postDelayed(
-                                this,
-                                1000
-                        );
-                    }
-                }
-            };
-
-    clockHandler.post(
-            atualizar
-    );
-}
 
 
 
@@ -4393,1430 +4659,5 @@ private String calcularExpressaoSimples(String texto) {
                 commandInput.clearFocus();
             }
 
-        } catch (Exception ignored) {
-        }
-    }
-
-    private void salvarMensagem(
-            String autor,
-            String mensagem) {
-
-        try {
-
-            JSONArray array =
-                    new JSONArray(
-                            preferencias.getString(
-                                    "chat_historico",
-                                    "[]"
-                            )
-                    );
-
-            JSONObject item =
-                    new JSONObject();
-
-            item.put(
-                    "autor",
-                    autor == null
-                            ? ""
-                            : autor
-            );
-
-            item.put(
-                    "texto",
-                    mensagem == null
-                            ? ""
-                            : mensagem
-            );
-
-            item.put(
-                    "hora",
-                    System.currentTimeMillis()
-            );
-
-            array.put(item);
-
-            while (array.length() > 500) {
-
-                JSONArray novo =
-                        new JSONArray();
-
-                for (
-                        int i = 1;
-                        i < array.length();
-                        i++
-                ) {
-
-                    novo.put(
-                            array.get(i)
-                    );
-                }
-
-                array = novo;
-            }
-
-            preferencias.edit()
-                    .putString(
-                            "chat_historico",
-                            array.toString()
-                    )
-                    .apply();
-
-        } catch (Exception ignored) {
-        }
-    }
-
-    private JSONArray obterHistorico() {
-
-        try {
-
-            return new JSONArray(
-                    preferencias.getString(
-                            "chat_historico",
-                            "[]"
-                    )
-            );
-
-        } catch (Exception e) {
-
-            return new JSONArray();
-        }
-    }
-
-    private void restaurarChatPrincipal() {
-
-        if (chatContainer == null) {
-            return;
-        }
-
-        if (preferencias.getBoolean(
-                "chat_oculto",
-                false
-        )) {
-
-            return;
-        }
-
-        /*
-         * Importante:
-         * esta função só restaura o histórico quando
-         * o container está realmente vazio.
-         *
-         * Isso evita mensagens duplicadas quando
-         * uma tela é reconstruída.
-         */
-        if (chatContainer.getChildCount() > 0) {
-            return;
-        }
-
-        JSONArray array =
-                obterHistorico();
-
-        for (
-                int i = 0;
-                i < array.length();
-                i++
-        ) {
-
-            JSONObject item =
-                    array.optJSONObject(i);
-
-            if (item != null) {
-
-                adicionarMensagemVisual(
-                        item.optString(
-                                "autor",
-                                "JARVIS"
-                        ),
-                        item.optString(
-                                "texto",
-                                ""
-                        )
-                );
-            }
-        }
-    }
-
-    private void adicionarMensagemVisual(
-            String autor,
-            String mensagem) {
-
-        if (chatContainer == null) {
-            return;
-        }
-
-        LinearLayout linha =
-                new LinearLayout(this);
-
-        linha.setOrientation(
-                LinearLayout.VERTICAL
-        );
-
-        linha.setGravity(
-                "VOCÊ".equals(autor)
-                        ? Gravity.END
-                        : Gravity.START
-        );
-
-        linha.setPadding(
-                0,
-                dp(4),
-                0,
-                dp(4)
-        );
-
-        TextView nome =
-                criarTexto(autor);
-
-        nome.setTextSize(10);
-        nome.setTextColor(Color.GRAY);
-
-        nome.setGravity(
-                "VOCÊ".equals(autor)
-                        ? Gravity.END
-                        : Gravity.START
-        );
-
-        TextView balao =
-                criarTexto(mensagem);
-
-        balao.setTextSize(14);
-
-        balao.setPadding(
-                dp(14),
-                dp(10),
-                dp(14),
-                dp(10)
-        );
-
-        GradientDrawable fundo =
-                new GradientDrawable();
-
-        fundo.setCornerRadius(
-                dp(18)
-        );
-
-        fundo.setColor(
-                "VOCÊ".equals(autor)
-                        ? Color.rgb(34, 34, 34)
-                        : Color.rgb(18, 18, 18)
-        );
-
-        fundo.setStroke(
-                dp(1),
-                Color.rgb(65, 65, 65)
-        );
-
-        balao.setBackground(
-                fundo
-        );
-
-        LinearLayout.LayoutParams np =
-                new LinearLayout.LayoutParams(
-                        dp(280),
-                        -2
-                );
-
-        np.gravity =
-                "VOCÊ".equals(autor)
-                        ? Gravity.END
-                        : Gravity.START;
-
-        linha.addView(
-                nome,
-                np
-        );
-
-        LinearLayout.LayoutParams bp =
-                new LinearLayout.LayoutParams(
-                        dp(280),
-                        -2
-                );
-
-        bp.gravity =
-                np.gravity;
-
-        linha.addView(
-                balao,
-                bp
-        );
-
-        chatContainer.addView(
-                linha,
-                new LinearLayout.LayoutParams(
-                        -1,
-                        -2
-                )
-        );
-    }
-
-    private void limparConversasDaTela() {
-
-        if (chatContainer != null) {
-            chatContainer.removeAllViews();
-        }
-
-        /*
-         * O histórico não é apagado.
-         * Apenas escondemos a conversa da tela atual.
-         */
-        preferencias.edit()
-                .putBoolean(
-                        "chat_oculto",
-                        true
-                )
-                .apply();
-
-        esconderTeclado();
-    }
-
-    private void abrirHistoricoConversas() {
-
-        telaAtual =
-                TELA_HISTORICO;
-
-        mensagensSelecionadas.clear();
-
-        LinearLayout layout =
-                criarTelaBase(
-                        "HISTÓRICO DE CONVERSAS",
-                        "CONVERSAS SALVAS LOCALMENTE"
-                );
-
-        JSONArray array =
-                obterHistorico();
-
-        if (array.length() == 0) {
-
-            layout.addView(
-                    criarTexto(
-                            "Nenhuma conversa salva ainda."
-                    ),
-                    parametrosTexto()
-            );
-
-        } else {
-
-            TextView dica =
-                    criarTexto(
-                            "Toque e segure uma conversa para selecioná-la. Você pode selecionar várias."
-                    );
-
-            dica.setTextColor(
-                    Color.LTGRAY
-            );
-
-            layout.addView(
-                    dica,
-                    parametrosTexto()
-            );
-
-            for (
-                    int i = 0;
-                    i < array.length();
-                    i++
-            ) {
-
-                final int indice = i;
-
-                JSONObject item =
-                        array.optJSONObject(i);
-
-                if (item == null) {
-                    continue;
-                }
-
-                CheckBox box =
-                        new CheckBox(this);
-
-                String autor =
-                        item.optString(
-                                "autor",
-                                "JARVIS"
-                        );
-
-                String texto =
-                        item.optString(
-                                "texto",
-                                ""
-                        );
-
-                String data =
-                        new SimpleDateFormat(
-                                "dd/MM/yyyy HH:mm",
-                                Locale.getDefault()
-                        ).format(
-                                new Date(
-                                        item.optLong(
-                                                "hora",
-                                                0L
-                                        )
-                                )
-                        );
-
-                box.setText(
-                        autor
-                                + " • "
-                                + data
-                                + "\n"
-                                + texto
-                );
-
-                box.setTextColor(
-                        Color.WHITE
-                );
-
-                box.setOnLongClickListener(
-                        v -> {
-
-                            box.setChecked(
-                                    true
-                            );
-
-                            if (!mensagensSelecionadas
-                                    .contains(
-                                            indice
-                                    )) {
-
-                                mensagensSelecionadas
-                                        .add(
-                                                indice
-                                        );
-                            }
-
-                            atualizarHistoricoAcoes();
-
-                            return true;
-                        }
-                );
-
-                box.setOnClickListener(
-                        v -> {
-
-                            if (box.isChecked()) {
-
-                                if (!mensagensSelecionadas
-                                        .contains(
-                                                indice
-                                        )) {
-
-                                    mensagensSelecionadas
-                                            .add(
-                                                    indice
-                                            );
-                                }
-
-                            } else {
-
-                                mensagensSelecionadas
-                                        .remove(
-                                                Integer.valueOf(
-                                                        indice
-                                                )
-                                        );
-                            }
-
-                            atualizarHistoricoAcoes();
-                        }
-                );
-
-                layout.addView(
-                        box,
-                        parametrosTexto()
-                );
-            }
-        }
-
-        adicionarBotaoTela(
-                layout,
-                "APAGAR CONVERSA SELECIONADA",
-                this::confirmarApagarSelecionadas
-        );
-
-        adicionarBotaoTela(
-                layout,
-                "VOLTAR",
-                this::abrirMenuJarvis
-        );
-
-        setContentView(layout);
-    }
-
-    private void atualizarHistoricoAcoes() {
-        // Mantido para preservar a estrutura
-        // de seleção do histórico.
-    }
-
-
-
-    private void confirmarApagarSelecionadas() {
-
-        if (mensagensSelecionadas.isEmpty()) {
-
-            responder(
-                    "Selecione pelo menos uma conversa no histórico."
-            );
-
-            return;
-        }
-
-        new android.app.AlertDialog.Builder(this)
-                .setMessage(
-                        "Tem certeza que você quer apagar as conversas selecionadas?"
-                )
-                .setNegativeButton(
-                        "CANCELAR",
-                        null
-                )
-                .setPositiveButton(
-                        "SIM",
-                        (d, w) ->
-                                apagarSelecionadas()
-                )
-                .show();
-    }
-
-    private void apagarSelecionadas() {
-
-        try {
-
-            JSONArray old =
-                    obterHistorico();
-
-            JSONArray novo =
-                    new JSONArray();
-
-            for (
-                    int i = 0;
-                    i < old.length();
-                    i++
-            ) {
-
-                if (!mensagensSelecionadas
-                        .contains(i)) {
-
-                    novo.put(
-                            old.get(i)
-                    );
-                }
-            }
-
-            preferencias.edit()
-                    .putString(
-                            "chat_historico",
-                            novo.toString()
-                    )
-                    .apply();
-
-            mensagensSelecionadas.clear();
-
-            abrirHistoricoConversas();
-
-        } catch (Exception ignored) {
-        }
-    }
-
-    private void exportarConversas() {
-
-        JSONArray array =
-                obterHistorico();
-
-        StringBuilder texto =
-                new StringBuilder(
-                        "JARVIS Lite — Histórico de conversas\n\n"
-                );
-
-        for (
-                int i = 0;
-                i < array.length();
-                i++
-        ) {
-
-            JSONObject item =
-                    array.optJSONObject(i);
-
-            if (item == null) {
-                continue;
-            }
-
-            String data =
-                    new SimpleDateFormat(
-                            "dd/MM/yyyy HH:mm",
-                            Locale.getDefault()
-                    ).format(
-                            new Date(
-                                    item.optLong(
-                                            "hora",
-                                            0L
-                                    )
-                            )
-                    );
-
-            texto.append("[")
-                    .append(data)
-                    .append("] ")
-                    .append(
-                            item.optString(
-                                    "autor",
-                                    "JARVIS"
-                            )
-                    )
-                    .append(": ")
-                    .append(
-                            item.optString(
-                                    "texto",
-                                    ""
-                            )
-                    )
-                    .append("\n");
-        }
-
-        Intent share =
-                new Intent(
-                        Intent.ACTION_SEND
-                );
-
-        share.setType(
-                "text/plain"
-        );
-
-        share.putExtra(
-                Intent.EXTRA_TEXT,
-                texto.toString()
-        );
-
-        startActivity(
-                Intent.createChooser(
-                        share,
-                        "Exportar conversas"
-                )
-        );
-    }
-
-    private String obterInformacoesBateriaCompletas() {
-
-        String bateria =
-                obterBateria();
-
-        String temperatura =
-                obterTemperatura();
-
-        try {
-
-            Intent intent =
-                                    registerReceiver(
-                            null,
-                            new IntentFilter(
-                                    Intent.ACTION_BATTERY_CHANGED
-                            )
-                    );
-
-            int status =
-                    intent == null
-                            ? -1
-                            : intent.getIntExtra(
-                                    BatteryManager.EXTRA_STATUS,
-                                    -1
-                            );
-
-            boolean carregando =
-                    status ==
-                            BatteryManager
-                                    .BATTERY_STATUS_CHARGING
-                            ||
-                    status ==
-                            BatteryManager
-                                    .BATTERY_STATUS_FULL;
-
-            int voltagem =
-                    intent == null
-                            ? -1
-                            : intent.getIntExtra(
-                                    BatteryManager.EXTRA_VOLTAGE,
-                                    -1
-                            );
-
-            String resultado =
-                    bateria
-                            + "\n"
-                            + temperatura
-                            + "\n"
-                            + (
-                            carregando
-                                    ? "A bateria está carregando."
-                                    : "A bateria não está carregando."
-                    );
-
-            if (voltagem > 0) {
-
-                resultado +=
-                        " Tensão: "
-                                + voltagem
-                                + " mV.";
-            }
-
-            return resultado;
-
-        } catch (Exception e) {
-
-            return bateria
-                    + "\n"
-                    + temperatura;
-        }
-    }
-
-    private String obterEstadoCarregamento() {
-
-        try {
-
-            Intent intent =
-                    registerReceiver(
-                            null,
-                            new IntentFilter(
-                                    Intent.ACTION_BATTERY_CHANGED
-                            )
-                    );
-
-            if (intent == null) {
-
-                return "Não consegui consultar o estado de carregamento.";
-            }
-
-            int status =
-                    intent.getIntExtra(
-                            BatteryManager.EXTRA_STATUS,
-                            -1
-                    );
-
-            if (status ==
-                    BatteryManager.BATTERY_STATUS_CHARGING) {
-
-                return "A bateria está carregando.";
-
-            } else if (
-                    status ==
-                            BatteryManager.BATTERY_STATUS_FULL) {
-
-                return "A bateria está totalmente carregada.";
-
-            } else if (
-                    status ==
-                            BatteryManager.BATTERY_STATUS_DISCHARGING) {
-
-                return "A bateria não está carregando.";
-
-            } else {
-
-                return "O estado de carregamento não está disponível no momento.";
-            }
-
-        } catch (Exception e) {
-
-            return "Não consegui consultar o estado de carregamento.";
-        }
-    }
-
-    private String obterMemoriaEArmazenamento() {
-
-        return obterInformacoesRam()
-                + "\n"
-                + obterInformacoesArmazenamento();
-    }
-
-    private String obterInformacoesRam() {
-
-        try {
-
-            ActivityManager am =
-                    (ActivityManager)
-                            getSystemService(
-                                    ACTIVITY_SERVICE
-                            );
-
-            ActivityManager.MemoryInfo mi =
-                    new ActivityManager.MemoryInfo();
-
-            if (am == null) {
-
-                return "Não consegui obter informações da RAM.";
-            }
-
-            am.getMemoryInfo(mi);
-
-            long total =
-                    mi.totalMem;
-
-            long livre =
-                    mi.availMem;
-
-            long usada =
-                    Math.max(
-                            0L,
-                            total - livre
-                    );
-
-            return "RAM em uso: "
-                    + formatarBytes(usada)
-                    + " de "
-                    + formatarBytes(total)
-                    + ".\n"
-                    + "RAM disponível: "
-                    + formatarBytes(livre)
-                    + ".";
-
-        } catch (Exception e) {
-
-            return "Não consegui obter informações da RAM.";
-        }
-    }
-
-    private String obterInformacoesArmazenamento() {
-
-        try {
-
-            android.os.StatFs stat =
-                    new android.os.StatFs(
-                            android.os.Environment
-                                    .getDataDirectory()
-                                    .getAbsolutePath()
-                    );
-
-            long total =
-                    stat.getTotalBytes();
-
-            long livre =
-                    stat.getAvailableBytes();
-
-            long usado =
-                    Math.max(
-                            0L,
-                            total - livre
-                    );
-
-            return "Armazenamento acessível em uso: "
-                    + formatarBytes(usado)
-                    + " de "
-                    + formatarBytes(total)
-                    + ".\n"
-                    + "Espaço livre acessível: "
-                    + formatarBytes(livre)
-                    + ".";
-
-        } catch (Exception e) {
-
-            return "Não consegui obter informações do armazenamento.";
-        }
-    }     private String formatarBytes(
-            long bytes) {
-
-        if (bytes < 1024) {
-            return bytes + " B";
-        }
-
-        double v =
-                bytes / 1024.0;
-
-        if (v < 1024) {
-
-            return String.format(
-                    Locale.getDefault(),
-                    "%.1f KB",
-                    v
-            );
-        }
-
-        v /= 1024.0;
-
-        if (v < 1024) {
-
-            return String.format(
-                    Locale.getDefault(),
-                    "%.1f MB",
-                    v
-            );
-        }
-
-        v /= 1024.0;
-
-        return String.format(
-                Locale.getDefault(),
-                "%.2f GB",
-                v
-        );
-    }
-
-    private String obterBateria() {
-
-        try {
-
-            BatteryManager batteryManager =
-                    (BatteryManager)
-                            getSystemService(
-                                    BATTERY_SERVICE
-                            );
-
-            if (batteryManager == null) {
-
-                return "Não consegui obter o nível da bateria.";
-            }
-
-            int nivel =
-                    batteryManager.getIntProperty(
-                            BatteryManager
-                                    .BATTERY_PROPERTY_CAPACITY
-                    );
-
-            if (nivel < 0) {
-
-                return "Não consegui obter o nível da bateria.";
-            }
-
-            return "A bateria está em "
-                    + nivel
-                    + "%.";
-
-        } catch (Exception e) {
-
-            return "Não consegui obter o nível da bateria.";
-        }
-    }
-
-    private String obterTemperatura() {
-
-        try {
-
-            Intent bateria =
-                    registerReceiver(
-                            null,
-                            new IntentFilter(
-                                    Intent.ACTION_BATTERY_CHANGED
-                            )
-                    );
-
-            if (bateria == null) {
-
-                return "Não consegui obter a temperatura do aparelho.";
-            }
-
-            int temperatura =
-                    bateria.getIntExtra(
-                            BatteryManager.EXTRA_TEMPERATURE,
-                            Integer.MIN_VALUE
-                    );
-
-            if (temperatura ==
-                    Integer.MIN_VALUE) {
-
-                return "A temperatura informada pelo sistema não está disponível neste momento.";
-            }
-
-            double celsius =
-                    temperatura / 10.0;
-
-            return String.format(
-                    Locale.getDefault(),
-                    "A temperatura informada pelo sistema é %.1f graus Celsius.",
-                    celsius
-            );
-
-        } catch (Exception e) {
-
-            return "Não consegui obter a temperatura do aparelho.";
-        }
-    }
-
-    private String obterStatus() {
-
-        String hora =
-                new SimpleDateFormat(
-                        "HH:mm:ss",
-                        Locale.getDefault()
-                ).format(
-                        new Date()
-                );
-
-        return "Status do sistema: "
-                + obterBateria()
-                + " "
-                + obterEstadoCarregamento()
-                + " Hora "
-                + hora
-                + ". Modo "
-                + (
-                modoOnline
-                        ? "ONLINE selecionado."
-                        : "OFFLINE ativo."
-        );
-    }
-
-    private void responder(
-            String mensagem) {
-
-        if (mensagem == null
-                || mensagem.trim().isEmpty()) {
-
-            return;
-        }
-
-        adicionarMensagem(
-                "JARVIS",
-                mensagem
-        );
-
-        falar(mensagem);
-    }
-
-    private void adicionarMensagem(
-            String autor,
-            String mensagem) {
-
-        if (chatContainer == null) {
-            return;
-        }
-
-        preferencias.edit()
-                .putBoolean(
-                        "chat_oculto",
-                        false
-                )
-                .apply();
-
-        salvarMensagem(
-                autor,
-                mensagem
-        );
-
-        LinearLayout linha =
-                new LinearLayout(this);
-
-        linha.setOrientation(
-                LinearLayout.VERTICAL
-        );
-
-        linha.setGravity(
-                "VOCÊ".equals(autor)
-                        ? Gravity.END
-                        : Gravity.START
-        );
-
-        linha.setPadding(
-                0,
-                dp(4),
-                0,
-                dp(4)
-        );
-
-        TextView nome =
-                new TextView(this);
-
-        nome.setText(autor);
-        nome.setTextSize(10);
-        nome.setTextColor(Color.GRAY);
-
-        nome.setGravity(
-                "VOCÊ".equals(autor)
-                        ? Gravity.END
-                        : Gravity.START
-        );
-
-        TextView balao =
-                new TextView(this);
-
-        balao.setText(mensagem);
-        balao.setTextSize(14);
-        balao.setTextColor(Color.WHITE);
-        balao.setGravity(
-                Gravity.CENTER_VERTICAL
-        );
-
-        balao.setPadding(
-                dp(14),
-                dp(10),
-                dp(14),
-                dp(10)
-        );
-
-        GradientDrawable fundo =
-                new GradientDrawable();
-
-        fundo.setCornerRadius(
-                dp(18)
-        );
-
-        fundo.setColor(
-                "VOCÊ".equals(autor)
-                        ? Color.rgb(34, 34, 34)
-                        : Color.rgb(18, 18, 18)
-        );
-
-        fundo.setStroke(
-                dp(1),
-                Color.rgb(65, 65, 65)
-        );
-
-        balao.setBackground(
-                fundo
-        );
-
-        LinearLayout.LayoutParams nomeParams =
-                new LinearLayout.LayoutParams(
-                        dp(260),
-                        -2
-                );
-
-        nomeParams.gravity =
-                "VOCÊ".equals(autor)
-                        ? Gravity.END
-                        : Gravity.START;
-
-        nomeParams.setMargins(
-                dp(4),
-                0,
-                dp(4),
-                dp(2)
-        );
-
-        linha.addView(
-                nome,
-                nomeParams
-        );
-
-        LinearLayout.LayoutParams balaoParams =
-                new LinearLayout.LayoutParams(
-                        dp(260),
-                        -2
-                );
-
-        balaoParams.gravity =
-                "VOCÊ".equals(autor)
-                        ? Gravity.END
-                        : Gravity.START;
-
-        balaoParams.setMargins(
-                dp(4),
-                0,
-                dp(4),
-                0
-        );
-
-        linha.addView(
-                balao,
-                balaoParams
-        );
-
-        chatContainer.addView(
-                linha,
-                new LinearLayout.LayoutParams(
-                        -1,
-                        -2
-                )
-        );
-
-        AlphaAnimation aparecer =
-                new AlphaAnimation(
-                        0f,
-                        1f
-                );
-
-        aparecer.setDuration(220);
-
-        TranslateAnimation subir =
-                new TranslateAnimation(
-                        0,
-                        0,
-                        dp(10),
-                        0
-                );
-
-        subir.setDuration(220);
-
-        AnimationSet entradaAnimada =
-                new AnimationSet(true);
-
-        entradaAnimada.addAnimation(
-                aparecer
-        );
-
-        entradaAnimada.addAnimation(
-                subir
-        );
-
-        linha.startAnimation(
-                entradaAnimada
-        );
-
-        if (chatScroll != null) {
-
-            chatScroll.postDelayed(
-                    () -> chatScroll.fullScroll(
-                            View.FOCUS_DOWN
-                    ),
-                    80
-            );
-        }
-    }
-
-    private class ReactorView
-            extends View {
-
-        private final Paint paint =
-                new Paint(
-                        Paint.ANTI_ALIAS_FLAG
-                );
-
-        private float rotacao = 0f;
-        private boolean ouvindoLocal = false;
-
-        private final Handler handler =
-                new Handler();
-
-        private final Runnable animacao =
-                new Runnable() {
-
-                    @Override
-                    public void run() {
-
-                        if (ouvindoLocal) {
-                            rotacao += 3.0f;
-                        } else {
-                            rotacao += 1.2f;
-                        }
-
-                        if (rotacao >= 360f) {
-                            rotacao -= 360f;
-                        }
-
-                        invalidate();
-
-                        handler.postDelayed(
-                                this,
-                                16
-                        );
-                    }
-                };
-
-        public ReactorView(
-                android.content.Context context) {
-
-            super(context);
-
-            setLayerType(
-                    View.LAYER_TYPE_SOFTWARE,
-                    null
-            );
-
-            handler.post(
-                    animacao
-            );
-        }
-
-        public void setOuvindo(
-                boolean valor) {
-
-            ouvindoLocal =
-                    valor;
-
-            invalidate();
-        }
-
-        @Override
-        protected void onDraw(
-                Canvas canvas) {
-
-            super.onDraw(canvas);
-
-            float centroX =
-                    getWidth() / 2f;
-
-            float centroY =
-                    getHeight() / 2f;
-
-            float raioMax =
-                    Math.min(
-                            getWidth(),
-                            getHeight()
-                    ) * 0.38f;
-
-            paint.setStyle(
-                    Paint.Style.FILL
-            );
-
-            paint.setColor(
-                    Color.rgb(
-                            255,
-                            210,
-                            0
-                    )
-            );
-
-            paint.setShadowLayer(
-                    ouvindoLocal
-                            ? 45f
-                            : 28f,
-                    0f,
-                    0f,
-                    Color.rgb(
-                            255,
-                            180,
-                            0
-                    )
-            );
-
-            canvas.drawCircle(
-                    centroX,
-                    centroY,
-                    raioMax * 0.19f,
-                    paint
-            );
-
-            paint.clearShadowLayer();
-
-            paint.setStyle(
-                    Paint.Style.STROKE
-            );
-
-            paint.setStrokeWidth(
-                    ouvindoLocal
-                            ? 4.5f
-                            : 3.2f
-            );
-
-            paint.setColor(
-                    Color.rgb(
-                            255,
-                            220,
-                            20
-                    )
-            );
-
-            for (int i = 0; i < 8; i++) {
-
-                float raio =
-                        raioMax
-                                - (i * 10.5f);
-
-                canvas.save();
-
-                float direcao =
-                        (i % 2 == 0)
-                                ? 1f
-                                : -1f;
-
-                canvas.rotate(
-                        rotacao * direcao,
-                        centroX,
-                        centroY
-                );
-
-                RectF oval =
-                        new RectF(
-                                centroX - raio,
-                                centroY - raio,
-                                centroX + raio,
-                                centroY + raio
-                        );
-
-                canvas.drawArc(
-                        oval,
-                        15f,
-                        285f,
-                        false,
-                        paint
-                );
-
-                canvas.drawArc(
-                        oval,
-                        320f,
-                        25f,
-                        false,
-                        paint
-                );
-
-                canvas.restore();
-            }
-
-            paint.setStyle(
-                    Paint.Style.FILL
-            );
-
-            paint.setColor(
-                    Color.WHITE
-            );
-
-            paint.setShadowLayer(
-                    ouvindoLocal
-                            ? 35f
-                            : 22f,
-                    0f,
-                    0f,
-                    Color.YELLOW
-            );
-
-            canvas.drawCircle(
-                    centroX,
-                    centroY,
-                    raioMax * 0.115f,
-                    paint
-            );
-
-            paint.clearShadowLayer();
-
-            paint.setColor(
-                    Color.rgb(
-                            255,
-                            215,
-                            0
-                    )
-            );
-
-            canvas.drawCircle(
-                    centroX,
-                    centroY,
-                    raioMax * 0.065f,
-                    paint
-            );
-        }
-
-        @Override
-        protected void onDetachedFromWindow() {
-
-            handler.removeCallbacks(
-                    animacao
-            );
-
-            super.onDetachedFromWindow();
-        }
-    }
-
-    @Override
-    public void onBackPressed() {
-        voltarSistema();
-    }
-
-    @Override
-    protected void onDestroy() {
-
-        if (clockHandler != null) {
-
-            clockHandler.removeCallbacksAndMessages(
-                    null
-            );
-        }
-
-        pararReconhecimento();
-
-        if (tts != null) {
-
-            try {
-
-                tts.stop();
-                tts.shutdown();
-
-            } catch (Exception ignored) {
-            }
-
-            tts = null;
-        }
-
-        super.onDestroy();
-    }
-}
+        } catch (Excepti
+Pré-visualização truncada devido ao tamanho do arquivo
