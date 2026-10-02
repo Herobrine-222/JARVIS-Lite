@@ -83,7 +83,8 @@ public class MainActivity extends Activity {
 
     private JarvisMemory memoria;
     private boolean memoriaAutomatica = true;
-
+private final JarvisBrain cerebro =
+        new JarvisBrain();
     private static final int TELA_PRINCIPAL = 0;
     private static final int TELA_MENU_JARVIS = 1;
     private static final int TELA_GERENCIAR_JARVIS = 2;
