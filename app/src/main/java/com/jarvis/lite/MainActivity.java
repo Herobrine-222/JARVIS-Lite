@@ -4660,4 +4660,13 @@ private String calcularExpressaoSimples(String texto) {
             }
 
         } catch (Excepti
-Pré-visualização truncada devido ao tamanho do arquivo
+private void abrirGerenciarJarvis() {
+
+    telaAtual =
+            TELA_GERENCIAR_JARVIS;
+
+    microfoneAtivado =
+            preferencias.getBoolean(
+                    "microfone_ativo",
+                    true
+            );
