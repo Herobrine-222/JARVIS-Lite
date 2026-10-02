@@ -14,6 +14,7 @@
         android:icon="@drawable/icon_jarvis"
         android:theme="@style/AppTheme">
 
+        <!-- Tela principal -->
         <activity
             android:name=".MainActivity"
             android:exported="true">
@@ -25,11 +26,33 @@
 
         </activity>
 
-        <!-- Serviço de voz do JARVIS -->
+        <!-- Serviço de voz existente do JARVIS -->
         <service
             android:name=".JarvisVoiceService"
             android:exported="false"
             android:foregroundServiceType="microphone" />
+
+        <!-- Serviço principal de interação por voz -->
+        <service
+            android:name=".VoiceInteractionService"
+            android:exported="true"
+            android:permission="android.permission.BIND_VOICE_INTERACTION">
+
+            <intent-filter>
+                <action android:name="android.service.voice.VoiceInteractionService" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.voice_interaction_service"
+                android:resource="@xml/voice_interaction_service" />
+
+        </service>
+
+        <!-- Serviço que cria as sessões de voz -->
+        <service
+            android:name=".VoiceInteractionSessionService"
+            android:exported="true"
+            android:permission="android.permission.BIND_VOICE_INTERACTION" />
 
     </application>
 
