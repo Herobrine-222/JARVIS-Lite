@@ -28,8 +28,22 @@ public class JarvisConversationEngine {
     private final JarvisContextManager contextManager;
     private final JarvisAIManager aiManager;
 
+    /**
+     * Construtor padrão.
+     *
+     * Mantido para compatibilidade com outras partes
+     * do projeto.
+     *
+     * Este construtor cria uma nova sessão própria.
+     */
     public JarvisConversationEngine(
             Context context) {
+
+        if (context == null) {
+            throw new IllegalArgumentException(
+                    "Context não pode ser nulo."
+            );
+        }
 
         this.context =
                 context.getApplicationContext();
@@ -38,6 +52,59 @@ public class JarvisConversationEngine {
                 new JarvisSessionManager(
                         this.context
                 );
+
+        this.contextManager =
+                sessionManager.getContextManager();
+
+        this.aiManager =
+                new JarvisAIManager(
+                        this.context
+                );
+    }
+
+    /**
+     * Construtor para utilizar uma sessão
+     * compartilhada com outros componentes
+     * do JARVIS.
+     *
+     * Esse construtor é importante para que o
+     * JarvisWakeWordManager e o
+     * JarvisConversationEngine enxerguem
+     * exatamente o mesmo estado:
+     *
+     * JARVIS dormindo
+     *       ↓
+     * palavra "Jarvis"
+     *       ↓
+     * JARVIS ativo
+     *       ↓
+     * comandos
+     *       ↓
+     * "encerrar sessão"
+     *       ↓
+     * JARVIS dormindo
+     */
+    public JarvisConversationEngine(
+            Context context,
+            JarvisSessionManager sessionManager) {
+
+        if (context == null) {
+            throw new IllegalArgumentException(
+                    "Context não pode ser nulo."
+            );
+        }
+
+        if (sessionManager == null) {
+            throw new IllegalArgumentException(
+                    "JarvisSessionManager não pode ser nulo."
+            );
+        }
+
+        this.context =
+                context.getApplicationContext();
+
+        this.sessionManager =
+                sessionManager;
 
         this.contextManager =
                 sessionManager.getContextManager();
