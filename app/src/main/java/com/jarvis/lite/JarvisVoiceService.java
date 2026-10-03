@@ -14,7 +14,6 @@ import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 
 import java.util.ArrayList;
-import java.util.Locale;
 
 public class JarvisVoiceService extends Service {
 
@@ -42,6 +41,12 @@ public class JarvisVoiceService extends Service {
      */
     private boolean aguardandoWakeWord = true;
 
+    /*
+     * Uma única sessão compartilhada por todo
+     * o sistema de voz.
+     */
+    private JarvisSessionManager sessionManager;
+
     private JarvisWakeWordManager wakeWordManager;
     private JarvisConversationEngine conversationEngine;
     private JarvisVoiceManager voiceManager;
@@ -55,14 +60,26 @@ public class JarvisVoiceService extends Service {
                         getMainLooper()
                 );
 
+        /*
+         * IMPORTANTE:
+         *
+         * Todos os componentes de voz usam
+         * exatamente a mesma sessão.
+         */
+        sessionManager =
+                new JarvisSessionManager(
+                        getApplicationContext()
+                );
+
         wakeWordManager =
                 new JarvisWakeWordManager(
-                        getApplicationContext()
+                        sessionManager
                 );
 
         conversationEngine =
                 new JarvisConversationEngine(
-                        getApplicationContext()
+                        getApplicationContext(),
+                        sessionManager
                 );
 
         voiceManager =
@@ -119,6 +136,7 @@ public class JarvisVoiceService extends Service {
                     );
 
             if (manager != null) {
+
                 manager.createNotificationChannel(
                         channel
                 );
@@ -166,6 +184,16 @@ public class JarvisVoiceService extends Service {
         pausado = false;
 
         aguardandoWakeWord = true;
+
+        /*
+         * Garantimos que a sessão começa
+         * em estado de espera.
+         */
+        if (sessionManager != null
+                && sessionManager.isActive()) {
+
+            sessionManager.sleep();
+        }
 
         atualizarNotificacao(
                 "Aguardando a palavra JARVIS"
@@ -225,6 +253,12 @@ public class JarvisVoiceService extends Service {
         }
 
         if (Build.VERSION.SDK_INT < 31) {
+
+            atualizarNotificacao(
+                    "Reconhecimento offline "
+                            + "requer Android 12 ou superior"
+            );
+
             return;
         }
 
@@ -464,8 +498,9 @@ public class JarvisVoiceService extends Service {
             String texto) {
 
         /*
-         * A ConversationEngine verifica também
-         * a frase de encerramento.
+         * A ConversationEngine usa a mesma
+         * JarvisSessionManager usada pelo
+         * WakeWordManager.
          */
         JarvisConversationEngine
                 .ConversationResult resultado =
@@ -564,8 +599,10 @@ public class JarvisVoiceService extends Service {
 
         } catch (Exception e) {
 
-            // Se a voz falhar, o serviço
-            // continua funcionando.
+            /*
+             * Se a voz falhar, o serviço
+             * continua funcionando.
+             */
         }
     }
 
@@ -648,6 +685,17 @@ public class JarvisVoiceService extends Service {
             handler.removeCallbacksAndMessages(
                     null
             );
+        }
+
+        if (sessionManager != null) {
+
+            try {
+
+                sessionManager.sleep();
+
+            } catch (Exception e) {
+                // Nada a fazer.
+            }
         }
 
         if (voiceManager != null) {
