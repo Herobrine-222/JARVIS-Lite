@@ -53,30 +53,18 @@ public class JarvisSessionManager {
                 new JarvisContextManager(this.context);
     }
 
-    /**
-     * Retorna o estado atual.
-     */
     public synchronized SessionState getState() {
         return state;
     }
 
-    /**
-     * Verifica se o JARVIS está em modo ativo.
-     */
     public synchronized boolean isActive() {
         return state == SessionState.ACTIVE;
     }
 
-    /**
-     * Verifica se o JARVIS está em modo sono.
-     */
     public synchronized boolean isSleeping() {
         return state == SessionState.SLEEP;
     }
 
-    /**
-     * Configura a palavra de ativação.
-     */
     public synchronized void setWakeWord(String word) {
 
         String normalized = normalize(word);
@@ -86,16 +74,10 @@ public class JarvisSessionManager {
         }
     }
 
-    /**
-     * Retorna a palavra de ativação atual.
-     */
     public synchronized String getWakeWord() {
         return wakeWord;
     }
 
-    /**
-     * Configura a frase de encerramento.
-     */
     public synchronized void setEndPhrase(String phrase) {
 
         String normalized = normalize(phrase);
@@ -105,16 +87,10 @@ public class JarvisSessionManager {
         }
     }
 
-    /**
-     * Retorna a frase de encerramento.
-     */
     public synchronized String getEndPhrase() {
         return endPhrase;
     }
 
-    /**
-     * Verifica se um texto contém a palavra de ativação.
-     */
     public synchronized boolean containsWakeWord(String text) {
 
         String normalized = normalize(text);
@@ -129,9 +105,6 @@ public class JarvisSessionManager {
         );
     }
 
-    /**
-     * Verifica se um texto contém a frase de encerramento.
-     */
     public synchronized boolean containsEndPhrase(String text) {
 
         String normalized = normalize(text);
@@ -146,12 +119,6 @@ public class JarvisSessionManager {
         );
     }
 
-    /**
-     * Ativa uma nova sessão.
-     *
-     * Retorna true somente quando houve mudança
-     * de SLEEP para ACTIVE.
-     */
     public synchronized boolean activate() {
 
         if (state == SessionState.ACTIVE) {
@@ -171,13 +138,6 @@ public class JarvisSessionManager {
         return true;
     }
 
-    /**
-     * Entra novamente no modo sono.
-     *
-     * A memória permanente NÃO é apagada.
-     *
-     * Apenas a conversa temporária da sessão é encerrada.
-     */
     public synchronized boolean sleep() {
 
         if (state == SessionState.SLEEP) {
@@ -196,16 +156,6 @@ public class JarvisSessionManager {
         return true;
     }
 
-    /**
-     * Processa a ativação a partir de um texto.
-     *
-     * Exemplo:
-     *
-     * "Jarvis"
-     *
-     * Retorna true quando a palavra foi encontrada
-     * e a sessão foi ativada.
-     */
     public synchronized boolean processWakeWord(
             String text) {
 
@@ -220,12 +170,6 @@ public class JarvisSessionManager {
         return activate();
     }
 
-    /**
-     * Processa uma entrada durante a sessão.
-     *
-     * Retorna false quando o comando encerra
-     * a sessão.
-     */
     public synchronized boolean processCommand(
             String command) {
 
@@ -257,9 +201,6 @@ public class JarvisSessionManager {
         return true;
     }
 
-    /**
-     * Registra uma resposta do JARVIS.
-     */
     public synchronized void registerJarvisResponse(
             String response) {
 
@@ -280,37 +221,22 @@ public class JarvisSessionManager {
                 System.currentTimeMillis();
     }
 
-    /**
-     * Retorna a mensagem inicial da sessão.
-     */
     public synchronized String getActivationMessage() {
         return DEFAULT_GREETING;
     }
 
-    /**
-     * Retorna o último comando recebido.
-     */
     public synchronized String getLastCommand() {
         return lastCommand;
     }
 
-    /**
-     * Retorna o momento em que a sessão começou.
-     */
     public synchronized long getSessionStartedAt() {
         return sessionStartedAt;
     }
 
-    /**
-     * Retorna o momento da última interação.
-     */
     public synchronized long getLastInteractionAt() {
         return lastInteractionAt;
     }
 
-    /**
-     * Retorna há quanto tempo a sessão está ativa.
-     */
     public synchronized long getSessionDurationMillis() {
 
         if (!isActive()) {
@@ -321,55 +247,37 @@ public class JarvisSessionManager {
                 - sessionStartedAt;
     }
 
-    /**
-     * Retorna o contexto da conversa atual.
-     */
     public synchronized String getConversationContext() {
 
         return contextManager
                 .buildConversationContext();
     }
 
-    /**
-     * Retorna o contexto completo disponível
-     * para o processamento local.
-     */
     public synchronized String getFullContext() {
 
         return contextManager
-                .buildFullContext();
+                .buildFullContext(
+                        contextManager
+                                .getLastUserMessage()
+                );
     }
 
-    /**
-     * Retorna o gerenciador de contexto.
-     */
     public synchronized JarvisContextManager
     getContextManager() {
 
         return contextManager;
     }
 
-    /**
-     * Retorna a memória do JARVIS.
-     */
     public synchronized JarvisMemory getMemory() {
 
         return contextManager.getMemory();
     }
 
-    /**
-     * Limpa somente a conversa atual.
-     *
-     * A memória permanente permanece intacta.
-     */
     public synchronized void clearCurrentConversation() {
 
         contextManager.clearConversation();
     }
 
-    /**
-     * Retorna um resumo do estado atual.
-     */
     public synchronized String getStatus() {
 
         if (state == SessionState.ACTIVE) {
@@ -381,9 +289,6 @@ public class JarvisSessionManager {
         return "JARVIS em modo sono.";
     }
 
-    /**
-     * Retorna o estado como texto simples.
-     */
     public synchronized String getStateName() {
 
         if (state == SessionState.ACTIVE) {
@@ -393,9 +298,6 @@ public class JarvisSessionManager {
         return "SLEEP";
     }
 
-    /**
-     * Normaliza texto para comparação de comandos.
-     */
     private String normalize(String value) {
 
         if (value == null) {
@@ -412,9 +314,6 @@ public class JarvisSessionManager {
                 .trim();
     }
 
-    /**
-     * Procura uma frase inteira dentro do texto.
-     */
     private boolean containsPhrase(
             String text,
             String phrase) {
