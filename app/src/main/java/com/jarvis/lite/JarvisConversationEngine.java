@@ -8,12 +8,16 @@ import android.content.Context;
  * Responsável por:
  * - receber comandos do usuário;
  * - verificar o estado da sessão;
- * - enviar o contexto para o JarvisBrain;
+ * - montar o contexto da conversa;
+ * - enviar o processamento para o JarvisAIManager;
  * - registrar mensagens na conversa;
  * - utilizar a memória existente;
  * - devolver uma resposta textual.
  *
- * Não acessa a Internet.
+ * O processamento pode utilizar:
+ * - JarvisBrain no modo offline;
+ * - provedor online através do JarvisAIManager.
+ *
  * Não controla diretamente o microfone.
  */
 public class JarvisConversationEngine {
@@ -22,7 +26,7 @@ public class JarvisConversationEngine {
 
     private final JarvisSessionManager sessionManager;
     private final JarvisContextManager contextManager;
-    private final JarvisBrain brain;
+    private final JarvisAIManager aiManager;
 
     public JarvisConversationEngine(
             Context context) {
@@ -38,8 +42,8 @@ public class JarvisConversationEngine {
         this.contextManager =
                 sessionManager.getContextManager();
 
-        this.brain =
-                new JarvisBrain(
+        this.aiManager =
+                new JarvisAIManager(
                         this.context
                 );
     }
@@ -61,11 +65,19 @@ public class JarvisConversationEngine {
     }
 
     /**
-     * Retorna o cérebro local.
+     * Retorna o gerenciador de IA.
+     */
+    public JarvisAIManager getAIManager() {
+
+        return aiManager;
+    }
+
+    /**
+     * Retorna o cérebro offline.
      */
     public JarvisBrain getBrain() {
 
-        return brain;
+        return aiManager.getOfflineBrain();
     }
 
     /**
@@ -114,19 +126,28 @@ public class JarvisConversationEngine {
         );
 
         /*
-         * Monta o contexto atual.
+         * Monta o contexto completo.
+         *
+         * Esse contexto pode conter:
+         * - conversa atual;
+         * - memória;
+         * - informações do aparelho.
          */
-        String memoryContext =
+        String contextText =
                 contextManager
                         .buildFullContext();
 
         /*
-         * Envia o comando para o cérebro local.
+         * Envia o comando para o gerenciador
+         * central de IA.
+         *
+         * O JarvisAIManager decide se deve
+         * utilizar OFFLINE ou ONLINE.
          */
         String response =
-                brain.process(
+                aiManager.process(
                         userInput,
-                        memoryContext
+                        contextText
                 );
 
         /*
@@ -137,7 +158,7 @@ public class JarvisConversationEngine {
 
             response =
                     "Não consegui gerar uma resposta "
-                    + "local para esse comando.";
+                    + "para esse comando.";
         }
 
         /*
@@ -201,17 +222,18 @@ public class JarvisConversationEngine {
         );
 
         /*
-         * Obtém o contexto atual.
+         * Obtém o contexto completo.
          */
         String contextText =
                 contextManager
                         .buildFullContext();
 
         /*
-         * Processa no cérebro local.
+         * Processa através do gerenciador
+         * central de IA.
          */
         String response =
-                brain.process(
+                aiManager.process(
                         userInput,
                         contextText
                 );
@@ -221,7 +243,7 @@ public class JarvisConversationEngine {
 
             response =
                     "Não consegui gerar uma resposta "
-                    + "local para esse comando.";
+                    + "para esse comando.";
         }
 
         /*
@@ -321,6 +343,75 @@ public class JarvisConversationEngine {
         contextManager.forget(
                 text
         );
+    }
+
+    /**
+     * Ativa o modo offline.
+     */
+    public synchronized void enableOfflineMode() {
+
+        aiManager.enableOfflineMode();
+    }
+
+    /**
+     * Ativa o modo online.
+     *
+     * A conexão real depende de um provedor
+     * configurado no JarvisOnlineManager.
+     */
+    public synchronized void enableOnlineMode() {
+
+        aiManager.enableOnlineMode();
+    }
+
+    /**
+     * Desativa o modo online e retorna
+     * ao modo offline.
+     */
+    public synchronized void disableOnlineMode() {
+
+        aiManager.disableOnlineMode();
+    }
+
+    /**
+     * Verifica se está no modo offline.
+     */
+    public synchronized boolean isOfflineMode() {
+
+        return aiManager.isOfflineMode();
+    }
+
+    /**
+     * Verifica se está no modo online.
+     */
+    public synchronized boolean isOnlineMode() {
+
+        return aiManager.isOnlineMode();
+    }
+
+    /**
+     * Retorna o nome do modo atual.
+     */
+    public synchronized String getAIModeName() {
+
+        return aiManager.getModeName();
+    }
+
+    /**
+     * Retorna o status da IA.
+     */
+    public synchronized String getAIStatus() {
+
+        return aiManager.getStatus();
+    }
+
+    /**
+     * Retorna o gerenciador de IA.
+     */
+    public synchronized JarvisAIManager
+    getAIManagerInstance() {
+
+        return aiManager;
     }
 
     /**
