@@ -28,14 +28,6 @@ public class JarvisConversationEngine {
     private final JarvisContextManager contextManager;
     private final JarvisAIManager aiManager;
 
-    /**
-     * Construtor padrão.
-     *
-     * Mantido para compatibilidade com outras partes
-     * do projeto.
-     *
-     * Este construtor cria uma nova sessão própria.
-     */
     public JarvisConversationEngine(
             Context context) {
 
@@ -62,28 +54,6 @@ public class JarvisConversationEngine {
                 );
     }
 
-    /**
-     * Construtor para utilizar uma sessão
-     * compartilhada com outros componentes
-     * do JARVIS.
-     *
-     * Esse construtor é importante para que o
-     * JarvisWakeWordManager e o
-     * JarvisConversationEngine enxerguem
-     * exatamente o mesmo estado:
-     *
-     * JARVIS dormindo
-     *       ↓
-     * palavra "Jarvis"
-     *       ↓
-     * JARVIS ativo
-     *       ↓
-     * comandos
-     *       ↓
-     * "encerrar sessão"
-     *       ↓
-     * JARVIS dormindo
-     */
     public JarvisConversationEngine(
             Context context,
             JarvisSessionManager sessionManager) {
@@ -115,44 +85,22 @@ public class JarvisConversationEngine {
                 );
     }
 
-    /**
-     * Retorna o gerenciador de sessão.
-     */
     public JarvisSessionManager getSessionManager() {
-
         return sessionManager;
     }
 
-    /**
-     * Retorna o contexto da conversa.
-     */
     public JarvisContextManager getContextManager() {
-
         return contextManager;
     }
 
-    /**
-     * Retorna o gerenciador de IA.
-     */
     public JarvisAIManager getAIManager() {
-
         return aiManager;
     }
 
-    /**
-     * Retorna o cérebro offline.
-     */
     public JarvisBrain getBrain() {
-
         return aiManager.getOfflineBrain();
     }
 
-    /**
-     * Processa uma mensagem recebida.
-     *
-     * O processamento acontece somente se
-     * houver uma sessão ativa.
-     */
     public synchronized String process(
             String userInput) {
 
@@ -162,20 +110,12 @@ public class JarvisConversationEngine {
             return "";
         }
 
-        /*
-         * O usuário precisa estar em uma sessão
-         * ativa para enviar comandos.
-         */
         if (!sessionManager.isActive()) {
 
             return "JARVIS está em modo sono. "
                     + "Diga \"Jarvis\" para ativá-lo.";
         }
 
-        /*
-         * Verifica se o usuário pediu para
-         * encerrar a sessão.
-         */
         if (sessionManager.containsEndPhrase(
                 userInput)) {
 
@@ -185,41 +125,25 @@ public class JarvisConversationEngine {
                     + "JARVIS entrando em modo de espera.";
         }
 
-        /*
-         * Registra o comando na sessão.
-         */
         sessionManager.processCommand(
                 userInput
         );
 
         /*
-         * Monta o contexto completo.
-         *
-         * Esse contexto pode conter:
-         * - conversa atual;
-         * - memória;
-         * - informações do aparelho.
+         * buildFullContext exige a mensagem atual.
          */
         String contextText =
                 contextManager
-                        .buildFullContext();
+                        .buildFullContext(
+                                userInput
+                        );
 
-        /*
-         * Envia o comando para o gerenciador
-         * central de IA.
-         *
-         * O JarvisAIManager decide se deve
-         * utilizar OFFLINE ou ONLINE.
-         */
         String response =
                 aiManager.process(
                         userInput,
                         contextText
                 );
 
-        /*
-         * Garante que sempre exista uma resposta.
-         */
         if (response == null
                 || response.trim().isEmpty()) {
 
@@ -228,9 +152,6 @@ public class JarvisConversationEngine {
                     + "para esse comando.";
         }
 
-        /*
-         * Registra a resposta do JARVIS.
-         */
         sessionManager.registerJarvisResponse(
                 response
         );
@@ -238,10 +159,6 @@ public class JarvisConversationEngine {
         return response;
     }
 
-    /**
-     * Processa uma mensagem e permite que
-     * o chamador saiba se a sessão continua ativa.
-     */
     public synchronized ConversationResult
     processCommand(String userInput) {
 
@@ -263,9 +180,6 @@ public class JarvisConversationEngine {
             );
         }
 
-        /*
-         * Encerramento da sessão.
-         */
         if (sessionManager.containsEndPhrase(
                 userInput)) {
 
@@ -281,24 +195,19 @@ public class JarvisConversationEngine {
             );
         }
 
-        /*
-         * Registra o comando.
-         */
         sessionManager.processCommand(
                 userInput
         );
 
         /*
-         * Obtém o contexto completo.
+         * buildFullContext exige a mensagem atual.
          */
         String contextText =
                 contextManager
-                        .buildFullContext();
+                        .buildFullContext(
+                                userInput
+                        );
 
-        /*
-         * Processa através do gerenciador
-         * central de IA.
-         */
         String response =
                 aiManager.process(
                         userInput,
@@ -313,9 +222,6 @@ public class JarvisConversationEngine {
                     + "para esse comando.";
         }
 
-        /*
-         * Registra a resposta.
-         */
         sessionManager.registerJarvisResponse(
                 response
         );
@@ -326,61 +232,35 @@ public class JarvisConversationEngine {
         );
     }
 
-    /**
-     * Ativa uma nova sessão.
-     */
     public synchronized boolean activateSession() {
-
         return sessionManager.activate();
     }
 
-    /**
-     * Encerra a sessão atual.
-     */
     public synchronized boolean endSession() {
-
         return sessionManager.sleep();
     }
 
-    /**
-     * Verifica se a sessão está ativa.
-     */
     public synchronized boolean isActive() {
-
         return sessionManager.isActive();
     }
 
-    /**
-     * Retorna todo o contexto disponível.
-     */
     public synchronized String getFullContext() {
 
         return contextManager
-                .buildFullContext();
+                .buildFullContext(
+                        contextManager
+                                .getLastUserMessage()
+                );
     }
 
-    /**
-     * Limpa somente a conversa temporária
-     * da sessão atual.
-     *
-     * A memória permanente não é apagada.
-     */
     public synchronized void clearConversation() {
-
         contextManager.clearConversation();
     }
 
-    /**
-     * Retorna a memória permanente.
-     */
     public synchronized JarvisMemory getMemory() {
-
         return contextManager.getMemory();
     }
 
-    /**
-     * Guarda uma informação na memória.
-     */
     public synchronized void remember(
             String text) {
 
@@ -395,9 +275,6 @@ public class JarvisConversationEngine {
         );
     }
 
-    /**
-     * Remove uma informação da memória.
-     */
     public synchronized void forget(
             String text) {
 
@@ -412,83 +289,40 @@ public class JarvisConversationEngine {
         );
     }
 
-    /**
-     * Ativa o modo offline.
-     */
     public synchronized void enableOfflineMode() {
-
         aiManager.enableOfflineMode();
     }
 
-    /**
-     * Ativa o modo online.
-     *
-     * A conexão real depende de um provedor
-     * configurado no JarvisOnlineManager.
-     */
     public synchronized void enableOnlineMode() {
-
         aiManager.enableOnlineMode();
     }
 
-    /**
-     * Desativa o modo online e retorna
-     * ao modo offline.
-     */
     public synchronized void disableOnlineMode() {
-
         aiManager.disableOnlineMode();
     }
 
-    /**
-     * Verifica se está no modo offline.
-     */
     public synchronized boolean isOfflineMode() {
-
         return aiManager.isOfflineMode();
     }
 
-    /**
-     * Verifica se está no modo online.
-     */
     public synchronized boolean isOnlineMode() {
-
         return aiManager.isOnlineMode();
     }
 
-    /**
-     * Retorna o nome do modo atual.
-     */
     public synchronized String getAIModeName() {
-
         return aiManager.getModeName();
     }
 
-    /**
-     * Retorna o status da IA.
-     */
     public synchronized String getAIStatus() {
-
         return aiManager.getStatus();
     }
 
-    /**
-     * Retorna o gerenciador de IA.
-     */
     public synchronized JarvisAIManager
     getAIManagerInstance() {
 
         return aiManager;
     }
 
-    /**
-     * Resultado de uma conversa.
-     *
-     * Contém:
-     * - resposta gerada;
-     * - informação sobre a continuidade
-     *   da sessão.
-     */
     public static class ConversationResult {
 
         private final String response;
@@ -504,12 +338,10 @@ public class JarvisConversationEngine {
         }
 
         public String getResponse() {
-
             return response;
         }
 
         public boolean isSessionActive() {
-
             return sessionActive;
         }
     }
