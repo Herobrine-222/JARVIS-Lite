@@ -421,6 +421,16 @@ public class JarvisVoiceManager {
     }
 
     /**
+     * Compatibilidade com serviços que utilizam o nome stop().
+     *
+     * O novo JarvisVoiceService utiliza este método
+     * para interromper a fala antes de destruir o gerenciador.
+     */
+    public void stop() {
+        parar();
+    }
+
+    /**
      * Para somente o TTS.
      */
     private void pararTts() {
