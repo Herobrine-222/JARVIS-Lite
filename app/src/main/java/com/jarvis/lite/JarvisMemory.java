@@ -6,6 +6,7 @@ import android.content.SharedPreferences;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -17,10 +18,12 @@ public class JarvisMemory {
 
     private static final int MAX_ITEMS = 100;
     private static final int MAX_TEXT = 500;
+    private static final int MAX_CATEGORY = 80;
 
     private final SharedPreferences prefs;
 
     public JarvisMemory(Context context) {
+
         prefs = context.getApplicationContext()
                 .getSharedPreferences(
                         PREFS,
@@ -28,7 +31,22 @@ public class JarvisMemory {
                 );
     }
 
+    // ============================================================
+    // MEMÓRIA PRINCIPAL
+    // ============================================================
+
     public synchronized boolean remember(String text) {
+
+        return remember(
+                text,
+                "geral"
+        );
+    }
+
+    public synchronized boolean remember(
+            String text,
+            String category
+    ) {
 
         if (text == null) {
             return false;
@@ -41,14 +59,21 @@ public class JarvisMemory {
         }
 
         if (value.length() > MAX_TEXT) {
-            value = value.substring(0, MAX_TEXT);
+            value = value.substring(
+                    0,
+                    MAX_TEXT
+            );
         }
+
+        String categoria =
+                sanitizeCategory(category);
 
         JSONArray old = readItems();
         JSONArray next = new JSONArray();
 
         try {
 
+            // Remove memória exatamente igual.
             for (int i = 0; i < old.length(); i++) {
 
                 JSONObject item =
@@ -64,7 +89,15 @@ public class JarvisMemory {
                                 ""
                         ).trim();
 
-                if (!existing.equalsIgnoreCase(value)) {
+                String existingCategory =
+                        item.optString(
+                                "category",
+                                "geral"
+                        );
+
+                if (!existing.equalsIgnoreCase(value)
+                        || !existingCategory.equalsIgnoreCase(categoria)) {
+
                     next.put(item);
                 }
             }
@@ -78,36 +111,20 @@ public class JarvisMemory {
             );
 
             novo.put(
+                    "category",
+                    categoria
+            );
+
+            novo.put(
                     "time",
                     System.currentTimeMillis()
             );
 
             next.put(novo);
 
-            while (next.length() > MAX_ITEMS) {
+            next = limitItems(next);
 
-                JSONArray reduzido =
-                        new JSONArray();
-
-                for (
-                        int i = 1;
-                        i < next.length();
-                        i++
-                ) {
-                    reduzido.put(
-                            next.get(i)
-                    );
-                }
-
-                next = reduzido;
-            }
-
-            prefs.edit()
-                    .putString(
-                            KEY_ITEMS,
-                            next.toString()
-                    )
-                    .apply();
+            saveItems(next);
 
             return true;
 
@@ -117,21 +134,160 @@ public class JarvisMemory {
         }
     }
 
-    public boolean rememberKeyValue(
+    // ============================================================
+    // MEMÓRIA CHAVE / VALOR
+    // ============================================================
+
+    public synchronized boolean rememberKeyValue(
             String key,
             String value
+    ) {
+
+        return rememberKeyValue(
+                key,
+                value,
+                "preferencias"
+        );
+    }
+
+    public synchronized boolean rememberKeyValue(
+            String key,
+            String value,
+            String category
     ) {
 
         if (key == null || value == null) {
             return false;
         }
 
+        String chave =
+                key.trim();
+
+        String valor =
+                value.trim();
+
+        if (chave.isEmpty() || valor.isEmpty()) {
+            return false;
+        }
+
         return remember(
-                key.trim()
-                        + ": "
-                        + value.trim()
+                chave + ": " + valor,
+                category
         );
     }
+
+    // ============================================================
+    // ATUALIZAR UMA MEMÓRIA
+    // ============================================================
+
+    public synchronized boolean update(
+            String query,
+            String newText
+    ) {
+
+        return update(
+                query,
+                newText,
+                "geral"
+        );
+    }
+
+    public synchronized boolean update(
+            String query,
+            String newText,
+            String category
+    ) {
+
+        if (query == null ||
+                newText == null) {
+
+            return false;
+        }
+
+        String busca =
+                query.trim();
+
+        String novoTexto =
+                newText.trim();
+
+        if (busca.isEmpty() ||
+                novoTexto.isEmpty()) {
+
+            return false;
+        }
+
+        if (novoTexto.length() > MAX_TEXT) {
+            novoTexto =
+                    novoTexto.substring(
+                            0,
+                            MAX_TEXT
+                    );
+        }
+
+        JSONArray items =
+                readItems();
+
+        String buscaNormalizada =
+                normalize(busca);
+
+        boolean atualizada = false;
+
+        try {
+
+            for (int i = 0; i < items.length(); i++) {
+
+                JSONObject item =
+                        items.optJSONObject(i);
+
+                if (item == null) {
+                    continue;
+                }
+
+                String texto =
+                        item.optString(
+                                "text",
+                                ""
+                        );
+
+                if (normalize(texto)
+                        .contains(buscaNormalizada)) {
+
+                    item.put(
+                            "text",
+                            novoTexto
+                    );
+
+                    item.put(
+                            "category",
+                            sanitizeCategory(category)
+                    );
+
+                    item.put(
+                            "time",
+                            System.currentTimeMillis()
+                    );
+
+                    atualizada = true;
+
+                    break;
+                }
+            }
+
+            if (atualizada) {
+                saveItems(items);
+            }
+
+        } catch (Exception ignored) {
+
+            return false;
+        }
+
+        return atualizada;
+    }
+
+    // ============================================================
+    // OBTER TODAS AS MEMÓRIAS
+    // ============================================================
 
     public synchronized List<String> getAll() {
 
@@ -168,6 +324,72 @@ public class JarvisMemory {
         return resultado;
     }
 
+    // ============================================================
+    // OBTER MEMÓRIAS POR CATEGORIA
+    // ============================================================
+
+    public synchronized List<String> getByCategory(
+            String category
+    ) {
+
+        ArrayList<String> resultado =
+                new ArrayList<>();
+
+        if (category == null ||
+                category.trim().isEmpty()) {
+
+            return resultado;
+        }
+
+        String categoria =
+                normalize(category);
+
+        JSONArray items =
+                readItems();
+
+        for (
+                int i = items.length() - 1;
+                i >= 0;
+                i--
+        ) {
+
+            JSONObject item =
+                    items.optJSONObject(i);
+
+            if (item == null) {
+                continue;
+            }
+
+            String categoriaItem =
+                    item.optString(
+                            "category",
+                            "geral"
+                    );
+
+            if (!normalize(categoriaItem)
+                    .equals(categoria)) {
+
+                continue;
+            }
+
+            String texto =
+                    item.optString(
+                            "text",
+                            ""
+                    );
+
+            if (!texto.isEmpty()) {
+                resultado.add(texto);
+            }
+        }
+
+        return resultado;
+    }
+
+    // ============================================================
+    // FORMATAR PARA EXIBIÇÃO
+    // ============================================================
+
     public synchronized String formatForDisplay() {
 
         List<String> todas =
@@ -198,6 +420,73 @@ public class JarvisMemory {
 
         return resultado.toString();
     }
+
+    // ============================================================
+    // FORMATAR COM CATEGORIA
+    // ============================================================
+
+    public synchronized String formatDetailedForDisplay() {
+
+        JSONArray items =
+                readItems();
+
+        if (items.length() == 0) {
+            return "Nenhuma memória salva.";
+        }
+
+        StringBuilder resultado =
+                new StringBuilder();
+
+        int numero = 1;
+
+        for (
+                int i = items.length() - 1;
+                i >= 0;
+                i--
+        ) {
+
+            JSONObject item =
+                    items.optJSONObject(i);
+
+            if (item == null) {
+                continue;
+            }
+
+            String texto =
+                    item.optString(
+                            "text",
+                            ""
+                    );
+
+            if (texto.isEmpty()) {
+                continue;
+            }
+
+            String categoria =
+                    item.optString(
+                            "category",
+                            "geral"
+                    );
+
+            resultado
+                    .append(numero++)
+                    .append(". ")
+                    .append(texto)
+                    .append(" [")
+                    .append(categoria)
+                    .append("]");
+
+            if (i > 0) {
+                resultado.append("\n");
+            }
+        }
+
+        return resultado.toString();
+    }
+
+    // ============================================================
+    // ESQUECER MEMÓRIA
+    // ============================================================
 
     public synchronized int forget(
             String query
@@ -252,12 +541,7 @@ public class JarvisMemory {
                 }
             }
 
-            prefs.edit()
-                    .putString(
-                            KEY_ITEMS,
-                            next.toString()
-                    )
-                    .apply();
+            saveItems(next);
 
         } catch (Exception ignored) {
 
@@ -267,12 +551,83 @@ public class JarvisMemory {
         return removidas;
     }
 
+    // ============================================================
+    // ESQUECER UMA CATEGORIA
+    // ============================================================
+
+    public synchronized int forgetCategory(
+            String category
+    ) {
+
+        if (category == null ||
+                category.trim().isEmpty()) {
+
+            return 0;
+        }
+
+        String busca =
+                normalize(category);
+
+        JSONArray old =
+                readItems();
+
+        JSONArray next =
+                new JSONArray();
+
+        int removidas = 0;
+
+        try {
+
+            for (int i = 0; i < old.length(); i++) {
+
+                JSONObject item =
+                        old.optJSONObject(i);
+
+                if (item == null) {
+                    continue;
+                }
+
+                String categoria =
+                        item.optString(
+                                "category",
+                                "geral"
+                        );
+
+                if (normalize(categoria)
+                        .equals(busca)) {
+
+                    removidas++;
+
+                } else {
+
+                    next.put(item);
+                }
+            }
+
+            saveItems(next);
+
+        } catch (Exception ignored) {
+
+            return 0;
+        }
+
+        return removidas;
+    }
+
+    // ============================================================
+    // LIMPAR TUDO
+    // ============================================================
+
     public synchronized void clear() {
 
         prefs.edit()
                 .remove(KEY_ITEMS)
                 .apply();
     }
+
+    // ============================================================
+    // CONTEXTO RELEVANTE
+    // ============================================================
 
     public synchronized String relevantContext(
             String query,
@@ -288,6 +643,10 @@ public class JarvisMemory {
 
         String busca =
                 normalize(query);
+
+        if (busca.isEmpty()) {
+            return "";
+        }
 
         StringBuilder resultado =
                 new StringBuilder();
@@ -321,10 +680,186 @@ public class JarvisMemory {
         return resultado.toString();
     }
 
+    // ============================================================
+    // BUSCA POR PALAVRAS
+    // ============================================================
+
+    public synchronized List<String> search(
+            String query,
+            int maxItems
+    ) {
+
+        ArrayList<String> resultado =
+                new ArrayList<>();
+
+        if (
+                query == null ||
+                query.trim().isEmpty() ||
+                maxItems <= 0
+        ) {
+            return resultado;
+        }
+
+        String busca =
+                normalize(query);
+
+        String[] palavras =
+                busca.split("\\s+");
+
+        for (String item : getAll()) {
+
+            String normalizado =
+                    normalize(item);
+
+            boolean corresponde = true;
+
+            for (String palavra : palavras) {
+
+                if (palavra.isEmpty()) {
+                    continue;
+                }
+
+                if (!normalizado.contains(palavra)) {
+                    corresponde = false;
+                    break;
+                }
+            }
+
+            if (corresponde) {
+
+                resultado.add(item);
+
+                if (resultado.size() >= maxItems) {
+                    break;
+                }
+            }
+        }
+
+        return resultado;
+    }
+
+    // ============================================================
+    // QUANTIDADE DE MEMÓRIAS
+    // ============================================================
+
+    public synchronized int size() {
+
+        return readItems().length();
+    }
+
+    // ============================================================
+    // VERIFICAR SE EXISTE
+    // ============================================================
+
+    public synchronized boolean contains(
+            String query
+    ) {
+
+        if (query == null ||
+                query.trim().isEmpty()) {
+
+            return false;
+        }
+
+        String busca =
+                normalize(query);
+
+        JSONArray items =
+                readItems();
+
+        for (int i = 0; i < items.length(); i++) {
+
+            JSONObject item =
+                    items.optJSONObject(i);
+
+            if (item == null) {
+                continue;
+            }
+
+            String texto =
+                    item.optString(
+                            "text",
+                            ""
+                    );
+
+            if (normalize(texto)
+                    .contains(busca)) {
+
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // ============================================================
+    // ÚLTIMA MEMÓRIA
+    // ============================================================
+
+    public synchronized String getLast() {
+
+        JSONArray items =
+                readItems();
+
+        if (items.length() == 0) {
+            return "";
+        }
+
+        JSONObject item =
+                items.optJSONObject(
+                        items.length() - 1
+                );
+
+        if (item == null) {
+            return "";
+        }
+
+        return item.optString(
+                "text",
+                ""
+        );
+    }
+
+    // ============================================================
+    // DATA DA ÚLTIMA MEMÓRIA
+    // ============================================================
+
+    public synchronized long getLastTime() {
+
+        JSONArray items =
+                readItems();
+
+        if (items.length() == 0) {
+            return 0L;
+        }
+
+        JSONObject item =
+                items.optJSONObject(
+                        items.length() - 1
+                );
+
+        if (item == null) {
+            return 0L;
+        }
+
+        return item.optLong(
+                "time",
+                0L
+        );
+    }
+
+    // ============================================================
+    // EXPORTAR JSON
+    // ============================================================
+
     public synchronized String exportJson() {
 
         return readItems().toString();
     }
+
+    // ============================================================
+    // IMPORTAR JSON
+    // ============================================================
 
     public synchronized boolean importJson(
             String json
@@ -379,12 +914,25 @@ public class JarvisMemory {
                             );
                 }
 
+                String categoria =
+                        sanitizeCategory(
+                                original.optString(
+                                        "category",
+                                        "geral"
+                                )
+                        );
+
                 JSONObject item =
                         new JSONObject();
 
                 item.put(
                         "text",
                         texto
+                );
+
+                item.put(
+                        "category",
+                        categoria
                 );
 
                 item.put(
@@ -398,12 +946,7 @@ public class JarvisMemory {
                 limpa.put(item);
             }
 
-            prefs.edit()
-                    .putString(
-                            KEY_ITEMS,
-                            limpa.toString()
-                    )
-                    .apply();
+            saveItems(limpa);
 
             return true;
 
@@ -412,6 +955,37 @@ public class JarvisMemory {
             return false;
         }
     }
+
+    // ============================================================
+    // OBTER JSON DE UMA MEMÓRIA
+    // ============================================================
+
+    public synchronized String getMemoryJson(
+            int index
+    ) {
+
+        JSONArray items =
+                readItems();
+
+        if (index < 0 ||
+                index >= items.length()) {
+
+            return "";
+        }
+
+        JSONObject item =
+                items.optJSONObject(index);
+
+        if (item == null) {
+            return "";
+        }
+
+        return item.toString();
+    }
+
+    // ============================================================
+    // LEITURA INTERNA
+    // ============================================================
 
     private JSONArray readItems() {
 
@@ -430,6 +1004,88 @@ public class JarvisMemory {
         }
     }
 
+    // ============================================================
+    // SALVAR INTERNAMENTE
+    // ============================================================
+
+    private void saveItems(
+            JSONArray items
+    ) {
+
+        prefs.edit()
+                .putString(
+                        KEY_ITEMS,
+                        items.toString()
+                )
+                .apply();
+    }
+
+    // ============================================================
+    // LIMITAR QUANTIDADE
+    // ============================================================
+
+    private JSONArray limitItems(
+            JSONArray items
+    ) {
+
+        if (items.length() <= MAX_ITEMS) {
+            return items;
+        }
+
+        JSONArray reduzido =
+                new JSONArray();
+
+        int inicio =
+                items.length() - MAX_ITEMS;
+
+        for (
+                int i = inicio;
+                i < items.length();
+                i++
+        ) {
+
+            reduzido.put(
+                    items.opt(i)
+            );
+        }
+
+        return reduzido;
+    }
+
+    // ============================================================
+    // LIMPAR CATEGORIA
+    // ============================================================
+
+    private String sanitizeCategory(
+            String category
+    ) {
+
+        if (category == null) {
+            return "geral";
+        }
+
+        String value =
+                category.trim();
+
+        if (value.isEmpty()) {
+            return "geral";
+        }
+
+        if (value.length() > MAX_CATEGORY) {
+            value =
+                    value.substring(
+                            0,
+                            MAX_CATEGORY
+                    );
+        }
+
+        return value;
+    }
+
+    // ============================================================
+    // NORMALIZAÇÃO
+    // ============================================================
+
     private String normalize(
             String text
     ) {
@@ -442,13 +1098,16 @@ public class JarvisMemory {
                         );
 
         value =
-                java.text.Normalizer.normalize(
+                Normalizer.normalize(
                         value,
-                        java.text.Normalizer.Form.NFD
+                        Normalizer.Form.NFD
                 );
 
         return value
-                .replaceAll("\\p{M}+", "")
+                .replaceAll(
+                        "\\p{M}+",
+                        ""
+                )
                 .trim();
     }
- }
+}
