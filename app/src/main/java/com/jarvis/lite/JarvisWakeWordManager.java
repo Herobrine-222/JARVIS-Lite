@@ -36,7 +36,21 @@ public class JarvisWakeWordManager {
      */
     private String endPhrase = "encerrar sessão";
 
+    /**
+     * Construtor padrão.
+     *
+     * Cria uma nova sessão para este gerenciador.
+     *
+     * Mantido para compatibilidade com outras partes
+     * do projeto que já utilizam este construtor.
+     */
     public JarvisWakeWordManager(Context context) {
+
+        if (context == null) {
+            throw new IllegalArgumentException(
+                    "Context não pode ser nulo."
+            );
+        }
 
         this.context =
                 context.getApplicationContext();
@@ -45,6 +59,30 @@ public class JarvisWakeWordManager {
                 new JarvisSessionManager(
                         this.context
                 );
+
+        sincronizarConfiguracao();
+    }
+
+    /**
+     * Construtor para utilizar uma sessão já existente.
+     *
+     * Este é o construtor utilizado quando o JARVIS
+     * precisa compartilhar o mesmo estado de sessão
+     * entre o reconhecimento da palavra "Jarvis" e
+     * o processamento dos comandos.
+     */
+    public JarvisWakeWordManager(
+            JarvisSessionManager sessionManager) {
+
+        if (sessionManager == null) {
+            throw new IllegalArgumentException(
+                    "JarvisSessionManager não pode ser nulo."
+            );
+        }
+
+        this.sessionManager = sessionManager;
+
+        this.context = null;
 
         sincronizarConfiguracao();
     }
