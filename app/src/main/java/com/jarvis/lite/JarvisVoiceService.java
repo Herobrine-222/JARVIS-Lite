@@ -7,6 +7,7 @@ import android.app.Service;
 import android.content.Intent;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.IBinder;
 import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
@@ -30,23 +31,61 @@ public class JarvisVoiceService extends Service {
 
     private SpeechRecognizer speechRecognizer;
 
+    private Handler handler;
+
     private boolean ouvindo = false;
     private boolean pausado = true;
+
+    /*
+     * Indica se estamos procurando a palavra
+     * "Jarvis" ou esperando um comando.
+     */
+    private boolean aguardandoWakeWord = true;
+
+    private JarvisWakeWordManager wakeWordManager;
+    private JarvisConversationEngine conversationEngine;
+    private JarvisVoiceManager voiceManager;
 
     @Override
     public void onCreate() {
         super.onCreate();
 
+        handler =
+                new Handler(
+                        getMainLooper()
+                );
+
+        wakeWordManager =
+                new JarvisWakeWordManager(
+                        getApplicationContext()
+                );
+
+        conversationEngine =
+                new JarvisConversationEngine(
+                        getApplicationContext()
+                );
+
+        voiceManager =
+                new JarvisVoiceManager(
+                        getApplicationContext()
+                );
+
         criarCanalNotificacao();
 
         Notification notification =
-                new Notification.Builder(this, CHANNEL_ID)
-                        .setContentTitle("JARVIS Lite")
+                new Notification.Builder(
+                        this,
+                        CHANNEL_ID
+                )
+                        .setContentTitle(
+                                "JARVIS Lite"
+                        )
                         .setContentText(
                                 "Escuta automática em espera"
                         )
                         .setSmallIcon(
-                                android.R.drawable.ic_btn_speak_now
+                                android.R.drawable
+                                        .ic_btn_speak_now
                         )
                         .setOngoing(true)
                         .build();
@@ -55,21 +94,19 @@ public class JarvisVoiceService extends Service {
                 NOTIFICATION_ID,
                 notification
         );
-
-        // IMPORTANTE:
-        // NÃO iniciar o microfone aqui.
-        // O microfone só será iniciado por ACTION_RESUME.
     }
 
     private void criarCanalNotificacao() {
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        if (Build.VERSION.SDK_INT >=
+                Build.VERSION_CODES.O) {
 
             NotificationChannel channel =
                     new NotificationChannel(
                             CHANNEL_ID,
                             "JARVIS — Comando de voz",
-                            NotificationManager.IMPORTANCE_LOW
+                            NotificationManager
+                                    .IMPORTANCE_LOW
                     );
 
             channel.setDescription(
@@ -82,7 +119,9 @@ public class JarvisVoiceService extends Service {
                     );
 
             if (manager != null) {
-                manager.createNotificationChannel(channel);
+                manager.createNotificationChannel(
+                        channel
+                );
             }
         }
     }
@@ -94,8 +133,11 @@ public class JarvisVoiceService extends Service {
             int startId) {
 
         if (intent == null) {
+
             pausado = true;
+
             pararReconhecedor();
+
             return START_NOT_STICKY;
         }
 
@@ -104,33 +146,76 @@ public class JarvisVoiceService extends Service {
 
         if (ACTION_PAUSE.equals(action)) {
 
-            pausado = true;
-
-            pararReconhecedor();
-
-            atualizarNotificacao(
-                    "Escuta automática pausada"
-            );
+            pausarServico();
 
             return START_NOT_STICKY;
         }
 
         if (ACTION_RESUME.equals(action)) {
 
-            pausado = false;
-
-            atualizarNotificacao(
-                    "Aguardando a palavra JARVIS"
-            );
-
-            if (!ouvindo) {
-                iniciarEscuta();
-            }
+            retomarServico();
 
             return START_NOT_STICKY;
         }
 
         return START_NOT_STICKY;
+    }
+
+    private void retomarServico() {
+
+        pausado = false;
+
+        aguardandoWakeWord = true;
+
+        atualizarNotificacao(
+                "Aguardando a palavra JARVIS"
+        );
+
+        iniciarEscutaComAtraso(300);
+    }
+
+    private void pausarServico() {
+
+        pausado = true;
+
+        aguardandoWakeWord = true;
+
+        pararReconhecedor();
+
+        if (handler != null) {
+
+            handler.removeCallbacksAndMessages(
+                    null
+            );
+        }
+
+        atualizarNotificacao(
+                "Escuta automática pausada"
+        );
+    }
+
+    private void iniciarEscutaComAtraso(
+            long atraso) {
+
+        if (handler == null) {
+            return;
+        }
+
+        handler.postDelayed(
+                new Runnable() {
+
+                    @Override
+                    public void run() {
+
+                        if (!pausado
+                                && !ouvindo) {
+
+                            iniciarEscuta();
+                        }
+                    }
+                },
+                atraso
+        );
     }
 
     private void iniciarEscuta() {
@@ -144,7 +229,14 @@ public class JarvisVoiceService extends Service {
         }
 
         if (!SpeechRecognizer
-                .isOnDeviceRecognitionAvailable(this)) {
+                .isOnDeviceRecognitionAvailable(
+                        this)) {
+
+            atualizarNotificacao(
+                    "Reconhecimento de voz offline "
+                            + "não disponível"
+            );
+
             return;
         }
 
@@ -154,100 +246,14 @@ public class JarvisVoiceService extends Service {
 
             speechRecognizer =
                     SpeechRecognizer
-                            .createOnDeviceSpeechRecognizer(this);
+                            .createOnDeviceSpeechRecognizer(
+                                    this
+                            );
 
-            speechRecognizer.setRecognitionListener(
-                    new RecognitionListener() {
-
-                        @Override
-                        public void onReadyForSpeech(
-                                Bundle params) {
-
-                            ouvindo = true;
-                        }
-
-                        @Override
-                        public void onBeginningOfSpeech() {
-                        }
-
-                        @Override
-                        public void onRmsChanged(
-                                float rmsdB) {
-                        }
-
-                        @Override
-                        public void onBufferReceived(
-                                byte[] buffer) {
-                        }
-
-                        @Override
-                        public void onEndOfSpeech() {
-
-                            ouvindo = false;
-                        }
-
-                        @Override
-                        public void onError(
-                                int error) {
-
-                            ouvindo = false;
-
-                            pararReconhecedor();
-
-                            if (!pausado) {
-                                iniciarEscuta();
-                            }
-                        }
-
-                        @Override
-                        public void onResults(
-                                Bundle results) {
-
-                            ouvindo = false;
-
-                            ArrayList<String> resultados =
-                                    results.getStringArrayList(
-                                            SpeechRecognizer
-                                                    .RESULTS_RECOGNITION
-                                    );
-
-                            if (resultados != null
-                                    && !resultados.isEmpty()) {
-
-                                String texto =
-                                        resultados
-                                                .get(0)
-                                                .toLowerCase(
-                                                        Locale.getDefault()
-                                                );
-
-                                if (texto.contains("jarvis")) {
-
-                                    abrirJarvis();
-
-                                    return;
-                                }
-                            }
-
-                            pararReconhecedor();
-
-                            if (!pausado) {
-                                iniciarEscuta();
-                            }
-                        }
-
-                        @Override
-                        public void onPartialResults(
-                                Bundle partialResults) {
-                        }
-
-                        @Override
-                        public void onEvent(
-                                int eventType,
-                                Bundle params) {
-                        }
-                    }
-            );
+            speechRecognizer
+                    .setRecognitionListener(
+                            criarRecognitionListener()
+                    );
 
             Intent intent =
                     new Intent(
@@ -271,40 +277,296 @@ public class JarvisVoiceService extends Service {
                     false
             );
 
-            speechRecognizer.startListening(intent);
+            intent.putExtra(
+                    RecognizerIntent
+                            .EXTRA_MAX_RESULTS,
+                    3
+            );
+
+            speechRecognizer.startListening(
+                    intent
+            );
 
         } catch (Exception e) {
 
             ouvindo = false;
+
             pararReconhecedor();
+
+            if (!pausado) {
+
+                iniciarEscutaComAtraso(
+                        1000
+                );
+            }
         }
     }
 
-    private void abrirJarvis() {
+    private RecognitionListener
+    criarRecognitionListener() {
 
-        // Primeiro libera COMPLETAMENTE o microfone.
-        pausado = true;
+        return new RecognitionListener() {
 
-        pararReconhecedor();
+            @Override
+            public void onReadyForSpeech(
+                    Bundle params) {
 
-        Intent intent =
-                new Intent(
-                        JarvisVoiceService.this,
-                        MainActivity.class
+                ouvindo = true;
+            }
+
+            @Override
+            public void onBeginningOfSpeech() {
+            }
+
+            @Override
+            public void onRmsChanged(
+                    float rmsdB) {
+            }
+
+            @Override
+            public void onBufferReceived(
+                    byte[] buffer) {
+            }
+
+            @Override
+            public void onEndOfSpeech() {
+
+                ouvindo = false;
+            }
+
+            @Override
+            public void onError(
+                    int error) {
+
+                ouvindo = false;
+
+                pararReconhecedor();
+
+                if (!pausado) {
+
+                    iniciarEscutaComAtraso(
+                            700
+                    );
+                }
+            }
+
+            @Override
+            public void onResults(
+                    Bundle results) {
+
+                ouvindo = false;
+
+                ArrayList<String> resultados =
+                        results.getStringArrayList(
+                                SpeechRecognizer
+                                        .RESULTS_RECOGNITION
+                        );
+
+                String texto = "";
+
+                if (resultados != null
+                        && !resultados.isEmpty()) {
+
+                    texto =
+                            resultados
+                                    .get(0);
+                }
+
+                processarTextoReconhecido(
+                        texto
+                );
+            }
+
+            @Override
+            public void onPartialResults(
+                    Bundle partialResults) {
+            }
+
+            @Override
+            public void onEvent(
+                    int eventType,
+                    Bundle params) {
+            }
+        };
+    }
+
+    private void processarTextoReconhecido(
+            String texto) {
+
+        if (pausado) {
+            return;
+        }
+
+        if (texto == null
+                || texto.trim().isEmpty()) {
+
+            iniciarEscutaComAtraso(
+                    300
+            );
+
+            return;
+        }
+
+        /*
+         * JARVIS está dormindo.
+         *
+         * Procuramos somente a palavra
+         * de ativação.
+         */
+        if (aguardandoWakeWord) {
+
+            boolean ativou =
+                    wakeWordManager
+                            .processWakeText(
+                                    texto
+                            );
+
+            if (ativou) {
+
+                aguardandoWakeWord = false;
+
+                atualizarNotificacao(
+                        "JARVIS ativo — aguardando comando"
                 );
 
-        intent.addFlags(
-                Intent.FLAG_ACTIVITY_NEW_TASK
+                falar(
+                        wakeWordManager
+                                .getActivationMessage()
+                );
+
+                /*
+                 * Depois da saudação, começamos
+                 * a escutar o primeiro comando.
+                 */
+                iniciarEscutaComAtraso(
+                        500
+                );
+
+                return;
+            }
+
+            iniciarEscutaComAtraso(
+                    300
+            );
+
+            return;
+        }
+
+        /*
+         * JARVIS já está em uma sessão ativa.
+         */
+        processarComandoDaSessao(
+                texto
+        );
+    }
+
+    private void processarComandoDaSessao(
+            String texto) {
+
+        /*
+         * A ConversationEngine verifica também
+         * a frase de encerramento.
+         */
+        JarvisConversationEngine
+                .ConversationResult resultado =
+                conversationEngine
+                        .processCommand(
+                                texto
+                        );
+
+        String resposta =
+                resultado.getResponse();
+
+        boolean sessaoAtiva =
+                resultado
+                        .isSessionActive();
+
+        if (resposta != null
+                && !resposta.trim().isEmpty()) {
+
+            falar(resposta);
+        }
+
+        /*
+         * Se o usuário disse
+         * "encerrar sessão", voltamos para
+         * o estado de espera.
+         */
+        if (!sessaoAtiva) {
+
+            aguardandoWakeWord = true;
+
+            atualizarNotificacao(
+                    "Aguardando a palavra JARVIS"
+            );
+
+            iniciarEscutaComAtraso(
+                    800
+            );
+
+            return;
+        }
+
+        /*
+         * A sessão continua ativa.
+         */
+        aguardandoWakeWord = false;
+
+        atualizarNotificacao(
+                "JARVIS ativo — aguardando comando"
         );
 
-        intent.putExtra(
-                "JARVIS_WAKE",
-                true
+        iniciarEscutaComAtraso(
+                calcularAtrasoDepoisDaResposta(
+                        resposta
+                )
         );
+    }
 
-        startActivity(intent);
+    private long calcularAtrasoDepoisDaResposta(
+            String resposta) {
 
-        stopSelf();
+        if (resposta == null
+                || resposta.trim().isEmpty()) {
+
+            return 300;
+        }
+
+        /*
+         * Evita iniciar outro reconhecimento
+         * enquanto uma resposta curta ainda
+         * está começando a ser reproduzida.
+         */
+        long atraso =
+                800L
+                + (long)
+                Math.min(
+                        resposta.length() * 8L,
+                        2500L
+                );
+
+        return atraso;
+    }
+
+    private void falar(String texto) {
+
+        if (texto == null
+                || texto.trim().isEmpty()) {
+
+            return;
+        }
+
+        try {
+
+            voiceManager.speak(
+                    texto
+            );
+
+        } catch (Exception e) {
+
+            // Se a voz falhar, o serviço
+            // continua funcionando.
+        }
     }
 
     private void pararReconhecedor() {
@@ -312,13 +574,17 @@ public class JarvisVoiceService extends Service {
         if (speechRecognizer != null) {
 
             try {
+
                 speechRecognizer.cancel();
+
             } catch (Exception e) {
                 // Nada a fazer.
             }
 
             try {
+
                 speechRecognizer.destroy();
+
             } catch (Exception e) {
                 // Nada a fazer.
             }
@@ -342,7 +608,9 @@ public class JarvisVoiceService extends Service {
                             .setContentTitle(
                                     "JARVIS Lite"
                             )
-                            .setContentText(texto)
+                            .setContentText(
+                                    texto
+                            )
                             .setSmallIcon(
                                     android.R.drawable
                                             .ic_btn_speak_now
@@ -371,7 +639,35 @@ public class JarvisVoiceService extends Service {
     @Override
     public void onDestroy() {
 
+        pausado = true;
+
         pararReconhecedor();
+
+        if (handler != null) {
+
+            handler.removeCallbacksAndMessages(
+                    null
+            );
+        }
+
+        if (voiceManager != null) {
+
+            try {
+
+                voiceManager.stop();
+
+            } catch (Exception e) {
+                // Nada a fazer.
+            }
+
+            try {
+
+                voiceManager.destroy();
+
+            } catch (Exception e) {
+                // Nada a fazer.
+            }
+        }
 
         try {
 
@@ -395,6 +691,7 @@ public class JarvisVoiceService extends Service {
 
     @Override
     public IBinder onBind(Intent intent) {
+
         return null;
     }
 }
