@@ -3,14 +3,21 @@ package com.jarvis.lite;
 import android.content.Context;
 
 /**
- * Gerenciador principal dos modos de IA do JARVIS.
+ * Gerenciador central da inteligência do JARVIS.
  *
- * Responsável por:
- * - controlar o modo offline;
- * - controlar o modo online;
+ * Responsabilidades:
+ * - controlar o modo OFFLINE/ONLINE;
  * - utilizar o JarvisBrain no modo offline;
- * - manter a estrutura preparada para uma IA online;
- * - não acessar a Internet automaticamente.
+ * - utilizar o JarvisOnlineManager quando houver
+ *   um provedor online conectado;
+ * - manter o offline como modo padrão;
+ * - permitir troca de modo sem alterar o restante
+ *   da arquitetura.
+ *
+ * IMPORTANTE:
+ * Este arquivo não cria uma conexão com a Internet.
+ * A conexão real depende do JarvisOnlineManager
+ * e de um provedor que será conectado posteriormente.
  */
 public class JarvisAIManager {
 
@@ -20,19 +27,32 @@ public class JarvisAIManager {
     }
 
     private final Context context;
+
     private final JarvisBrain offlineBrain;
+    private final JarvisOnlineManager onlineManager;
 
     private AIMode currentMode = AIMode.OFFLINE;
-
-    private boolean onlineEnabled = false;
 
     public JarvisAIManager(Context context) {
 
         this.context =
                 context.getApplicationContext();
 
+        /*
+         * Cérebro local.
+         */
         this.offlineBrain =
-                new JarvisBrain(this.context);
+                new JarvisBrain(
+                        this.context
+                );
+
+        /*
+         * Gerenciador da infraestrutura online.
+         */
+        this.onlineManager =
+                new JarvisOnlineManager(
+                        this.context
+                );
     }
 
     /**
@@ -58,72 +78,110 @@ public class JarvisAIManager {
     /**
      * Ativa o modo offline.
      *
-     * O JARVIS passa a utilizar exclusivamente
-     * o cérebro local.
+     * O JARVIS utilizará o cérebro local.
      */
     public synchronized void enableOfflineMode() {
 
-        currentMode = AIMode.OFFLINE;
+        currentMode =
+                AIMode.OFFLINE;
     }
 
     /**
-     * Solicita a ativação do modo online.
+     * Ativa o modo online.
      *
-     * Esta função NÃO abre conexão de Internet.
+     * IMPORTANTE:
+     * isso apenas seleciona o modo online.
      *
-     * Ela apenas habilita o modo para que uma
-     * futura camada online possa ser conectada.
+     * Não cria conexão automaticamente.
      */
     public synchronized void enableOnlineMode() {
 
-        onlineEnabled = true;
-        currentMode = AIMode.ONLINE;
+        currentMode =
+                AIMode.ONLINE;
+
+        onlineManager.enableOnline();
     }
 
     /**
-     * Desativa completamente o modo online
-     * e retorna ao modo offline.
+     * Desativa o modo online e retorna
+     * ao modo offline.
      */
     public synchronized void disableOnlineMode() {
 
-        onlineEnabled = false;
-        currentMode = AIMode.OFFLINE;
+        onlineManager.disableOnline();
+
+        currentMode =
+                AIMode.OFFLINE;
     }
 
     /**
-     * Verifica se o modo online está habilitado.
-     */
-    public synchronized boolean isOnlineEnabled() {
-
-        return onlineEnabled;
-    }
-
-    /**
-     * Verifica se o JARVIS está funcionando
-     * no modo offline.
+     * Verifica se o modo atual é offline.
      */
     public synchronized boolean isOfflineMode() {
 
-        return currentMode == AIMode.OFFLINE;
+        return currentMode ==
+                AIMode.OFFLINE;
     }
 
     /**
-     * Verifica se o JARVIS está configurado
-     * para o modo online.
+     * Verifica se o modo atual é online.
      */
     public synchronized boolean isOnlineMode() {
 
-        return currentMode == AIMode.ONLINE;
+        return currentMode ==
+                AIMode.ONLINE;
     }
 
     /**
-     * Processa uma mensagem usando a IA
-     * disponível atualmente.
+     * Verifica se a infraestrutura online
+     * está habilitada.
+     */
+    public synchronized boolean isOnlineEnabled() {
+
+        return onlineManager
+                .isOnlineEnabled();
+    }
+
+    /**
+     * Verifica se existe conexão com
+     * um provedor online.
+     */
+    public synchronized boolean isOnlineConnected() {
+
+        return onlineManager
+                .isConnected();
+    }
+
+    /**
+     * Retorna o gerenciador online.
+     */
+    public JarvisOnlineManager
+    getOnlineManager() {
+
+        return onlineManager;
+    }
+
+    /**
+     * Retorna o cérebro offline.
+     */
+    public JarvisBrain getOfflineBrain() {
+
+        return offlineBrain;
+    }
+
+    /**
+     * Processa uma mensagem usando o modo
+     * atualmente selecionado.
      *
-     * No estado atual do projeto:
-     * - OFFLINE usa JarvisBrain;
-     * - ONLINE ainda não possui um provedor
-     *   externo conectado.
+     * OFFLINE:
+     * utiliza JarvisBrain.
+     *
+     * ONLINE:
+     * tenta utilizar o provedor online.
+     *
+     * Caso o provedor online não esteja
+     * realmente conectado, utiliza o cérebro
+     * offline como fallback.
      */
     public synchronized String process(
             String input,
@@ -138,7 +196,8 @@ public class JarvisAIManager {
         /*
          * MODO OFFLINE
          */
-        if (currentMode == AIMode.OFFLINE) {
+        if (currentMode ==
+                AIMode.OFFLINE) {
 
             return offlineBrain.process(
                     input,
@@ -148,20 +207,63 @@ public class JarvisAIManager {
 
         /*
          * MODO ONLINE
-         *
-         * A infraestrutura online será conectada
-         * posteriormente.
-         *
-         * Não fazemos uma conexão automática aqui.
          */
-        return "O modo online está ativado, "
-                + "mas o provedor de IA online "
-                + "ainda não foi conectado.";
+        if (currentMode ==
+                AIMode.ONLINE) {
+
+            /*
+             * Só tenta o provedor online se
+             * realmente houver conexão.
+             */
+            if (onlineManager.canUseOnline()) {
+
+                String onlineResponse =
+                        onlineManager
+                                .processOnlineRequest(
+                                        input,
+                                        context
+                                );
+
+                /*
+                 * Se o provedor retornar uma
+                 * resposta válida, utilizamos ela.
+                 */
+                if (onlineResponse != null
+                        && !onlineResponse
+                                .trim()
+                                .isEmpty()) {
+
+                    return onlineResponse;
+                }
+            }
+
+            /*
+             * FALLBACK OFFLINE
+             *
+             * Se o modo online estiver selecionado,
+             * mas ainda não houver um provedor
+             * conectado, o cérebro local continua
+             * disponível.
+             */
+            return offlineBrain.process(
+                    input,
+                    context
+            );
+        }
+
+        /*
+         * Segurança:
+         * o modo padrão sempre será offline.
+         */
+        return offlineBrain.process(
+                input,
+                context
+        );
     }
 
     /**
-     * Processa uma mensagem usando
-     * explicitamente o modo offline.
+     * Processa explicitamente utilizando
+     * somente o cérebro offline.
      */
     public synchronized String processOffline(
             String input,
@@ -174,40 +276,97 @@ public class JarvisAIManager {
     }
 
     /**
-     * Retorna o cérebro offline.
+     * Processa explicitamente utilizando
+     * somente o provedor online.
+     *
+     * Se não houver conexão, retorna null.
+     *
+     * Não faz fallback neste método porque
+     * ele foi criado para quem deseja exigir
+     * processamento online.
      */
-    public JarvisBrain getOfflineBrain() {
+    public synchronized String processOnline(
+            String input,
+            String context) {
 
-        return offlineBrain;
-    }
+        if (input == null
+                || input.trim().isEmpty()) {
 
-    /**
-     * Retorna o estado atual do sistema.
-     */
-    public synchronized String getStatus() {
-
-        if (currentMode == AIMode.ONLINE) {
-
-            if (onlineEnabled) {
-
-                return "JARVIS em modo online.";
-            }
-
-            return "Modo online indisponível.";
+            return "";
         }
 
-        return "JARVIS em modo offline.";
+        if (!onlineManager.canUseOnline()) {
+
+            return null;
+        }
+
+        return onlineManager
+                .processOnlineRequest(
+                        input,
+                        context
+                );
     }
 
     /**
-     * Alterna entre offline e online.
+     * Define o provedor online.
      *
-     * Se estiver offline, passa para online.
-     * Se estiver online, retorna para offline.
+     * Isso apenas configura o nome.
+     * Não estabelece conexão.
+     */
+    public synchronized void setOnlineProvider(
+            String providerName) {
+
+        onlineManager.setProviderName(
+                providerName
+        );
+    }
+
+    /**
+     * Retorna o provedor online configurado.
+     */
+    public synchronized String
+    getOnlineProvider() {
+
+        return onlineManager
+                .getProviderName();
+    }
+
+    /**
+     * Informa ao sistema que um provedor
+     * online foi conectado.
+     */
+    public synchronized void markOnlineConnected(
+            String providerName) {
+
+        onlineManager.markConnected(
+                providerName
+        );
+
+        /*
+         * Se o usuário já tiver escolhido
+         * o modo online, ele continuará online.
+         */
+    }
+
+    /**
+     * Informa ao sistema que o provedor
+     * online foi desconectado.
+     */
+    public synchronized void markOnlineDisconnected() {
+
+        onlineManager.markDisconnected();
+    }
+
+    /**
+     * Alterna entre OFFLINE e ONLINE.
+     *
+     * OFFLINE → ONLINE
+     * ONLINE → OFFLINE
      */
     public synchronized void toggleMode() {
 
-        if (currentMode == AIMode.OFFLINE) {
+        if (currentMode ==
+                AIMode.OFFLINE) {
 
             enableOnlineMode();
 
@@ -218,13 +377,63 @@ public class JarvisAIManager {
     }
 
     /**
-     * Reseta o sistema para o modo offline.
-     *
-     * Útil como comportamento seguro padrão.
+     * Restaura o estado seguro padrão:
+     * OFFLINE e sem conexão online.
      */
     public synchronized void resetToOffline() {
 
-        onlineEnabled = false;
-        currentMode = AIMode.OFFLINE;
+        onlineManager.shutdown();
+
+        currentMode =
+                AIMode.OFFLINE;
     }
-}
+
+    /**
+     * Retorna uma descrição do estado atual.
+     */
+    public synchronized String getStatus() {
+
+        if (currentMode ==
+                AIMode.OFFLINE) {
+
+            return "JARVIS em modo offline.";
+        }
+
+        if (!onlineManager.isOnlineEnabled()) {
+
+            return "Modo online selecionado, "
+                    + "mas desativado.";
+        }
+
+        if (!onlineManager.isConnected()) {
+
+            return "Modo online selecionado, "
+                    + "aguardando conexão.";
+        }
+
+        String provider =
+                onlineManager
+                        .getProviderName();
+
+        if (provider == null
+                || provider.trim().isEmpty()) {
+
+            return "JARVIS online, "
+                    + "sem provedor definido.";
+        }
+
+        return "JARVIS online — provedor: "
+                + provider;
+    }
+
+    /**
+     * Libera os recursos do gerenciador online.
+     */
+    public synchronized void shutdown() {
+
+        onlineManager.shutdown();
+
+        currentMode =
+                AIMode.OFFLINE;
+    }
+ }
