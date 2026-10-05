@@ -634,13 +634,13 @@ private final JarvisBrain cerebro =
         clockText.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD);
         clockText.setTextColor(Color.rgb(120, 215, 255));
         clockText.setGravity(Gravity.CENTER);
-        root.addView(clockText, new LinearLayout.LayoutParams(-1, dp(72)));
+        root.addView(clockText, new LinearLayout.LayoutParams(-1, dp(68)));
 
         homeDateText = criarTexto("");
         homeDateText.setTextSize(16);
         homeDateText.setTextColor(Color.WHITE);
         homeDateText.setGravity(Gravity.CENTER);
-        root.addView(homeDateText, new LinearLayout.LayoutParams(-1, dp(30)));
+        root.addView(homeDateText, new LinearLayout.LayoutParams(-1, dp(36)));
 
         // Clima: usa apenas informação configurada/obtida pelo próprio app.
         homeWeatherText = criarTexto("");
@@ -648,7 +648,7 @@ private final JarvisBrain cerebro =
         homeWeatherText.setTextColor(Color.LTGRAY);
         homeWeatherText.setGravity(Gravity.CENTER);
         homeWeatherText.setPadding(dp(12), dp(4), dp(12), dp(4));
-        root.addView(homeWeatherText, new LinearLayout.LayoutParams(-1, dp(52)));
+        root.addView(homeWeatherText, new LinearLayout.LayoutParams(-1, dp(46)));
 
         // Reator central.
         reactorView = new ReactorView(this);
@@ -664,8 +664,8 @@ private final JarvisBrain cerebro =
         LinearLayout.LayoutParams reactorParams =
                 new LinearLayout.LayoutParams(dp(250), dp(250));
         reactorParams.gravity = Gravity.CENTER_HORIZONTAL;
-        reactorParams.topMargin = dp(4);
-        reactorParams.bottomMargin = dp(8);
+        reactorParams.topMargin = dp(2);
+        reactorParams.bottomMargin = dp(6);
 
         root.addView(reactorView, reactorParams);
 
@@ -1947,8 +1947,6 @@ private final JarvisBrain cerebro =
                 "ANÁLISE BÁSICA DO JARVIS"
         );
 
-        ImageButton voltar = null; // o cabeçalho da tela base já fornece o retorno.
-
         TextView titulo = criarTexto("Verificando seu aparelho...");
         titulo.setTextSize(21);
         titulo.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD);
@@ -1957,7 +1955,7 @@ private final JarvisBrain cerebro =
         layout.addView(titulo, parametrosTexto());
 
         TextView subtitulo = criarTexto(
-                "Analisando aplicativos e arquivos\nem busca de ameaças."
+                "Analisando aplicativos e permissões\nacessíveis ao JARVIS."
         );
         subtitulo.setTextSize(13);
         subtitulo.setTextColor(Color.LTGRAY);
@@ -1966,7 +1964,7 @@ private final JarvisBrain cerebro =
 
         ReactorView scanner = new ReactorView(this);
         LinearLayout.LayoutParams scannerParams =
-                new LinearLayout.LayoutParams(-1, dp(210));
+                new LinearLayout.LayoutParams(dp(210), dp(210));
         scannerParams.gravity = Gravity.CENTER_HORIZONTAL;
         layout.addView(scanner, scannerParams);
 
@@ -1997,7 +1995,7 @@ private final JarvisBrain cerebro =
         layout.addView(porcentagem, new LinearLayout.LayoutParams(-1, dp(30)));
 
         TextView status1 = criarTexto("○  Analisando aplicativos...");
-        TextView status2 = criarTexto("○  Verificando arquivos...");
+        TextView status2 = criarTexto("○  Verificando informações acessíveis...");
         TextView status3 = criarTexto("○  Checando permissões...");
 
         status1.setTextSize(13);
@@ -2024,6 +2022,7 @@ private final JarvisBrain cerebro =
         iniciar.setOnClickListener(v -> {
 
             iniciar.setEnabled(false);
+            iniciar.setText("VERIFICANDO...");
             verificacaoEncontrouSuspeito = false;
             nomeAppSuspeito = "";
             detalheAppSuspeito = "";
@@ -2045,11 +2044,11 @@ private final JarvisBrain cerebro =
                         status1.setText("✓  Aplicativos analisados...");
                         status1.setTextColor(Color.rgb(70, 230, 150));
                         status2.setTextColor(Color.rgb(80, 205, 255));
-                        status2.setText("○  Verificando arquivos...");
+                        status2.setText("○  Verificando informações acessíveis...");
                     }
 
                     if (p[0] >= 60) {
-                        status2.setText("✓  Arquivos acessíveis verificados...");
+                        status2.setText("✓  Informações acessíveis verificadas...");
                         status2.setTextColor(Color.rgb(70, 230, 150));
                         status3.setTextColor(Color.rgb(80, 205, 255));
                         status3.setText("○  Checando permissões...");
@@ -2073,6 +2072,7 @@ private final JarvisBrain cerebro =
                         runOnUiThread(() -> {
                             scanner.setOuvindo(false);
                             iniciar.setEnabled(true);
+                            iniciar.setText("INICIAR VERIFICAÇÃO");
                             abrirResultadoVerificacao();
                         });
                     }).start();
@@ -2110,7 +2110,10 @@ private final JarvisBrain cerebro =
         );
 
         LinearLayout.LayoutParams iconeParams =
-                new LinearLayout.LayoutParams(-1, dp(190));
+                new LinearLayout.LayoutParams(dp(164), dp(164));
+        iconeParams.gravity = Gravity.CENTER_HORIZONTAL;
+        iconeParams.topMargin = dp(8);
+        iconeParams.bottomMargin = dp(8);
         layout.addView(icone, iconeParams);
 
         TextView titulo = criarTexto(
@@ -2598,27 +2601,43 @@ voltar.setOnClickListener(
         TextView tituloView =
                 criarTexto(titulo);
 
-        tituloView.setTextSize(22);
-
-        titulos.addView(
-                tituloView
-        );
+        tituloView.setTextSize(20);
+        tituloView.setGravity(Gravity.CENTER_VERTICAL);
+        tituloView.setMaxLines(2);
+        tituloView.setEllipsize(null);
+        tituloView.setIncludeFontPadding(true);
 
         TextView subtituloView =
                 criarTexto(subtitulo);
 
-        subtituloView.setTextSize(11);
+        subtituloView.setTextSize(10);
         subtituloView.setTextColor(Color.GRAY);
+        subtituloView.setGravity(Gravity.CENTER_VERTICAL);
+        subtituloView.setMaxLines(2);
+        subtituloView.setEllipsize(null);
+        subtituloView.setIncludeFontPadding(true);
 
         titulos.addView(
-                subtituloView
+                tituloView,
+                new LinearLayout.LayoutParams(
+                        -1,
+                        dp(34)
+                )
+        );
+
+        titulos.addView(
+                subtituloView,
+                new LinearLayout.LayoutParams(
+                        -1,
+                        dp(28)
+                )
         );
 
         header.addView(
                 titulos,
                 new LinearLayout.LayoutParams(
                         0,
-                        dp(52),
+                        dp(64),
                         1
                 )
         );
@@ -2627,7 +2646,7 @@ voltar.setOnClickListener(
                 header,
                 new LinearLayout.LayoutParams(
                         -1,
-                        dp(58)
+                        dp(72)
                 )
         );
 
@@ -2838,10 +2857,14 @@ voltar.setOnClickListener(
                         dp(46)
                 );
 
+        params.gravity = Gravity.CENTER_HORIZONTAL;
+        params.leftMargin = dp(18);
+        params.rightMargin = dp(18);
         params.topMargin = dp(6);
+        params.bottomMargin = dp(2);
 
         return params;
-            }     private void voltarTela() {
+    }     private void voltarTela() {
         abrirTelaPrincipal();
     }
 
@@ -5848,7 +5871,7 @@ private String calcularExpressaoSimples(String texto) {
 
                 canvas.drawArc(
                         oval,
-                        15f,
+                        0f,
                         285f,
                         false,
                         paint
@@ -5856,8 +5879,8 @@ private String calcularExpressaoSimples(String texto) {
 
                 canvas.drawArc(
                         oval,
-                        320f,
-                        25f,
+                        300f,
+                        35f,
                         false,
                         paint
                 );
