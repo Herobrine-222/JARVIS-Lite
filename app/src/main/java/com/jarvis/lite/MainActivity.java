@@ -1955,7 +1955,7 @@ private final JarvisBrain cerebro =
         layout.addView(titulo, parametrosTexto());
 
         TextView subtitulo = criarTexto(
-                "Analisando aplicativos e permissões\nacessíveis ao JARVIS."
+                "Analisando aplicativos e permissões acessíveis ao JARVIS."
         );
         subtitulo.setTextSize(13);
         subtitulo.setTextColor(Color.LTGRAY);
@@ -2023,6 +2023,7 @@ private final JarvisBrain cerebro =
 
             iniciar.setEnabled(false);
             iniciar.setText("VERIFICANDO...");
+            iniciar.setVisibility(View.GONE);
             verificacaoEncontrouSuspeito = false;
             nomeAppSuspeito = "";
             detalheAppSuspeito = "";
@@ -2073,6 +2074,7 @@ private final JarvisBrain cerebro =
                             scanner.setOuvindo(false);
                             iniciar.setEnabled(true);
                             iniciar.setText("INICIAR VERIFICAÇÃO");
+                            iniciar.setVisibility(View.VISIBLE);
                             abrirResultadoVerificacao();
                         });
                     }).start();
@@ -2119,7 +2121,9 @@ private final JarvisBrain cerebro =
         TextView titulo = criarTexto(
                 verificacaoEncontrouSuspeito
                         ? "Foi encontrado um app\nsupostamente malicioso,\nverifique se foi você que instalou."
-                        : "Seu telefone parece estar seguro,\ntenha um bom dia."
+                        : "Seu telefone parece estar seguro,\n"
+                                + saudacaoCurtaPorHorario()
+                                + "."
         );
         titulo.setTextSize(18);
         titulo.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD);
@@ -2597,11 +2601,12 @@ voltar.setOnClickListener(
         titulos.setGravity(
                 Gravity.CENTER_VERTICAL
         );
+        titulos.setPadding(0, dp(2), 0, dp(2));
 
         TextView tituloView =
                 criarTexto(titulo);
 
-        tituloView.setTextSize(20);
+        tituloView.setTextSize(19);
         tituloView.setGravity(Gravity.CENTER_VERTICAL);
         tituloView.setMaxLines(2);
         tituloView.setEllipsize(null);
@@ -2610,7 +2615,7 @@ voltar.setOnClickListener(
         TextView subtituloView =
                 criarTexto(subtitulo);
 
-        subtituloView.setTextSize(10);
+        subtituloView.setTextSize(12);
         subtituloView.setTextColor(Color.GRAY);
         subtituloView.setGravity(Gravity.CENTER_VERTICAL);
         subtituloView.setMaxLines(2);
@@ -2621,7 +2626,7 @@ voltar.setOnClickListener(
                 tituloView,
                 new LinearLayout.LayoutParams(
                         -1,
-                        dp(34)
+                        dp(46)
                 )
         );
 
@@ -2629,7 +2634,7 @@ voltar.setOnClickListener(
                 subtituloView,
                 new LinearLayout.LayoutParams(
                         -1,
-                        dp(28)
+                        dp(32)
                 )
         );
 
@@ -4010,6 +4015,17 @@ private String calcularExpressaoSimples(String texto) {
         }
 
         return null;
+    }
+
+    private String saudacaoCurtaPorHorario() {
+
+        int hora =
+                Calendar.getInstance()
+                        .get(Calendar.HOUR_OF_DAY);
+
+        if (hora >= 5 && hora < 12) return "tenha um bom dia";
+        if (hora >= 12 && hora < 18) return "tenha uma boa tarde";
+        return "tenha uma boa noite";
     }
 
     private String saudacaoPorHorario() {
