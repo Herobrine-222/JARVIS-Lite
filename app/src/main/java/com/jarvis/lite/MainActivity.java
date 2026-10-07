@@ -107,6 +107,8 @@ private final JarvisBrain cerebro =
     private final ArrayList<Integer> mensagensSelecionadas =
             new ArrayList<>();
 
+    private Button historicoApagarButton;
+
     private int telaAtual = TELA_PRINCIPAL;
 
     @Override
@@ -610,7 +612,7 @@ private final JarvisBrain cerebro =
         header.setPadding(dp(10), 0, dp(10), 0);
 
         TextView titulo = new TextView(this);
-        titulo.setText("J.A.R.V.I.S");
+        titulo.setText("Jarvis");
         titulo.setTextSize(24);
         titulo.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD);
         titulo.setTextColor(Color.rgb(80, 205, 255));
@@ -634,13 +636,13 @@ private final JarvisBrain cerebro =
         clockText.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD);
         clockText.setTextColor(Color.rgb(120, 215, 255));
         clockText.setGravity(Gravity.CENTER);
-        root.addView(clockText, new LinearLayout.LayoutParams(-1, dp(68)));
+        root.addView(clockText, new LinearLayout.LayoutParams(-1, dp(72)));
 
         homeDateText = criarTexto("");
         homeDateText.setTextSize(16);
         homeDateText.setTextColor(Color.WHITE);
         homeDateText.setGravity(Gravity.CENTER);
-        root.addView(homeDateText, new LinearLayout.LayoutParams(-1, dp(36)));
+        root.addView(homeDateText, new LinearLayout.LayoutParams(-1, dp(30)));
 
         // Clima: usa apenas informação configurada/obtida pelo próprio app.
         homeWeatherText = criarTexto("");
@@ -648,7 +650,7 @@ private final JarvisBrain cerebro =
         homeWeatherText.setTextColor(Color.LTGRAY);
         homeWeatherText.setGravity(Gravity.CENTER);
         homeWeatherText.setPadding(dp(12), dp(4), dp(12), dp(4));
-        root.addView(homeWeatherText, new LinearLayout.LayoutParams(-1, dp(46)));
+        root.addView(homeWeatherText, new LinearLayout.LayoutParams(-1, dp(52)));
 
         // Reator central.
         reactorView = new ReactorView(this);
@@ -664,8 +666,8 @@ private final JarvisBrain cerebro =
         LinearLayout.LayoutParams reactorParams =
                 new LinearLayout.LayoutParams(dp(250), dp(250));
         reactorParams.gravity = Gravity.CENTER_HORIZONTAL;
-        reactorParams.topMargin = dp(2);
-        reactorParams.bottomMargin = dp(6);
+        reactorParams.topMargin = dp(4);
+        reactorParams.bottomMargin = dp(8);
 
         root.addView(reactorView, reactorParams);
 
@@ -750,50 +752,253 @@ private final JarvisBrain cerebro =
 
     private LinearLayout criarEntradaMensagem(Runnable aoFocar) {
 
-        LinearLayout entrada = new LinearLayout(this);
-        entrada.setOrientation(LinearLayout.HORIZONTAL);
-        entrada.setGravity(Gravity.CENTER_VERTICAL);
-        entrada.setPadding(dp(10), dp(4), dp(10), dp(4));
+        LinearLayout entrada =
+                new LinearLayout(this);
 
-        GradientDrawable campoFundo = new GradientDrawable();
-        campoFundo.setColor(Color.rgb(3, 13, 25));
-        campoFundo.setCornerRadius(dp(22));
-        campoFundo.setStroke(dp(1), Color.rgb(0, 150, 255));
+        entrada.setOrientation(
+                LinearLayout.HORIZONTAL
+        );
 
-        commandInput = new EditText(this);
-        commandInput.setHint("Digite uma mensagem...");
-        commandInput.setHintTextColor(Color.rgb(125, 145, 165));
-        commandInput.setTextColor(Color.WHITE);
-        commandInput.setSingleLine(true);
-        commandInput.setTextSize(14);
-        commandInput.setPadding(dp(16), 0, dp(12), 0);
-        commandInput.setBackground(campoFundo);
+        entrada.setGravity(
+                Gravity.CENTER_VERTICAL
+        );
 
-        commandInput.setOnFocusChangeListener((v, focused) -> {
-            if (focused && aoFocar != null && !chatMode) {
-                aoFocar.run();
-            }
-        });
+        entrada.setPadding(
+                dp(10),
+                dp(4),
+                dp(10),
+                dp(4)
+        );
+
+        GradientDrawable campoFundo =
+                new GradientDrawable();
+
+        campoFundo.setColor(
+                Color.rgb(3, 13, 25)
+        );
+
+        campoFundo.setCornerRadius(
+                dp(22)
+        );
+
+        campoFundo.setStroke(
+                dp(1),
+                Color.rgb(0, 150, 255)
+        );
+
+        commandInput =
+                new EditText(this);
+
+        commandInput.setHint(
+                "Digite uma mensagem..."
+        );
+
+        commandInput.setHintTextColor(
+                Color.rgb(125, 145, 165)
+        );
+
+        commandInput.setTextColor(
+                Color.WHITE
+        );
+
+        commandInput.setSingleLine(
+                true
+        );
+
+        commandInput.setTextSize(
+                14
+        );
+
+        commandInput.setInputType(
+                android.text.InputType.TYPE_CLASS_TEXT
+                        | android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+        );
+
+        commandInput.setImeOptions(
+                android.view.inputmethod.EditorInfo.IME_ACTION_SEND
+        );
+
+        commandInput.setPadding(
+                dp(16),
+                0,
+                dp(12),
+                0
+        );
+
+        commandInput.setBackground(
+                campoFundo
+        );
+
+        commandInput.setOnFocusChangeListener(
+                (v, focused) -> {
+
+                    if (focused
+                            && aoFocar != null
+                            && !chatMode) {
+
+                        aoFocar.run();
+                    }
+                }
+        );
+
+        commandInput.setOnEditorActionListener(
+                (v, actionId, event) -> {
+
+                    boolean enviarPorAcao =
+                            actionId ==
+                                    android.view.inputmethod.EditorInfo.IME_ACTION_SEND;
+
+                    boolean enviarPorEnter =
+                            event != null
+                                    && event.getKeyCode()
+                                    == android.view.KeyEvent.KEYCODE_ENTER
+                                    && event.getAction()
+                                    == android.view.KeyEvent.ACTION_DOWN;
+
+                    if (enviarPorAcao || enviarPorEnter) {
+                        enviarTextoDigitado();
+                        return true;
+                    }
+
+                    return false;
+                }
+        );
 
         entrada.addView(
                 commandInput,
-                new LinearLayout.LayoutParams(0, dp(52), 1)
+                new LinearLayout.LayoutParams(
+                        0,
+                        dp(52),
+                        1
+                )
         );
 
-        ImageButton microfone = new ImageButton(this);
-        microfone.setImageResource(R.drawable.ic_jarvis_mic);
-        microfone.setBackgroundColor(Color.TRANSPARENT);
-        microfone.setColorFilter(Color.rgb(80, 205, 255));
-        microfone.setContentDescription("Microfone");
-        microfone.setOnClickListener(v -> {
-            if (!chatMode) {
-                abrirChatIA();
-            }
-            if (!ouvindo) iniciarReconhecimento();
-            else pararReconhecimento();
-        });
+        ImageButton microfone =
+                new ImageButton(this);
 
-        entrada.addView(microfone, new LinearLayout.LayoutParams(dp(52), dp(52)));
+        microfone.setImageResource(
+                R.drawable.ic_jarvis_mic
+        );
+
+        microfone.setBackgroundColor(
+                Color.TRANSPARENT
+        );
+
+        microfone.setColorFilter(
+                Color.rgb(80, 205, 255)
+        );
+
+        microfone.setPadding(
+                dp(8),
+                dp(8),
+                dp(8),
+                dp(8)
+        );
+
+        microfone.setScaleType(
+                ImageButton.ScaleType.CENTER
+        );
+
+        microfone.setContentDescription(
+                "Microfone"
+        );
+
+        microfone.setOnClickListener(
+                v -> {
+
+                    if (!chatMode) {
+                        abrirChatIA();
+                    }
+
+                    if (!ouvindo) {
+                        iniciarReconhecimento();
+                    } else {
+                        pararReconhecimento();
+                    }
+                }
+        );
+
+        entrada.addView(
+                microfone,
+                new LinearLayout.LayoutParams(
+                        dp(52),
+                        dp(52)
+                )
+        );
+
+        ImageButton enviar =
+                new ImageButton(this);
+
+        enviar.setImageResource(
+                R.drawable.ic_jarvis_send
+        );
+
+        enviar.setBackgroundColor(
+                Color.TRANSPARENT
+        );
+
+        enviar.setColorFilter(
+                Color.rgb(80, 205, 255)
+        );
+
+        enviar.setPadding(
+                dp(8),
+                dp(8),
+                dp(8),
+                dp(8)
+        );
+
+        enviar.setScaleType(
+                ImageButton.ScaleType.CENTER
+        );
+
+        enviar.setContentDescription(
+                "Enviar"
+        );
+
+        enviar.setOnClickListener(
+                v -> {
+
+                    if (commandInput == null) {
+                        return;
+                    }
+
+                    String texto =
+                            commandInput.getText()
+                                    .toString()
+                                    .trim();
+
+                    if (texto.isEmpty()) {
+                        return;
+                    }
+
+                    if (!chatMode) {
+
+                        abrirChatIA();
+
+                        if (commandInput != null) {
+
+                            commandInput.setText(
+                                    texto
+                            );
+
+                            commandInput.setSelection(
+                                    commandInput.length()
+                            );
+                        }
+                    }
+
+                    enviarTextoDigitado();
+                }
+        );
+
+        entrada.addView(
+                enviar,
+                new LinearLayout.LayoutParams(
+                        dp(52),
+                        dp(52)
+                )
+        );
 
         return entrada;
     }
@@ -822,94 +1027,260 @@ private final JarvisBrain cerebro =
         chatMode = true;
         telaAtual = TELA_PRINCIPAL;
 
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(Color.rgb(1, 7, 16));
+        LinearLayout root =
+                new LinearLayout(this);
+
+        root.setOrientation(
+                LinearLayout.VERTICAL
+        );
+
+        root.setBackgroundColor(
+                Color.rgb(1, 7, 16)
+        );
+
         configurarAreaSegura(root);
 
-        LinearLayout header = new LinearLayout(this);
-        header.setOrientation(LinearLayout.HORIZONTAL);
-        header.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout header =
+                new LinearLayout(this);
 
-        ImageButton voltar = new ImageButton(this);
-        voltar.setImageResource(R.drawable.ic_jarvis_back);
-        voltar.setBackgroundColor(Color.TRANSPARENT);
-        voltar.setColorFilter(Color.WHITE);
-        voltar.setContentDescription("Voltar");
-        voltar.setOnClickListener(v -> {
-            esconderTeclado();
-            configurarTela();
-        });
-        header.addView(voltar, new LinearLayout.LayoutParams(dp(52), dp(52)));
+        header.setOrientation(
+                LinearLayout.HORIZONTAL
+        );
 
-        LinearLayout titulos = new LinearLayout(this);
-        titulos.setOrientation(LinearLayout.VERTICAL);
-        titulos.setGravity(Gravity.CENTER_VERTICAL);
+        header.setGravity(
+                Gravity.CENTER_VERTICAL
+        );
 
-        TextView titulo = criarTexto("J.A.R.V.I.S");
-        titulo.setTextSize(21);
-        titulo.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD);
-        titulo.setTextColor(Color.WHITE);
+        ImageButton voltar =
+                new ImageButton(this);
 
-        TextView estado = criarTexto("●");
-        estado.setTextSize(13);
-        estado.setTextColor(Color.rgb(50, 230, 130));
+        voltar.setImageResource(
+                R.drawable.ic_jarvis_back
+        );
 
-        LinearLayout tituloLinha = new LinearLayout(this);
-        tituloLinha.setGravity(Gravity.CENTER_VERTICAL);
-        tituloLinha.addView(titulo);
-        tituloLinha.addView(estado, new LinearLayout.LayoutParams(dp(30), dp(40)));
+        voltar.setBackgroundColor(
+                Color.TRANSPARENT
+        );
 
-        titulos.addView(tituloLinha);
-        header.addView(titulos, new LinearLayout.LayoutParams(0, dp(56), 1));
+        voltar.setColorFilter(
+                Color.WHITE
+        );
 
-        ImageButton info = new ImageButton(this);
-        info.setImageResource(R.drawable.ic_jarvis_menu);
-        info.setBackgroundColor(Color.TRANSPARENT);
-        info.setColorFilter(Color.rgb(80, 205, 255));
-        info.setContentDescription("Menu");
-        info.setOnClickListener(v -> abrirMenuJarvis());
-        header.addView(info, new LinearLayout.LayoutParams(dp(52), dp(52)));
+        voltar.setPadding(
+                dp(8),
+                dp(8),
+                dp(8),
+                dp(8)
+        );
 
-        root.addView(header, new LinearLayout.LayoutParams(-1, dp(58)));
+        voltar.setContentDescription(
+                "Voltar"
+        );
 
-        chatScroll = new ScrollView(this);
-        chatScroll.setFillViewport(true);
-        chatScroll.setClipToPadding(false);
+        voltar.setOnClickListener(
+                v -> {
+                    esconderTeclado();
+                    configurarTela();
+                }
+        );
 
-        chatContainer = new LinearLayout(this);
-        chatContainer.setOrientation(LinearLayout.VERTICAL);
-        chatContainer.setPadding(dp(12), dp(10), dp(12), dp(10));
+        header.addView(
+                voltar,
+                new LinearLayout.LayoutParams(
+                        dp(52),
+                        dp(52)
+                )
+        );
 
-        chatScroll.addView(chatContainer);
+        LinearLayout titulos =
+                new LinearLayout(this);
+
+        titulos.setOrientation(
+                LinearLayout.VERTICAL
+        );
+
+        titulos.setGravity(
+                Gravity.CENTER_VERTICAL
+        );
+
+        TextView titulo =
+                criarTexto("J.A.R.V.I.S");
+
+        titulo.setTextSize(
+                21
+        );
+
+        titulo.setTypeface(
+                android.graphics.Typeface.DEFAULT,
+                android.graphics.Typeface.BOLD
+        );
+
+        titulo.setTextColor(
+                Color.WHITE
+        );
+
+        TextView estado =
+                criarTexto("●  MODO CONVERSA");
+
+        estado.setTextSize(
+                10
+        );
+
+        estado.setTextColor(
+                Color.rgb(50, 230, 130)
+        );
+
+        LinearLayout tituloLinha =
+                new LinearLayout(this);
+
+        tituloLinha.setGravity(
+                Gravity.CENTER_VERTICAL
+        );
+
+        tituloLinha.addView(
+                titulo
+        );
+
+        titulos.addView(
+                tituloLinha
+        );
+
+        titulos.addView(
+                estado,
+                new LinearLayout.LayoutParams(
+                        -1,
+                        dp(20)
+                )
+        );
+
+        header.addView(
+                titulos,
+                new LinearLayout.LayoutParams(
+                        0,
+                        dp(56),
+                        1
+                )
+        );
+
+        ImageButton menu =
+                new ImageButton(this);
+
+        menu.setImageResource(
+                R.drawable.ic_jarvis_menu
+        );
+
+        menu.setBackgroundColor(
+                Color.TRANSPARENT
+        );
+
+        menu.setColorFilter(
+                Color.rgb(80, 205, 255)
+        );
+
+        menu.setPadding(
+                dp(8),
+                dp(8),
+                dp(8),
+                dp(8)
+        );
+
+        menu.setContentDescription(
+                "Menu"
+        );
+
+        menu.setOnClickListener(
+                v -> abrirMenuJarvis()
+        );
+
+        header.addView(
+                menu,
+                new LinearLayout.LayoutParams(
+                        dp(52),
+                        dp(52)
+                )
+        );
+
+        root.addView(
+                header,
+                new LinearLayout.LayoutParams(
+                        -1,
+                        dp(58)
+                )
+        );
+
+        chatScroll =
+                new ScrollView(this);
+
+        chatScroll.setFillViewport(
+                true
+        );
+
+        chatScroll.setClipToPadding(
+                false
+        );
+
+        chatContainer =
+                new LinearLayout(this);
+
+        chatContainer.setOrientation(
+                LinearLayout.VERTICAL
+        );
+
+        chatContainer.setPadding(
+                dp(12),
+                dp(10),
+                dp(12),
+                dp(18)
+        );
+
+        chatScroll.addView(
+                chatContainer
+        );
+
         root.addView(
                 chatScroll,
-                new LinearLayout.LayoutParams(-1, 0, 1)
+                new LinearLayout.LayoutParams(
+                        -1,
+                        0,
+                        1
+                )
         );
 
         restaurarChatPrincipal();
 
-        // Reator pequeno, igual ao modo conversa da referência.
-        ReactorView miniReator = new ReactorView(this);
+        ReactorView miniReator =
+                new ReactorView(this);
+
         LinearLayout.LayoutParams miniParams =
-                new LinearLayout.LayoutParams(dp(120), dp(120));
-        miniParams.gravity = Gravity.CENTER_HORIZONTAL;
-        root.addView(miniReator, miniParams);
+                new LinearLayout.LayoutParams(
+                        dp(104),
+                        dp(104)
+                );
 
-        LinearLayout entrada = criarEntradaMensagem(null);
-        root.addView(entrada, new LinearLayout.LayoutParams(-1, dp(64)));
+        miniParams.gravity =
+                Gravity.CENTER_HORIZONTAL;
 
-        ImageButton enviar = new ImageButton(this);
-        enviar.setImageResource(R.drawable.ic_jarvis_send);
-        enviar.setBackgroundColor(Color.TRANSPARENT);
-        enviar.setColorFilter(Color.rgb(80, 205, 255));
-        enviar.setContentDescription("Enviar");
-        enviar.setOnClickListener(v -> enviarTextoDigitado());
+        miniParams.topMargin =
+                dp(2);
 
-        LinearLayout.LayoutParams enviarParams =
-                new LinearLayout.LayoutParams(dp(52), dp(48));
-        enviarParams.gravity = Gravity.CENTER_HORIZONTAL;
-        root.addView(enviar, enviarParams);
+        miniParams.bottomMargin =
+                dp(2);
+
+        root.addView(
+                miniReator,
+                miniParams
+        );
+
+        LinearLayout entrada =
+                criarEntradaMensagem(null);
+
+        root.addView(
+                entrada,
+                new LinearLayout.LayoutParams(
+                        -1,
+                        dp(64)
+                )
+        );
 
         setContentView(root);
 
@@ -1947,6 +2318,8 @@ private final JarvisBrain cerebro =
                 "ANÁLISE BÁSICA DO JARVIS"
         );
 
+        ImageButton voltar = null; // o cabeçalho da tela base já fornece o retorno.
+
         TextView titulo = criarTexto("Verificando seu aparelho...");
         titulo.setTextSize(21);
         titulo.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD);
@@ -1955,7 +2328,7 @@ private final JarvisBrain cerebro =
         layout.addView(titulo, parametrosTexto());
 
         TextView subtitulo = criarTexto(
-                "Analisando aplicativos e permissões acessíveis ao JARVIS."
+                "Analisando aplicativos e arquivos\nem busca de ameaças."
         );
         subtitulo.setTextSize(13);
         subtitulo.setTextColor(Color.LTGRAY);
@@ -1964,7 +2337,7 @@ private final JarvisBrain cerebro =
 
         ReactorView scanner = new ReactorView(this);
         LinearLayout.LayoutParams scannerParams =
-                new LinearLayout.LayoutParams(dp(210), dp(210));
+                new LinearLayout.LayoutParams(-1, dp(210));
         scannerParams.gravity = Gravity.CENTER_HORIZONTAL;
         layout.addView(scanner, scannerParams);
 
@@ -1995,7 +2368,7 @@ private final JarvisBrain cerebro =
         layout.addView(porcentagem, new LinearLayout.LayoutParams(-1, dp(30)));
 
         TextView status1 = criarTexto("○  Analisando aplicativos...");
-        TextView status2 = criarTexto("○  Verificando informações acessíveis...");
+        TextView status2 = criarTexto("○  Verificando arquivos...");
         TextView status3 = criarTexto("○  Checando permissões...");
 
         status1.setTextSize(13);
@@ -2022,8 +2395,6 @@ private final JarvisBrain cerebro =
         iniciar.setOnClickListener(v -> {
 
             iniciar.setEnabled(false);
-            iniciar.setText("VERIFICANDO...");
-            iniciar.setVisibility(View.GONE);
             verificacaoEncontrouSuspeito = false;
             nomeAppSuspeito = "";
             detalheAppSuspeito = "";
@@ -2045,11 +2416,11 @@ private final JarvisBrain cerebro =
                         status1.setText("✓  Aplicativos analisados...");
                         status1.setTextColor(Color.rgb(70, 230, 150));
                         status2.setTextColor(Color.rgb(80, 205, 255));
-                        status2.setText("○  Verificando informações acessíveis...");
+                        status2.setText("○  Verificando arquivos...");
                     }
 
                     if (p[0] >= 60) {
-                        status2.setText("✓  Informações acessíveis verificadas...");
+                        status2.setText("✓  Arquivos acessíveis verificados...");
                         status2.setTextColor(Color.rgb(70, 230, 150));
                         status3.setTextColor(Color.rgb(80, 205, 255));
                         status3.setText("○  Checando permissões...");
@@ -2073,8 +2444,6 @@ private final JarvisBrain cerebro =
                         runOnUiThread(() -> {
                             scanner.setOuvindo(false);
                             iniciar.setEnabled(true);
-                            iniciar.setText("INICIAR VERIFICAÇÃO");
-                            iniciar.setVisibility(View.VISIBLE);
                             abrirResultadoVerificacao();
                         });
                     }).start();
@@ -2112,18 +2481,13 @@ private final JarvisBrain cerebro =
         );
 
         LinearLayout.LayoutParams iconeParams =
-                new LinearLayout.LayoutParams(dp(164), dp(164));
-        iconeParams.gravity = Gravity.CENTER_HORIZONTAL;
-        iconeParams.topMargin = dp(8);
-        iconeParams.bottomMargin = dp(8);
+                new LinearLayout.LayoutParams(-1, dp(190));
         layout.addView(icone, iconeParams);
 
         TextView titulo = criarTexto(
                 verificacaoEncontrouSuspeito
                         ? "Foi encontrado um app\nsupostamente malicioso,\nverifique se foi você que instalou."
-                        : "Seu telefone parece estar seguro,\n"
-                                + saudacaoCurtaPorHorario()
-                                + "."
+                        : "Seu telefone parece estar seguro,\ntenha um bom dia."
         );
         titulo.setTextSize(18);
         titulo.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD);
@@ -2601,48 +2965,31 @@ voltar.setOnClickListener(
         titulos.setGravity(
                 Gravity.CENTER_VERTICAL
         );
-        titulos.setPadding(0, dp(2), 0, dp(2));
 
         TextView tituloView =
                 criarTexto(titulo);
 
-        tituloView.setTextSize(19);
-        tituloView.setGravity(Gravity.CENTER_VERTICAL);
-        tituloView.setMaxLines(2);
-        tituloView.setEllipsize(null);
-        tituloView.setIncludeFontPadding(true);
+        tituloView.setTextSize(22);
+
+        titulos.addView(
+                tituloView
+        );
 
         TextView subtituloView =
                 criarTexto(subtitulo);
 
-        subtituloView.setTextSize(12);
+        subtituloView.setTextSize(11);
         subtituloView.setTextColor(Color.GRAY);
-        subtituloView.setGravity(Gravity.CENTER_VERTICAL);
-        subtituloView.setMaxLines(2);
-        subtituloView.setEllipsize(null);
-        subtituloView.setIncludeFontPadding(true);
 
         titulos.addView(
-                tituloView,
-                new LinearLayout.LayoutParams(
-                        -1,
-                        dp(46)
-                )
-        );
-
-        titulos.addView(
-                subtituloView,
-                new LinearLayout.LayoutParams(
-                        -1,
-                        dp(32)
-                )
+                subtituloView
         );
 
         header.addView(
                 titulos,
                 new LinearLayout.LayoutParams(
                         0,
-                        dp(64),
+                        dp(52),
                         1
                 )
         );
@@ -2651,7 +2998,7 @@ voltar.setOnClickListener(
                 header,
                 new LinearLayout.LayoutParams(
                         -1,
-                        dp(72)
+                        dp(58)
                 )
         );
 
@@ -2862,14 +3209,12 @@ voltar.setOnClickListener(
                         dp(46)
                 );
 
-        params.gravity = Gravity.CENTER_HORIZONTAL;
-        params.leftMargin = dp(18);
-        params.rightMargin = dp(18);
         params.topMargin = dp(6);
-        params.bottomMargin = dp(2);
 
         return params;
-    }     private void voltarTela() {
+            }
+
+    private void voltarTela() {
         abrirTelaPrincipal();
     }
 
@@ -4017,17 +4362,6 @@ private String calcularExpressaoSimples(String texto) {
         return null;
     }
 
-    private String saudacaoCurtaPorHorario() {
-
-        int hora =
-                Calendar.getInstance()
-                        .get(Calendar.HOUR_OF_DAY);
-
-        if (hora >= 5 && hora < 12) return "tenha um bom dia";
-        if (hora >= 12 && hora < 18) return "tenha uma boa tarde";
-        return "tenha uma boa noite";
-    }
-
     private String saudacaoPorHorario() {
 
         int hora =
@@ -4535,9 +4869,11 @@ private String calcularExpressaoSimples(String texto) {
 
         commandInput.setText("");
 
-        esconderTeclado();
-
         processarComando(comando);
+
+        if (chatMode && commandInput != null) {
+            commandInput.requestFocus();
+        }
     }
 
     private void esconderTeclado() {
@@ -4845,12 +5181,51 @@ private String calcularExpressaoSimples(String texto) {
                 TELA_HISTORICO;
 
         mensagensSelecionadas.clear();
+        historicoApagarButton = null;
 
         LinearLayout layout =
                 criarTelaBase(
                         "HISTÓRICO DE CONVERSAS",
                         "CONVERSAS SALVAS LOCALMENTE"
                 );
+
+        if (layout.getChildCount() > 0
+                && layout.getChildAt(0)
+                instanceof LinearLayout) {
+
+            LinearLayout header =
+                    (LinearLayout) layout.getChildAt(0);
+
+            historicoApagarButton =
+                    criarBotao("APAGAR");
+
+            historicoApagarButton.setTextSize(
+                    10
+            );
+
+            historicoApagarButton.setPadding(
+                    dp(6),
+                    dp(4),
+                    dp(6),
+                    dp(4)
+            );
+
+            historicoApagarButton.setVisibility(
+                    View.GONE
+            );
+
+            historicoApagarButton.setOnClickListener(
+                    v -> confirmarApagarSelecionadas()
+            );
+
+            header.addView(
+                    historicoApagarButton,
+                    new LinearLayout.LayoutParams(
+                            dp(96),
+                            dp(42)
+                    )
+            );
+        }
 
         JSONArray array =
                 obterHistorico();
@@ -4871,6 +5246,10 @@ private String calcularExpressaoSimples(String texto) {
                             "Toque e segure uma conversa para selecioná-la. Você pode selecionar várias."
                     );
 
+            dica.setTextSize(
+                    12
+            );
+
             dica.setTextColor(
                     Color.LTGRAY
             );
@@ -4880,11 +5259,9 @@ private String calcularExpressaoSimples(String texto) {
                     parametrosTexto()
             );
 
-            for (
-                    int i = 0;
-                    i < array.length();
-                    i++
-            ) {
+            for (int i = 0;
+                 i < array.length();
+                 i++) {
 
                 final int indice = i;
 
@@ -4935,22 +5312,26 @@ private String calcularExpressaoSimples(String texto) {
                         Color.WHITE
                 );
 
+                box.setPadding(
+                        dp(4),
+                        dp(8),
+                        dp(4),
+                        dp(8)
+                );
+
                 box.setOnLongClickListener(
                         v -> {
 
-                            box.setChecked(
-                                    true
-                            );
+                            if (!box.isChecked()) {
+                                box.setChecked(true);
+                            }
 
                             if (!mensagensSelecionadas
-                                    .contains(
-                                            indice
-                                    )) {
+                                    .contains(indice)) {
 
-                                mensagensSelecionadas
-                                        .add(
-                                                indice
-                                        );
+                                mensagensSelecionadas.add(
+                                        indice
+                                );
                             }
 
                             atualizarHistoricoAcoes();
@@ -4965,42 +5346,36 @@ private String calcularExpressaoSimples(String texto) {
                             if (box.isChecked()) {
 
                                 if (!mensagensSelecionadas
-                                        .contains(
-                                                indice
-                                        )) {
+                                        .contains(indice)) {
 
-                                    mensagensSelecionadas
-                                            .add(
-                                                    indice
-                                            );
+                                    mensagensSelecionadas.add(
+                                            indice
+                                    );
                                 }
 
                             } else {
 
-                                mensagensSelecionadas
-                                        .remove(
-                                                Integer.valueOf(
-                                                        indice
-                                                )
-                                        );
+                                mensagensSelecionadas.remove(
+                                        Integer.valueOf(indice)
+                                );
                             }
 
                             atualizarHistoricoAcoes();
                         }
                 );
 
+                LinearLayout.LayoutParams boxParams =
+                        parametrosTexto();
+
+                boxParams.topMargin =
+                        dp(4);
+
                 layout.addView(
                         box,
-                        parametrosTexto()
+                        boxParams
                 );
             }
         }
-
-        adicionarBotaoTela(
-                layout,
-                "APAGAR CONVERSA SELECIONADA",
-                this::confirmarApagarSelecionadas
-        );
 
         adicionarBotaoTela(
                 layout,
@@ -5008,12 +5383,38 @@ private String calcularExpressaoSimples(String texto) {
                 this::abrirMenuJarvis
         );
 
+        atualizarHistoricoAcoes();
+
         setContentView(layout);
     }
 
     private void atualizarHistoricoAcoes() {
-        // Mantido para preservar a estrutura
-        // de seleção do histórico.
+
+        if (historicoApagarButton == null) {
+            return;
+        }
+
+        int quantidade =
+                mensagensSelecionadas.size();
+
+        if (quantidade <= 0) {
+
+            historicoApagarButton.setVisibility(
+                    View.GONE
+            );
+
+            return;
+        }
+
+        historicoApagarButton.setText(
+                quantidade == 1
+                        ? "APAGAR (1)"
+                        : "APAGAR (" + quantidade + ")"
+        );
+
+        historicoApagarButton.setVisibility(
+                View.VISIBLE
+        );
     }
 
 
@@ -5375,7 +5776,9 @@ private String calcularExpressaoSimples(String texto) {
 
             return "Não consegui obter informações do armazenamento.";
         }
-    }     private String formatarBytes(
+    }
+
+    private String formatarBytes(
             long bytes) {
 
         if (bytes < 1024) {
@@ -5887,7 +6290,7 @@ private String calcularExpressaoSimples(String texto) {
 
                 canvas.drawArc(
                         oval,
-                        0f,
+                        15f,
                         285f,
                         false,
                         paint
@@ -5895,8 +6298,8 @@ private String calcularExpressaoSimples(String texto) {
 
                 canvas.drawArc(
                         oval,
-                        300f,
-                        35f,
+                        320f,
+                        25f,
                         false,
                         paint
                 );
