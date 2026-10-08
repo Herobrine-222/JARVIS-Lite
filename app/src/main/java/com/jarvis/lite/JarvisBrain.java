@@ -16,7 +16,7 @@ import java.util.Locale;
  * Responsabilidades:
  * - interpretar comandos locais;
  * - responder conversas básicas;
- * - realizar cálculos matemáticos;
+ * - realizar cálculos matemáticos exatos;
  * - trabalhar com data e hora;
  * - consultar memória local;
  * - manter contexto da sessão;
@@ -30,6 +30,7 @@ public final class JarvisBrain {
 
     private static final int MAX_TURNS = 12;
     private static final int MAX_CONTEXT_LENGTH = 6000;
+    private static final int MAX_MATH_LENGTH = 500;
 
     private final Deque<Turn> turns =
             new ArrayDeque<>();
@@ -105,13 +106,13 @@ public final class JarvisBrain {
         String result = null;
 
         // ========================================================
-        // MATEMÁTICA
+        // MATEMÁTICA EXATA
         // ========================================================
 
-        if (isMathExpression(c)) {
+        if (isMathExpression(original)) {
 
             result =
-                    calculate(c);
+                    calculate(original);
 
         // ========================================================
         // HORA
@@ -635,8 +636,7 @@ public final class JarvisBrain {
     // ACESSAR GERENCIADOR DE CONTEXTO
     // ============================================================
 
-    public JarvisContextManager
-    getContextManager() {
+    public JarvisContextManager getContextManager() {
 
         return contextManager;
     }
@@ -657,380 +657,118 @@ public final class JarvisBrain {
             return null;
         }
 
-        /*
-         * O cérebro local não inventa uma resposta
-         * para perguntas que ele ainda não conhece.
-         *
-         * Uma camada de IA mais avançada poderá ser
-         * conectada posteriormente.
-         */
-
         return
                 "Ainda não tenho uma resposta local para isso. Posso trabalhar com comandos, memória, informações do aparelho, cálculos e outras funções que forem adicionadas ao JARVIS.";
     }
 
     // ============================================================
-    // MATEMÁTICA
+    // MATEMÁTICA EXATA
     // ============================================================
 
     private boolean isMathExpression(
-            String c
+            String input
     ) {
 
-        if (c.length() > 80) {
+        if (input == null) {
             return false;
         }
 
-        if (!c.matches(
-                "[0-9+\\-*/().,% x]+"
-        )) {
+        String expression =
+                input.trim();
+
+        if (expression.isEmpty() ||
+                expression.length() > MAX_MATH_LENGTH) {
+            return false;
+        }
+
+        boolean hasDigit = false;
+        boolean hasOperator = false;
+
+        for (int i = 0; i < expression.length(); i++) {
+
+            char c = expression.charAt(i);
+
+            if (Character.isDigit(c)) {
+                hasDigit = true;
+                continue;
+            }
+
+            if (Character.isWhitespace(c)) {
+                continue;
+            }
+
+            if (c == '+' || c == '-' || c == '*' ||
+                    c == '/' || c == '%' || c == 'x' ||
+                    c == 'X' || c == '×' || c == '÷') {
+                hasOperator = true;
+                continue;
+            }
+
+            if (c == '(' || c == ')' || c == '.' || c == ',') {
+                continue;
+            }
 
             return false;
         }
 
-        return c.matches(
-                ".*[+\\-*/%].*"
-        );
+        return hasDigit && hasOperator;
     }
 
     private String calculate(
-            String c
+            String expression
     ) {
 
         try {
 
-            String expr =
-                    c.replace(
-                            "x",
-                            "*"
-                    )
-                            .replace(
-                                    ',',
-                                    '.'
-                            )
-                            .replace(
-                                    " ",
-                                    ""
-                            );
-
-            double value =
-                    evaluate(
-                            expr
+            JarvisMathEngine.Fraction value =
+                    JarvisMathEngine.calculate(
+                            expression
                     );
 
-            if (
-                    Double.isNaN(
-                            value
-                    )
-                            ||
-                            Double.isInfinite(
-                                    value
-                            )
-            ) {
-
-                return
-                        "Não consigo calcular esse resultado com segurança.";
-            }
-
-            if (
-                    Math.rint(
-                            value
-                    ) == value
-            ) {
-
-                return
-                        "O resultado é "
-                                + String.format(
-                                Locale.US,
-                                "%.0f",
-                                value
-                        )
-                                + ".";
-            }
-
             String formatted =
-                    String.format(
-                            Locale.US,
-                            "%.6f",
+                    formatExactMathResult(
                             value
-                    )
-                            .replaceAll(
-                                    "0+$",
-                                    ""
-                            )
-                            .replaceAll(
-                                    "\\.$",
-                                    ""
-                            );
+                    );
 
             return
                     "O resultado é "
                             + formatted
                             + ".";
 
-        } catch (Exception ignored) {
+        } catch (ArithmeticException e) {
+
+            return
+                    "Não é possível dividir por zero.";
+
+        } catch (IllegalArgumentException e) {
+
+            return
+                    "Não consegui calcular essa expressão.";
+
+        } catch (Exception e) {
 
             return
                     "Não consegui calcular essa expressão.";
         }
     }
 
-    // ============================================================
-    // AVALIADOR MATEMÁTICO
-    // ============================================================
-
-    private double evaluate(
-            String s
+    /**
+     * Prefere uma representação decimal somente quando ela é finita
+     * e exata. Caso contrário, mantém a fração reduzida.
+     */
+    private String formatExactMathResult(
+            JarvisMathEngine.Fraction value
     ) {
 
-        ArrayDeque<Double> values =
-                new ArrayDeque<>();
-
-        ArrayDeque<Character> ops =
-                new ArrayDeque<>();
-
-        int i = 0;
-
-        while (i < s.length()) {
-
-            char ch =
-                    s.charAt(i);
-
-            if (
-                    Character.isDigit(ch)
-                            ||
-                            ch == '.'
-            ) {
-
-                int start =
-                        i++;
-
-                while (
-                        i < s.length()
-                                &&
-                                (
-                                        Character.isDigit(
-                                                s.charAt(i)
-                                        )
-                                                ||
-                                                s.charAt(i) == '.'
-                                )
-                ) {
-
-                    i++;
-                }
-
-                values.push(
-                        Double.parseDouble(
-                                s.substring(
-                                        start,
-                                        i
-                                )
-                        )
-                );
-
-                continue;
-            }
-
-            if (ch == '(') {
-
-                ops.push(
-                        ch
-                );
-
-            } else if (ch == ')') {
-
-                while (
-                        !ops.isEmpty()
-                                &&
-                                ops.peek()
-                                        != '('
-                ) {
-
-                    applyTop(
-                            values,
-                            ops.pop()
-                    );
-                }
-
-                if (ops.isEmpty()) {
-
-                    throw new IllegalArgumentException();
-                }
-
-                ops.pop();
-
-            } else if (
-                    isOperator(
-                            ch
-                    )
-            ) {
-
-                while (
-                        !ops.isEmpty()
-                                &&
-                                ops.peek()
-                                        != '('
-                                &&
-                                precedence(
-                                        ops.peek()
-                                )
-                                        >=
-                                        precedence(
-                                                ch
-                                        )
-                ) {
-
-                    applyTop(
-                            values,
-                            ops.pop()
-                    );
-                }
-
-                ops.push(
-                        ch
-                );
-
-            } else {
-
-                throw new IllegalArgumentException();
-            }
-
-            i++;
+        if (value == null) {
+            return "indefinido";
         }
 
-        while (!ops.isEmpty()) {
-
-            if (
-                    ops.peek()
-                            == '('
-            ) {
-
-                throw new IllegalArgumentException();
-            }
-
-            applyTop(
-                    values,
-                    ops.pop()
-            );
+        try {
+            return value.toExactDecimal();
+        } catch (ArithmeticException ignored) {
+            return value.toString();
         }
-
-        if (values.size() != 1) {
-
-            throw new IllegalArgumentException();
-        }
-
-        return values.pop();
-    }
-
-    // ============================================================
-    // APLICAR OPERADOR
-    // ============================================================
-
-    private void applyTop(
-            ArrayDeque<Double> values,
-            char op
-    ) {
-
-        if (values.size() < 2) {
-
-            throw new IllegalArgumentException();
-        }
-
-        double right =
-                values.pop();
-
-        double left =
-                values.pop();
-
-        switch (op) {
-
-            case '+':
-
-                values.push(
-                        left + right
-                );
-
-                break;
-
-            case '-':
-
-                values.push(
-                        left - right
-                );
-
-                break;
-
-            case '*':
-
-                values.push(
-                        left * right
-                );
-
-                break;
-
-            case '/':
-
-                if (right == 0) {
-
-                    throw new ArithmeticException();
-                }
-
-                values.push(
-                        left / right
-                );
-
-                break;
-
-            case '%':
-
-                if (right == 0) {
-
-                    throw new ArithmeticException();
-                }
-
-                values.push(
-                        left % right
-                );
-
-                break;
-
-            default:
-
-                throw new IllegalArgumentException();
-        }
-    }
-
-    // ============================================================
-    // OPERADOR
-    // ============================================================
-
-    private boolean isOperator(
-            char c
-    ) {
-
-        return c == '+'
-                || c == '-'
-                || c == '*'
-                || c == '/'
-                || c == '%';
-    }
-
-    // ============================================================
-    // PRECEDÊNCIA
-    // ============================================================
-
-    private int precedence(
-            char c
-    ) {
-
-        return (
-                c == '+'
-                        ||
-                        c == '-'
-        )
-                ? 1
-                : 2;
     }
 
     // ============================================================
