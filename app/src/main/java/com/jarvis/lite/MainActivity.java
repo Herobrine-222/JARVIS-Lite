@@ -6,6 +6,7 @@ import android.app.ActivityManager;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.media.MediaPlayer;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
@@ -57,6 +58,8 @@ import org.json.JSONObject;
 public class MainActivity extends Activity {
 
     private static final int REQUEST_AUDIO = 100;
+    private static final int REQUEST_AUDIO_REFERENCIA = 102;
+    private static final int REQUEST_AUDIO_CONSENTIMENTO = 103;
 
     private TextView clockText;
     private LinearLayout chatContainer;
@@ -74,6 +77,19 @@ public class MainActivity extends Activity {
 
     private TextToSpeech tts;
     private boolean ttsReady = false;
+
+    /* Digitação = texto. Microfone = texto + voz. */
+    private boolean responderComVozAtual = false;
+
+    /* Áudios para referência/teste da futura voz personalizada. */
+    private Uri audioReferenciaUri;
+    private Uri audioConsentimentoUri;
+    private MediaPlayer audioReferenciaPlayer;
+    private MediaPlayer audioConsentimentoPlayer;
+
+    private boolean verificacaoEmAndamento = false;
+    private Handler verificacaoHandler;
+    private int verificacaoRunToken = 0;
 
     private SpeechRecognizer speechRecognizer;
     private boolean ouvindo = false;
@@ -106,8 +122,6 @@ private final JarvisBrain cerebro =
 
     private final ArrayList<Integer> mensagensSelecionadas =
             new ArrayList<>();
-
-    private Button historicoApagarButton;
 
     private int telaAtual = TELA_PRINCIPAL;
 
@@ -149,6 +163,18 @@ private final JarvisBrain cerebro =
 
         arquivosMidiaAtivados =
                 preferencias.getBoolean("arquivos_midia_ativos", false);
+
+        String referenciaSalva = preferencias.getString("audio_referencia_uri", "");
+        if (!referenciaSalva.isEmpty()) {
+            try { audioReferenciaUri = Uri.parse(referenciaSalva); }
+            catch (Exception ignored) { audioReferenciaUri = null; }
+        }
+
+        String consentimentoSalvo = preferencias.getString("audio_consentimento_uri", "");
+        if (!consentimentoSalvo.isEmpty()) {
+            try { audioConsentimentoUri = Uri.parse(consentimentoSalvo); }
+            catch (Exception ignored) { audioConsentimentoUri = null; }
+        }
 
         configurarTela();
         restaurarChatPrincipal();
@@ -318,6 +344,7 @@ private final JarvisBrain cerebro =
 
     private void iniciarReconhecimento() {
         pararReconhecimento();
+        responderComVozAtual = false;
 
         if (!microfoneAtivado) {
             responder(
@@ -454,7 +481,9 @@ private final JarvisBrain cerebro =
                                     break;
                             }
 
+                            responderComVozAtual = true;
                             responder(mensagem);
+                            responderComVozAtual = false;
                             liberarReconhecedor();
                         }
 
@@ -495,7 +524,9 @@ private final JarvisBrain cerebro =
 
                             liberarReconhecedor();
 
+                            responderComVozAtual = true;
                             processarComando(comando);
+                            responderComVozAtual = false;
                         }
 
                         @Override
@@ -612,7 +643,7 @@ private final JarvisBrain cerebro =
         header.setPadding(dp(10), 0, dp(10), 0);
 
         TextView titulo = new TextView(this);
-        titulo.setText("Jarvis");
+        titulo.setText("J.A.R.V.I.S");
         titulo.setTextSize(24);
         titulo.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD);
         titulo.setTextColor(Color.rgb(80, 205, 255));
@@ -642,7 +673,9 @@ private final JarvisBrain cerebro =
         homeDateText.setTextSize(16);
         homeDateText.setTextColor(Color.WHITE);
         homeDateText.setGravity(Gravity.CENTER);
-        root.addView(homeDateText, new LinearLayout.LayoutParams(-1, dp(30)));
+        homeDateText.setIncludeFontPadding(true);
+        homeDateText.setMaxLines(1);
+        root.addView(homeDateText, new LinearLayout.LayoutParams(-1, dp(46)));
 
         // Clima: usa apenas informação configurada/obtida pelo próprio app.
         homeWeatherText = criarTexto("");
@@ -650,7 +683,7 @@ private final JarvisBrain cerebro =
         homeWeatherText.setTextColor(Color.LTGRAY);
         homeWeatherText.setGravity(Gravity.CENTER);
         homeWeatherText.setPadding(dp(12), dp(4), dp(12), dp(4));
-        root.addView(homeWeatherText, new LinearLayout.LayoutParams(-1, dp(52)));
+        root.addView(homeWeatherText, new LinearLayout.LayoutParams(-1, dp(56)));
 
         // Reator central.
         reactorView = new ReactorView(this);
@@ -752,253 +785,59 @@ private final JarvisBrain cerebro =
 
     private LinearLayout criarEntradaMensagem(Runnable aoFocar) {
 
-        LinearLayout entrada =
-                new LinearLayout(this);
+        LinearLayout entrada = new LinearLayout(this);
+        entrada.setOrientation(LinearLayout.HORIZONTAL);
+        entrada.setGravity(Gravity.CENTER_VERTICAL);
+        entrada.setPadding(dp(10), dp(4), dp(10), dp(4));
 
-        entrada.setOrientation(
-                LinearLayout.HORIZONTAL
-        );
+        GradientDrawable campoFundo = new GradientDrawable();
+        campoFundo.setColor(Color.rgb(3, 13, 25));
+        campoFundo.setCornerRadius(dp(22));
+        campoFundo.setStroke(dp(1), Color.rgb(0, 150, 255));
 
-        entrada.setGravity(
-                Gravity.CENTER_VERTICAL
-        );
+        commandInput = new EditText(this);
+        commandInput.setHint("Digite uma mensagem...");
+        commandInput.setHintTextColor(Color.rgb(125, 145, 165));
+        commandInput.setTextColor(Color.WHITE);
+        commandInput.setSingleLine(true);
+        commandInput.setTextSize(14);
+        commandInput.setPadding(dp(16), 0, dp(12), 0);
+        commandInput.setBackground(campoFundo);
 
-        entrada.setPadding(
-                dp(10),
-                dp(4),
-                dp(10),
-                dp(4)
-        );
-
-        GradientDrawable campoFundo =
-                new GradientDrawable();
-
-        campoFundo.setColor(
-                Color.rgb(3, 13, 25)
-        );
-
-        campoFundo.setCornerRadius(
-                dp(22)
-        );
-
-        campoFundo.setStroke(
-                dp(1),
-                Color.rgb(0, 150, 255)
-        );
-
-        commandInput =
-                new EditText(this);
-
-        commandInput.setHint(
-                "Digite uma mensagem..."
-        );
-
-        commandInput.setHintTextColor(
-                Color.rgb(125, 145, 165)
-        );
-
-        commandInput.setTextColor(
-                Color.WHITE
-        );
-
-        commandInput.setSingleLine(
-                true
-        );
-
-        commandInput.setTextSize(
-                14
-        );
-
-        commandInput.setInputType(
-                android.text.InputType.TYPE_CLASS_TEXT
-                        | android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
-        );
-
-        commandInput.setImeOptions(
-                android.view.inputmethod.EditorInfo.IME_ACTION_SEND
-        );
-
-        commandInput.setPadding(
-                dp(16),
-                0,
-                dp(12),
-                0
-        );
-
-        commandInput.setBackground(
-                campoFundo
-        );
-
-        commandInput.setOnFocusChangeListener(
-                (v, focused) -> {
-
-                    if (focused
-                            && aoFocar != null
-                            && !chatMode) {
-
-                        aoFocar.run();
-                    }
-                }
-        );
-
-        commandInput.setOnEditorActionListener(
-                (v, actionId, event) -> {
-
-                    boolean enviarPorAcao =
-                            actionId ==
-                                    android.view.inputmethod.EditorInfo.IME_ACTION_SEND;
-
-                    boolean enviarPorEnter =
-                            event != null
-                                    && event.getKeyCode()
-                                    == android.view.KeyEvent.KEYCODE_ENTER
-                                    && event.getAction()
-                                    == android.view.KeyEvent.ACTION_DOWN;
-
-                    if (enviarPorAcao || enviarPorEnter) {
-                        enviarTextoDigitado();
-                        return true;
-                    }
-
-                    return false;
-                }
-        );
+        commandInput.setOnFocusChangeListener((v, focused) -> {
+            if (focused && aoFocar != null && !chatMode) {
+                aoFocar.run();
+            }
+        });
 
         entrada.addView(
                 commandInput,
-                new LinearLayout.LayoutParams(
-                        0,
-                        dp(52),
-                        1
-                )
+                new LinearLayout.LayoutParams(0, dp(52), 1)
         );
 
-        ImageButton microfone =
-                new ImageButton(this);
+        ImageButton microfone = new ImageButton(this);
+        microfone.setImageResource(R.drawable.ic_jarvis_mic);
+        microfone.setBackgroundColor(Color.TRANSPARENT);
+        microfone.setColorFilter(Color.rgb(80, 205, 255));
+        microfone.setContentDescription("Microfone");
+        microfone.setOnClickListener(v -> {
+            if (!chatMode) {
+                abrirChatIA();
+            }
+            if (!ouvindo) iniciarReconhecimento();
+            else pararReconhecimento();
+        });
 
-        microfone.setImageResource(
-                R.drawable.ic_jarvis_mic
-        );
+        entrada.addView(microfone, new LinearLayout.LayoutParams(dp(48), dp(52)));
 
-        microfone.setBackgroundColor(
-                Color.TRANSPARENT
-        );
+        ImageButton enviar = new ImageButton(this);
+        enviar.setImageResource(R.drawable.ic_jarvis_send);
+        enviar.setBackgroundColor(Color.TRANSPARENT);
+        enviar.setColorFilter(Color.rgb(80, 205, 255));
+        enviar.setContentDescription("Enviar");
+        enviar.setOnClickListener(v -> enviarTextoDigitado());
 
-        microfone.setColorFilter(
-                Color.rgb(80, 205, 255)
-        );
-
-        microfone.setPadding(
-                dp(8),
-                dp(8),
-                dp(8),
-                dp(8)
-        );
-
-        microfone.setScaleType(
-                ImageButton.ScaleType.CENTER
-        );
-
-        microfone.setContentDescription(
-                "Microfone"
-        );
-
-        microfone.setOnClickListener(
-                v -> {
-
-                    if (!chatMode) {
-                        abrirChatIA();
-                    }
-
-                    if (!ouvindo) {
-                        iniciarReconhecimento();
-                    } else {
-                        pararReconhecimento();
-                    }
-                }
-        );
-
-        entrada.addView(
-                microfone,
-                new LinearLayout.LayoutParams(
-                        dp(52),
-                        dp(52)
-                )
-        );
-
-        ImageButton enviar =
-                new ImageButton(this);
-
-        enviar.setImageResource(
-                R.drawable.ic_jarvis_send
-        );
-
-        enviar.setBackgroundColor(
-                Color.TRANSPARENT
-        );
-
-        enviar.setColorFilter(
-                Color.rgb(80, 205, 255)
-        );
-
-        enviar.setPadding(
-                dp(8),
-                dp(8),
-                dp(8),
-                dp(8)
-        );
-
-        enviar.setScaleType(
-                ImageButton.ScaleType.CENTER
-        );
-
-        enviar.setContentDescription(
-                "Enviar"
-        );
-
-        enviar.setOnClickListener(
-                v -> {
-
-                    if (commandInput == null) {
-                        return;
-                    }
-
-                    String texto =
-                            commandInput.getText()
-                                    .toString()
-                                    .trim();
-
-                    if (texto.isEmpty()) {
-                        return;
-                    }
-
-                    if (!chatMode) {
-
-                        abrirChatIA();
-
-                        if (commandInput != null) {
-
-                            commandInput.setText(
-                                    texto
-                            );
-
-                            commandInput.setSelection(
-                                    commandInput.length()
-                            );
-                        }
-                    }
-
-                    enviarTextoDigitado();
-                }
-        );
-
-        entrada.addView(
-                enviar,
-                new LinearLayout.LayoutParams(
-                        dp(52),
-                        dp(52)
-                )
-        );
+        entrada.addView(enviar, new LinearLayout.LayoutParams(dp(48), dp(52)));
 
         return entrada;
     }
@@ -1027,260 +866,82 @@ private final JarvisBrain cerebro =
         chatMode = true;
         telaAtual = TELA_PRINCIPAL;
 
-        LinearLayout root =
-                new LinearLayout(this);
-
-        root.setOrientation(
-                LinearLayout.VERTICAL
-        );
-
-        root.setBackgroundColor(
-                Color.rgb(1, 7, 16)
-        );
-
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(Color.rgb(1, 7, 16));
         configurarAreaSegura(root);
 
-        LinearLayout header =
-                new LinearLayout(this);
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
 
-        header.setOrientation(
-                LinearLayout.HORIZONTAL
-        );
+        ImageButton voltar = new ImageButton(this);
+        voltar.setImageResource(R.drawable.ic_jarvis_back);
+        voltar.setBackgroundColor(Color.TRANSPARENT);
+        voltar.setColorFilter(Color.WHITE);
+        voltar.setContentDescription("Voltar");
+        voltar.setOnClickListener(v -> {
+            esconderTeclado();
+            configurarTela();
+        });
+        header.addView(voltar, new LinearLayout.LayoutParams(dp(52), dp(52)));
 
-        header.setGravity(
-                Gravity.CENTER_VERTICAL
-        );
+        LinearLayout titulos = new LinearLayout(this);
+        titulos.setOrientation(LinearLayout.VERTICAL);
+        titulos.setGravity(Gravity.CENTER_VERTICAL);
 
-        ImageButton voltar =
-                new ImageButton(this);
+        TextView titulo = criarTexto("J.A.R.V.I.S");
+        titulo.setTextSize(21);
+        titulo.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD);
+        titulo.setTextColor(Color.WHITE);
 
-        voltar.setImageResource(
-                R.drawable.ic_jarvis_back
-        );
+        TextView estado = criarTexto("●");
+        estado.setTextSize(13);
+        estado.setTextColor(Color.rgb(50, 230, 130));
 
-        voltar.setBackgroundColor(
-                Color.TRANSPARENT
-        );
+        LinearLayout tituloLinha = new LinearLayout(this);
+        tituloLinha.setGravity(Gravity.CENTER_VERTICAL);
+        tituloLinha.addView(titulo);
+        tituloLinha.addView(estado, new LinearLayout.LayoutParams(dp(30), dp(40)));
 
-        voltar.setColorFilter(
-                Color.WHITE
-        );
+        titulos.addView(tituloLinha);
+        header.addView(titulos, new LinearLayout.LayoutParams(0, dp(56), 1));
 
-        voltar.setPadding(
-                dp(8),
-                dp(8),
-                dp(8),
-                dp(8)
-        );
+        ImageButton info = new ImageButton(this);
+        info.setImageResource(R.drawable.ic_jarvis_menu);
+        info.setBackgroundColor(Color.TRANSPARENT);
+        info.setColorFilter(Color.rgb(80, 205, 255));
+        info.setContentDescription("Menu");
+        info.setOnClickListener(v -> abrirMenuJarvis());
+        header.addView(info, new LinearLayout.LayoutParams(dp(52), dp(52)));
 
-        voltar.setContentDescription(
-                "Voltar"
-        );
+        root.addView(header, new LinearLayout.LayoutParams(-1, dp(58)));
 
-        voltar.setOnClickListener(
-                v -> {
-                    esconderTeclado();
-                    configurarTela();
-                }
-        );
+        chatScroll = new ScrollView(this);
+        chatScroll.setFillViewport(true);
+        chatScroll.setClipToPadding(false);
 
-        header.addView(
-                voltar,
-                new LinearLayout.LayoutParams(
-                        dp(52),
-                        dp(52)
-                )
-        );
+        chatContainer = new LinearLayout(this);
+        chatContainer.setOrientation(LinearLayout.VERTICAL);
+        chatContainer.setPadding(dp(12), dp(10), dp(12), dp(10));
 
-        LinearLayout titulos =
-                new LinearLayout(this);
-
-        titulos.setOrientation(
-                LinearLayout.VERTICAL
-        );
-
-        titulos.setGravity(
-                Gravity.CENTER_VERTICAL
-        );
-
-        TextView titulo =
-                criarTexto("J.A.R.V.I.S");
-
-        titulo.setTextSize(
-                21
-        );
-
-        titulo.setTypeface(
-                android.graphics.Typeface.DEFAULT,
-                android.graphics.Typeface.BOLD
-        );
-
-        titulo.setTextColor(
-                Color.WHITE
-        );
-
-        TextView estado =
-                criarTexto("●  MODO CONVERSA");
-
-        estado.setTextSize(
-                10
-        );
-
-        estado.setTextColor(
-                Color.rgb(50, 230, 130)
-        );
-
-        LinearLayout tituloLinha =
-                new LinearLayout(this);
-
-        tituloLinha.setGravity(
-                Gravity.CENTER_VERTICAL
-        );
-
-        tituloLinha.addView(
-                titulo
-        );
-
-        titulos.addView(
-                tituloLinha
-        );
-
-        titulos.addView(
-                estado,
-                new LinearLayout.LayoutParams(
-                        -1,
-                        dp(20)
-                )
-        );
-
-        header.addView(
-                titulos,
-                new LinearLayout.LayoutParams(
-                        0,
-                        dp(56),
-                        1
-                )
-        );
-
-        ImageButton menu =
-                new ImageButton(this);
-
-        menu.setImageResource(
-                R.drawable.ic_jarvis_menu
-        );
-
-        menu.setBackgroundColor(
-                Color.TRANSPARENT
-        );
-
-        menu.setColorFilter(
-                Color.rgb(80, 205, 255)
-        );
-
-        menu.setPadding(
-                dp(8),
-                dp(8),
-                dp(8),
-                dp(8)
-        );
-
-        menu.setContentDescription(
-                "Menu"
-        );
-
-        menu.setOnClickListener(
-                v -> abrirMenuJarvis()
-        );
-
-        header.addView(
-                menu,
-                new LinearLayout.LayoutParams(
-                        dp(52),
-                        dp(52)
-                )
-        );
-
-        root.addView(
-                header,
-                new LinearLayout.LayoutParams(
-                        -1,
-                        dp(58)
-                )
-        );
-
-        chatScroll =
-                new ScrollView(this);
-
-        chatScroll.setFillViewport(
-                true
-        );
-
-        chatScroll.setClipToPadding(
-                false
-        );
-
-        chatContainer =
-                new LinearLayout(this);
-
-        chatContainer.setOrientation(
-                LinearLayout.VERTICAL
-        );
-
-        chatContainer.setPadding(
-                dp(12),
-                dp(10),
-                dp(12),
-                dp(18)
-        );
-
-        chatScroll.addView(
-                chatContainer
-        );
-
+        chatScroll.addView(chatContainer);
         root.addView(
                 chatScroll,
-                new LinearLayout.LayoutParams(
-                        -1,
-                        0,
-                        1
-                )
+                new LinearLayout.LayoutParams(-1, 0, 1)
         );
 
         restaurarChatPrincipal();
 
-        ReactorView miniReator =
-                new ReactorView(this);
-
+        // Reator pequeno, igual ao modo conversa da referência.
+        ReactorView miniReator = new ReactorView(this);
         LinearLayout.LayoutParams miniParams =
-                new LinearLayout.LayoutParams(
-                        dp(104),
-                        dp(104)
-                );
+                new LinearLayout.LayoutParams(dp(120), dp(120));
+        miniParams.gravity = Gravity.CENTER_HORIZONTAL;
+        root.addView(miniReator, miniParams);
 
-        miniParams.gravity =
-                Gravity.CENTER_HORIZONTAL;
-
-        miniParams.topMargin =
-                dp(2);
-
-        miniParams.bottomMargin =
-                dp(2);
-
-        root.addView(
-                miniReator,
-                miniParams
-        );
-
-        LinearLayout entrada =
-                criarEntradaMensagem(null);
-
-        root.addView(
-                entrada,
-                new LinearLayout.LayoutParams(
-                        -1,
-                        dp(64)
-                )
-        );
+        LinearLayout entrada = criarEntradaMensagem(null);
+        root.addView(entrada, new LinearLayout.LayoutParams(-1, dp(62)));
 
         setContentView(root);
 
@@ -1799,203 +1460,170 @@ private final JarvisBrain cerebro =
 
     private void abrirGerenciarVoz() {
 
-        telaAtual =
-                TELA_GERENCIAR_VOZ;
+        telaAtual = TELA_GERENCIAR_VOZ;
 
-        LinearLayout layout =
-                criarTelaBase(
-                        "VOZ DO JARVIS",
-                        "ESCOLHA UMA VOZ TTS DISPONÍVEL"
-                );
+        TelaRolavelLayout layout = criarTelaBase(
+                "VOZ DO JARVIS",
+                "ÁUDIO MP3 E VOZ PERSONALIZADA"
+        );
 
-        TextView info =
-                criarTexto(
-                        "Escolha uma voz instalada no aparelho. "
-                                + "A velocidade permanece normal e o tom será ajustado para um perfil mais grave."
-                );
-
+        TextView info = criarTexto(
+                "Guarde um áudio MP3 como referência e, opcionalmente, um áudio de consentimento para uma futura voz "
+                        + "personalizada/clonada. Um MP3 isolado só pode ser reproduzido; ele não gera frases novas."
+        );
         info.setTextSize(13);
         info.setTextColor(Color.LTGRAY);
+        info.setIncludeFontPadding(true);
+        layout.addView(info, parametrosTexto());
 
-        layout.addView(
-                info,
-                parametrosTexto()
+        TextView referencia = criarTexto(
+                audioReferenciaUri == null
+                        ? "ÁUDIO DE REFERÊNCIA: NÃO CONFIGURADO"
+                        : "ÁUDIO DE REFERÊNCIA: CONFIGURADO"
         );
+        referencia.setTextSize(13);
+        referencia.setTextColor(audioReferenciaUri == null ? Color.GRAY : Color.rgb(80,205,255));
+        layout.addView(referencia, parametrosTexto());
 
-        LinearLayout lista =
-                new LinearLayout(this);
+        adicionarBotaoTela(layout, "IMPORTAR ÁUDIO MP3 DE REFERÊNCIA", () -> selecionarAudio(false));
+        adicionarBotaoTela(layout, "TESTAR ÁUDIO DE REFERÊNCIA", this::reproduzirReferencia);
 
-        lista.setOrientation(
-                LinearLayout.VERTICAL
+        TextView consent = criarTexto(
+                audioConsentimentoUri == null
+                        ? "ÁUDIO DE CONSENTIMENTO: NÃO CONFIGURADO"
+                        : "ÁUDIO DE CONSENTIMENTO: CONFIGURADO"
         );
+        consent.setTextSize(13);
+        consent.setTextColor(audioConsentimentoUri == null ? Color.GRAY : Color.rgb(80,205,255));
+        layout.addView(consent, parametrosTexto());
 
-        if (tts == null || !ttsReady) {
+        adicionarBotaoTela(layout, "IMPORTAR ÁUDIO DE CONSENTIMENTO", () -> selecionarAudio(true));
+        adicionarBotaoTela(layout, "TESTAR ÁUDIO DE CONSENTIMENTO", this::reproduzirConsentimento);
 
-            TextView indisponivel =
-                    criarTexto(
-                            "O mecanismo de voz ainda está inicializando."
-                    );
-
-            indisponivel.setTextColor(
-                    Color.GRAY
-            );
-
-            lista.addView(
-                    indisponivel,
-                    parametrosTexto()
-            );
-
-        } else {
-
-            List<Voice> vozes =
-                    new ArrayList<>();
-
-            for (Voice voz : tts.getVoices()) {
-
-                if (voz == null
-                        || voz.getLocale() == null) {
-                    continue;
-                }
-
-                Locale local =
-                        voz.getLocale();
-
-                if ("pt".equalsIgnoreCase(
-                        local.getLanguage()
-                )
-                        && "BR".equalsIgnoreCase(
-                        local.getCountry()
-                )) {
-
-                    vozes.add(voz);
-                }
-            }
-
-            if (vozes.isEmpty()) {
-
-                TextView nenhuma =
-                        criarTexto(
-                                "Nenhuma voz pt-BR foi encontrada pelo mecanismo TTS."
-                        );
-
-                nenhuma.setTextColor(
-                        Color.GRAY
-                );
-
-                lista.addView(
-                        nenhuma,
-                        parametrosTexto()
-                );
-
-            } else {
-
-                for (Voice voz : vozes) {
-
-                    String nome =
-                            voz.getName();
-
-                    String rotulo =
-                            rotuloVoz(nome);
-
-                    Button escolha =
-                            criarBotao(
-                                    rotulo
-                                            + "\n"
-                                            + nome
-                            );
-
-                    escolha.setTextSize(11);
-                    escolha.setGravity(
-                            Gravity.CENTER
-                    );
-
-                    escolha.setOnClickListener(
-                            v -> {
-
-                                if (tts != null) {
-
-                                    tts.setVoice(voz);
-                                    tts.setSpeechRate(1.0f);
-                                    tts.setPitch(0.85f);
-
-                                    preferencias.edit()
-                                            .putString(
-                                                    "voz_tts",
-                                                    voz.getName()
-                                            )
-                                            .apply();
-
-                                    falar(
-                                            "Voz selecionada."
-                                    );
-                                }
-                            }
-                    );
-
-                    lista.addView(
-                            escolha,
-                            parametrosBotao()
-                    );
-                }
-            }
-        }
-
-        ScrollView scroll =
-                new ScrollView(this);
-
-        scroll.addView(lista);
-
-        layout.addView(
-                scroll,
-                new LinearLayout.LayoutParams(
-                        -1,
-                        0,
-                        1
-                )
+        String vozId = preferencias.getString("voz_clonada_id", "");
+        TextView cloneEstado = criarTexto(
+                vozId.isEmpty()
+                        ? "VOZ PERSONALIZADA/CLONADA: NÃO CONFIGURADA"
+                        : "VOZ PERSONALIZADA/CLONADA: ID CONFIGURADO"
         );
+        cloneEstado.setTextSize(13);
+        cloneEstado.setTextColor(vozId.isEmpty() ? Color.GRAY : Color.rgb(80,205,255));
+        layout.addView(cloneEstado, parametrosTexto());
 
-        adicionarBotaoTela(
-                layout,
-                "TESTAR VOZ ATUAL",
-                () -> falar(
-                        "À sua disposição. Sistemas locais operacionais."
-                )
-        );
+        EditText vozIdInput = new EditText(this);
+        vozIdInput.setHint("ID da voz personalizada (opcional)");
+        vozIdInput.setHintTextColor(Color.GRAY);
+        vozIdInput.setTextColor(Color.WHITE);
+        vozIdInput.setSingleLine(true);
+        vozIdInput.setText(vozId);
+        vozIdInput.setTextSize(14);
+        vozIdInput.setPadding(dp(14), dp(10), dp(14), dp(10));
+        GradientDrawable vozIdBg = new GradientDrawable();
+        vozIdBg.setColor(Color.rgb(3,13,25));
+        vozIdBg.setCornerRadius(dp(16));
+        vozIdBg.setStroke(dp(1), Color.rgb(0,150,255));
+        vozIdInput.setBackground(vozIdBg);
+        layout.addView(vozIdInput, new LinearLayout.LayoutParams(-1, dp(54)));
 
-        adicionarBotaoTela(
-                layout,
-                "CONFIGURAR COMANDO DE ATIVAÇÃO",
-                this::abrirComandoVoz
+        TextView cloneInfo = criarTexto(
+                "O campo do ID não finge criar uma clonagem local. Ele apenas deixa o JARVIS pronto para conectar uma voz "
+                        + "personalizada obtida de um serviço autorizado."
         );
+        cloneInfo.setTextSize(12);
+        cloneInfo.setTextColor(Color.GRAY);
+        cloneInfo.setIncludeFontPadding(true);
+        layout.addView(cloneInfo, parametrosTexto());
 
-        adicionarBotaoTela(
-                layout,
-                "VOLTAR",
-                this::abrirGerenciarJarvis
-        );
+        adicionarBotaoTela(layout, "SALVAR ID DA VOZ PERSONALIZADA", () -> {
+            preferencias.edit()
+                    .putString("voz_clonada_id", vozIdInput.getText().toString().trim())
+                    .apply();
+            adicionarMensagem("JARVIS", "Identificador da voz personalizado salvo.");
+        });
+
+        adicionarBotaoTela(layout, "TESTAR TTS DO ANDROID",
+                () -> falar("À sua disposição. Sistemas locais operacionais."));
+        adicionarBotaoTela(layout, "CONFIGURAR COMANDO DE ATIVAÇÃO", this::abrirComandoVoz);
+        adicionarBotaoTela(layout, "VOLTAR", this::abrirGerenciarJarvis);
 
         setContentView(layout);
     }
 
+    private void selecionarAudio(boolean consentimento) {
+        try {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.setType("audio/*");
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+            startActivityForResult(intent, consentimento ? REQUEST_AUDIO_CONSENTIMENTO : REQUEST_AUDIO_REFERENCIA);
+        } catch (Exception ignored) {
+            adicionarMensagem("JARVIS", "Não foi possível abrir o seletor de áudio.");
+        }
+    }
+
+    private void reproduzirReferencia() {
+        if (audioReferenciaUri == null) {
+            adicionarMensagem("JARVIS", "Nenhum áudio de referência foi configurado.");
+            return;
+        }
+        reproduzirAudio(audioReferenciaUri, false);
+    }
+
+    private void reproduzirConsentimento() {
+        if (audioConsentimentoUri == null) {
+            adicionarMensagem("JARVIS", "Nenhum áudio de consentimento foi configurado.");
+            return;
+        }
+        reproduzirAudio(audioConsentimentoUri, true);
+    }
+
+    private void reproduzirAudio(Uri uri, boolean consentimento) {
+        try {
+            MediaPlayer antigo = consentimento ? audioConsentimentoPlayer : audioReferenciaPlayer;
+            if (antigo != null) {
+                try { antigo.stop(); } catch (Exception ignored) {}
+                try { antigo.release(); } catch (Exception ignored) {}
+            }
+
+            MediaPlayer player = MediaPlayer.create(this, uri);
+            if (player == null) {
+                adicionarMensagem("JARVIS", "Não consegui reproduzir o áudio selecionado.");
+                return;
+            }
+
+            if (consentimento) audioConsentimentoPlayer = player;
+            else audioReferenciaPlayer = player;
+
+            player.setOnCompletionListener(mp -> {
+                try { mp.release(); } catch (Exception ignored) {}
+                if (consentimento) {
+                    if (audioConsentimentoPlayer == mp) audioConsentimentoPlayer = null;
+                } else if (audioReferenciaPlayer == mp) {
+                    audioReferenciaPlayer = null;
+                }
+            });
+
+            player.setOnErrorListener((mp, what, extra) -> {
+                try { mp.release(); } catch (Exception ignored) {}
+                if (consentimento) {
+                    if (audioConsentimentoPlayer == mp) audioConsentimentoPlayer = null;
+                } else if (audioReferenciaPlayer == mp) {
+                    audioReferenciaPlayer = null;
+                }
+                return true;
+            });
+
+            player.start();
+        } catch (Exception e) {
+            adicionarMensagem("JARVIS", "Não foi possível reproduzir o áudio selecionado.");
+        }
+    }
+
     private String rotuloVoz(String nome) {
-        String n =
-                nome == null
-                        ? ""
-                        : nome.toLowerCase(
-                                Locale.getDefault()
-                        );
-
-        if (n.contains("male")
-                || n.contains("mascul")) {
-            return "VOZ MASCULINA";
-        }
-
-        if (n.contains("female")
-                || n.contains("feminin")) {
-            return "VOZ FEMININA";
-        }
-
-        return "VOZ DISPONÍVEL";
+        String n = nome == null ? "" : nome.toLowerCase(Locale.getDefault());
+        if (n.contains("male") || n.contains("mascul")) return "VOZ MASCULINA";
+        if (n.contains("female") || n.contains("feminin")) return "VOZ FEMININA";
+        return "VOZ TTS DISPONÍVEL";
     }
 
     private void aplicarVozSalva() {
@@ -2310,155 +1938,155 @@ private final JarvisBrain cerebro =
 
 
     private void abrirVerificacao() {
-
         telaAtual = TELA_VERIFICACAO;
+        verificacaoEmAndamento = false;
+        if (verificacaoHandler != null) verificacaoHandler.removeCallbacksAndMessages(null);
 
         LinearLayout layout = criarTelaBase(
                 "VERIFICAÇÃO DO APARELHO",
                 "ANÁLISE BÁSICA DO JARVIS"
         );
 
-        ImageButton voltar = null; // o cabeçalho da tela base já fornece o retorno.
-
-        TextView titulo = criarTexto("Verificando seu aparelho...");
-        titulo.setTextSize(21);
+        TextView titulo = criarTexto("Verificação pronta");
+        titulo.setTextSize(22);
         titulo.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD);
         titulo.setTextColor(Color.WHITE);
         titulo.setGravity(Gravity.CENTER);
-        layout.addView(titulo, parametrosTexto());
+        titulo.setIncludeFontPadding(true);
+        layout.addView(titulo, new LinearLayout.LayoutParams(-1, dp(52)));
 
         TextView subtitulo = criarTexto(
-                "Analisando aplicativos e arquivos\nem busca de ameaças."
+                "Analisaremos aplicativos instalados e informações de permissões acessíveis ao JARVIS.\n"
+                        + "Esta é uma verificação básica; não é um antivírus e não examina todos os arquivos protegidos do Android."
         );
         subtitulo.setTextSize(13);
         subtitulo.setTextColor(Color.LTGRAY);
         subtitulo.setGravity(Gravity.CENTER);
+        subtitulo.setIncludeFontPadding(true);
         layout.addView(subtitulo, parametrosTexto());
 
         ReactorView scanner = new ReactorView(this);
-        LinearLayout.LayoutParams scannerParams =
-                new LinearLayout.LayoutParams(-1, dp(210));
+        LinearLayout.LayoutParams scannerParams = new LinearLayout.LayoutParams(-1, dp(190));
         scannerParams.gravity = Gravity.CENTER_HORIZONTAL;
         layout.addView(scanner, scannerParams);
 
-        ProgressBar progresso = new ProgressBar(
-                this,
-                null,
-                android.R.attr.progressBarStyleHorizontal
-        );
-        progresso.setMax(100);
-        progresso.setProgress(0);
-        progresso.setIndeterminate(false);
+        android.widget.FrameLayout barra = new android.widget.FrameLayout(this);
+        GradientDrawable barraBg = new GradientDrawable();
+        barraBg.setColor(Color.rgb(4,18,30));
+        barraBg.setCornerRadius(dp(10));
+        barraBg.setStroke(dp(1), Color.rgb(0,150,255));
+        barra.setBackground(barraBg);
+        barra.setPadding(dp(2), dp(2), dp(2), dp(2));
 
-        GradientDrawable barraFundo = new GradientDrawable();
-        barraFundo.setColor(Color.rgb(4, 18, 30));
-        barraFundo.setCornerRadius(dp(10));
-        barraFundo.setStroke(dp(1), Color.rgb(0, 150, 255));
-        progresso.setBackground(barraFundo);
+        View preenchimento = new View(this);
+        GradientDrawable fillBg = new GradientDrawable();
+        fillBg.setColor(Color.rgb(0,150,255));
+        fillBg.setCornerRadius(dp(8));
+        preenchimento.setBackground(fillBg);
+        android.widget.FrameLayout.LayoutParams fillParams = new android.widget.FrameLayout.LayoutParams(0, -1);
+        fillParams.gravity = Gravity.START | Gravity.CENTER_VERTICAL;
+        barra.addView(preenchimento, fillParams);
 
-        LinearLayout.LayoutParams barraParams =
-                new LinearLayout.LayoutParams(-1, dp(12));
-        barraParams.setMargins(dp(18), dp(8), dp(18), dp(4));
-        layout.addView(progresso, barraParams);
+        LinearLayout.LayoutParams barraParams = new LinearLayout.LayoutParams(-1, dp(18));
+        barraParams.setMargins(dp(18), dp(12), dp(18), dp(4));
+        layout.addView(barra, barraParams);
 
         TextView porcentagem = criarTexto("0%");
-        porcentagem.setTextSize(13);
-        porcentagem.setTextColor(Color.rgb(80, 205, 255));
+        porcentagem.setTextSize(17);
+        porcentagem.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD);
+        porcentagem.setTextColor(Color.rgb(80,205,255));
         porcentagem.setGravity(Gravity.CENTER);
-        layout.addView(porcentagem, new LinearLayout.LayoutParams(-1, dp(30)));
+        porcentagem.setIncludeFontPadding(true);
+        layout.addView(porcentagem, new LinearLayout.LayoutParams(-1, dp(48)));
 
-        TextView status1 = criarTexto("○  Analisando aplicativos...");
-        TextView status2 = criarTexto("○  Verificando arquivos...");
-        TextView status3 = criarTexto("○  Checando permissões...");
-
-        status1.setTextSize(13);
-        status2.setTextSize(13);
-        status3.setTextSize(13);
-
-        status1.setTextColor(Color.rgb(80, 205, 255));
+        TextView status1 = criarTexto("○  Aguardando início...");
+        TextView status2 = criarTexto("○  Aplicativos e permissões acessíveis...");
+        TextView status3 = criarTexto("○  Preparando análise...");
+        status1.setTextSize(13); status2.setTextSize(13); status3.setTextSize(13);
+        status1.setTextColor(Color.rgb(80,205,255));
         status2.setTextColor(Color.GRAY);
         status3.setTextColor(Color.GRAY);
-
         layout.addView(status1, parametrosTexto());
         layout.addView(status2, parametrosTexto());
         layout.addView(status3, parametrosTexto());
 
-        TextView observacao = criarTexto(
-                "Isso pode levar alguns minutos."
-        );
+        TextView observacao = criarTexto("A análise pode levar alguns instantes.");
         observacao.setTextSize(11);
         observacao.setTextColor(Color.GRAY);
         observacao.setGravity(Gravity.CENTER);
         layout.addView(observacao, parametrosTexto());
 
         Button iniciar = criarBotao("INICIAR VERIFICAÇÃO");
+        Button voltar = criarBotao("VOLTAR");
+
         iniciar.setOnClickListener(v -> {
-
-            iniciar.setEnabled(false);
-            verificacaoEncontrouSuspeito = false;
-            nomeAppSuspeito = "";
-            detalheAppSuspeito = "";
-
+            if (verificacaoEmAndamento) return;
+            verificacaoEmAndamento = true;
+            int token = ++verificacaoRunToken;
+            iniciar.setVisibility(View.GONE);
             scanner.setOuvindo(true);
-
-            final Handler h = new Handler();
+            verificacaoHandler = new Handler();
             final int[] p = {0};
 
             Runnable andamento = new Runnable() {
-                @Override
-                public void run() {
-
-                    p[0] = Math.min(100, p[0] + 4);
-                    progresso.setProgress(p[0]);
+                @Override public void run() {
+                    if (!verificacaoEmAndamento || token != verificacaoRunToken) return;
+                    p[0] = Math.min(100, p[0] + 5);
+                    int largura = (int)Math.round(barra.getWidth() * (p[0] / 100.0));
+                    android.widget.FrameLayout.LayoutParams lp =
+                            (android.widget.FrameLayout.LayoutParams) preenchimento.getLayoutParams();
+                    lp.width = Math.max(0, largura - dp(4));
+                    preenchimento.setLayoutParams(lp);
                     porcentagem.setText(p[0] + "%");
 
                     if (p[0] >= 20) {
                         status1.setText("✓  Aplicativos analisados...");
-                        status1.setTextColor(Color.rgb(70, 230, 150));
-                        status2.setTextColor(Color.rgb(80, 205, 255));
-                        status2.setText("○  Verificando arquivos...");
+                        status1.setTextColor(Color.rgb(70,230,150));
+                        status2.setText("○  Verificando permissões declaradas...");
+                        status2.setTextColor(Color.rgb(80,205,255));
                     }
-
                     if (p[0] >= 60) {
-                        status2.setText("✓  Arquivos acessíveis verificados...");
-                        status2.setTextColor(Color.rgb(70, 230, 150));
-                        status3.setTextColor(Color.rgb(80, 205, 255));
-                        status3.setText("○  Checando permissões...");
+                        status2.setText("✓  Permissões declaradas analisadas...");
+                        status2.setTextColor(Color.rgb(70,230,150));
+                        status3.setText("○  Finalizando análise acessível...");
+                        status3.setTextColor(Color.rgb(80,205,255));
                     }
-
-                    if (p[0] >= 96) {
-                        status3.setText("✓  Permissões básicas verificadas...");
-                        status3.setTextColor(Color.rgb(70, 230, 150));
+                    if (p[0] >= 95) {
+                        status3.setText("✓  Análise básica concluída...");
+                        status3.setTextColor(Color.rgb(70,230,150));
                     }
-
                     if (p[0] < 100) {
-                        h.postDelayed(this, 80);
+                        verificacaoHandler.postDelayed(this, 85);
                         return;
                     }
 
-                    h.removeCallbacks(this);
-
                     new Thread(() -> {
                         executarVerificacao();
-
                         runOnUiThread(() -> {
+                            if (!verificacaoEmAndamento || token != verificacaoRunToken) return;
+                            verificacaoEmAndamento = false;
                             scanner.setOuvindo(false);
-                            iniciar.setEnabled(true);
+                            if (verificacaoHandler != null) verificacaoHandler.removeCallbacksAndMessages(null);
                             abrirResultadoVerificacao();
                         });
                     }).start();
                 }
             };
+            verificacaoHandler.post(andamento);
+        });
 
-            h.post(andamento);
+        voltar.setOnClickListener(v -> {
+            if (verificacaoEmAndamento) {
+                verificacaoEmAndamento = false;
+                verificacaoRunToken++;
+                scanner.setOuvindo(false);
+                if (verificacaoHandler != null) verificacaoHandler.removeCallbacksAndMessages(null);
+            }
+            abrirMenuJarvis();
         });
 
         layout.addView(iniciar, parametrosBotao());
-
-        Button voltarBotao = criarBotao("VOLTAR");
-        voltarBotao.setOnClickListener(v -> abrirMenuJarvis());
-        layout.addView(voltarBotao, parametrosBotao());
-
+        layout.addView(voltar, parametrosBotao());
         setContentView(layout);
     }
 
@@ -2481,16 +2109,18 @@ private final JarvisBrain cerebro =
         );
 
         LinearLayout.LayoutParams iconeParams =
-                new LinearLayout.LayoutParams(-1, dp(190));
+                new LinearLayout.LayoutParams(-1, dp(205));
         layout.addView(icone, iconeParams);
 
         TextView titulo = criarTexto(
                 verificacaoEncontrouSuspeito
-                        ? "Foi encontrado um app\nsupostamente malicioso,\nverifique se foi você que instalou."
-                        : "Seu telefone parece estar seguro,\ntenha um bom dia."
+                        ? "Foi encontrado um aplicativo que merece revisão."
+                        : "Nenhuma ameaça foi identificada na verificação básica."
         );
         titulo.setTextSize(18);
         titulo.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD);
+        titulo.setIncludeFontPadding(true);
+        titulo.setMaxLines(4);
         titulo.setGravity(Gravity.CENTER);
         titulo.setTextColor(Color.WHITE);
         layout.addView(titulo, parametrosTexto());
@@ -2537,7 +2167,7 @@ private final JarvisBrain cerebro =
         } else {
 
             TextView detalhe = criarTexto(
-                    "Nenhuma ameaça foi encontrada\nna verificação básica."
+                    "Nenhuma ameaça foi identificada\nna verificação básica."
             );
             detalhe.setTextSize(14);
             detalhe.setTextColor(Color.rgb(80, 205, 255));
@@ -2581,7 +2211,7 @@ private final JarvisBrain cerebro =
 
         return verificacaoEncontrouSuspeito
                 ? "Foi encontrado um aplicativo que merece revisão."
-                : "Nenhuma ameaça foi encontrada na verificação básica.";
+                : "Nenhuma ameaça foi identificada na verificação básica.";
     }
 
     private String listaAppsVerificados() {
@@ -3123,10 +2753,13 @@ voltar.setOnClickListener(
 
         view.setPadding(
                 dp(8),
-                dp(10),
+                dp(9),
                 dp(8),
-                dp(10)
+                dp(9)
         );
+        view.setIncludeFontPadding(true);
+        view.setMaxLines(8);
+        view.setHorizontallyScrolling(false);
 
         return view;
     }
@@ -3206,15 +2839,13 @@ voltar.setOnClickListener(
         LinearLayout.LayoutParams params =
                 new LinearLayout.LayoutParams(
                         -1,
-                        dp(46)
+                        dp(50)
                 );
 
         params.topMargin = dp(6);
 
         return params;
-            }
-
-    private void voltarTela() {
+            }     private void voltarTela() {
         abrirTelaPrincipal();
     }
 
@@ -4869,11 +4500,11 @@ private String calcularExpressaoSimples(String texto) {
 
         commandInput.setText("");
 
-        processarComando(comando);
+        esconderTeclado();
 
-        if (chatMode && commandInput != null) {
-            commandInput.requestFocus();
-        }
+        responderComVozAtual = false;
+        processarComando(comando);
+        responderComVozAtual = false;
     }
 
     private void esconderTeclado() {
@@ -5181,51 +4812,12 @@ private String calcularExpressaoSimples(String texto) {
                 TELA_HISTORICO;
 
         mensagensSelecionadas.clear();
-        historicoApagarButton = null;
 
         LinearLayout layout =
                 criarTelaBase(
                         "HISTÓRICO DE CONVERSAS",
                         "CONVERSAS SALVAS LOCALMENTE"
                 );
-
-        if (layout.getChildCount() > 0
-                && layout.getChildAt(0)
-                instanceof LinearLayout) {
-
-            LinearLayout header =
-                    (LinearLayout) layout.getChildAt(0);
-
-            historicoApagarButton =
-                    criarBotao("APAGAR");
-
-            historicoApagarButton.setTextSize(
-                    10
-            );
-
-            historicoApagarButton.setPadding(
-                    dp(6),
-                    dp(4),
-                    dp(6),
-                    dp(4)
-            );
-
-            historicoApagarButton.setVisibility(
-                    View.GONE
-            );
-
-            historicoApagarButton.setOnClickListener(
-                    v -> confirmarApagarSelecionadas()
-            );
-
-            header.addView(
-                    historicoApagarButton,
-                    new LinearLayout.LayoutParams(
-                            dp(96),
-                            dp(42)
-                    )
-            );
-        }
 
         JSONArray array =
                 obterHistorico();
@@ -5246,10 +4838,6 @@ private String calcularExpressaoSimples(String texto) {
                             "Toque e segure uma conversa para selecioná-la. Você pode selecionar várias."
                     );
 
-            dica.setTextSize(
-                    12
-            );
-
             dica.setTextColor(
                     Color.LTGRAY
             );
@@ -5259,9 +4847,11 @@ private String calcularExpressaoSimples(String texto) {
                     parametrosTexto()
             );
 
-            for (int i = 0;
-                 i < array.length();
-                 i++) {
+            for (
+                    int i = 0;
+                    i < array.length();
+                    i++
+            ) {
 
                 final int indice = i;
 
@@ -5312,26 +4902,22 @@ private String calcularExpressaoSimples(String texto) {
                         Color.WHITE
                 );
 
-                box.setPadding(
-                        dp(4),
-                        dp(8),
-                        dp(4),
-                        dp(8)
-                );
-
                 box.setOnLongClickListener(
                         v -> {
 
-                            if (!box.isChecked()) {
-                                box.setChecked(true);
-                            }
+                            box.setChecked(
+                                    true
+                            );
 
                             if (!mensagensSelecionadas
-                                    .contains(indice)) {
+                                    .contains(
+                                            indice
+                                    )) {
 
-                                mensagensSelecionadas.add(
-                                        indice
-                                );
+                                mensagensSelecionadas
+                                        .add(
+                                                indice
+                                        );
                             }
 
                             atualizarHistoricoAcoes();
@@ -5346,36 +4932,42 @@ private String calcularExpressaoSimples(String texto) {
                             if (box.isChecked()) {
 
                                 if (!mensagensSelecionadas
-                                        .contains(indice)) {
+                                        .contains(
+                                                indice
+                                        )) {
 
-                                    mensagensSelecionadas.add(
-                                            indice
-                                    );
+                                    mensagensSelecionadas
+                                            .add(
+                                                    indice
+                                            );
                                 }
 
                             } else {
 
-                                mensagensSelecionadas.remove(
-                                        Integer.valueOf(indice)
-                                );
+                                mensagensSelecionadas
+                                        .remove(
+                                                Integer.valueOf(
+                                                        indice
+                                                )
+                                        );
                             }
 
                             atualizarHistoricoAcoes();
                         }
                 );
 
-                LinearLayout.LayoutParams boxParams =
-                        parametrosTexto();
-
-                boxParams.topMargin =
-                        dp(4);
-
                 layout.addView(
                         box,
-                        boxParams
+                        parametrosTexto()
                 );
             }
         }
+
+        adicionarBotaoTela(
+                layout,
+                "APAGAR CONVERSA SELECIONADA",
+                this::confirmarApagarSelecionadas
+        );
 
         adicionarBotaoTela(
                 layout,
@@ -5383,38 +4975,12 @@ private String calcularExpressaoSimples(String texto) {
                 this::abrirMenuJarvis
         );
 
-        atualizarHistoricoAcoes();
-
         setContentView(layout);
     }
 
     private void atualizarHistoricoAcoes() {
-
-        if (historicoApagarButton == null) {
-            return;
-        }
-
-        int quantidade =
-                mensagensSelecionadas.size();
-
-        if (quantidade <= 0) {
-
-            historicoApagarButton.setVisibility(
-                    View.GONE
-            );
-
-            return;
-        }
-
-        historicoApagarButton.setText(
-                quantidade == 1
-                        ? "APAGAR (1)"
-                        : "APAGAR (" + quantidade + ")"
-        );
-
-        historicoApagarButton.setVisibility(
-                View.VISIBLE
-        );
+        // Mantido para preservar a estrutura
+        // de seleção do histórico.
     }
 
 
@@ -5776,9 +5342,7 @@ private String calcularExpressaoSimples(String texto) {
 
             return "Não consegui obter informações do armazenamento.";
         }
-    }
-
-    private String formatarBytes(
+    }     private String formatarBytes(
             long bytes) {
 
         if (bytes < 1024) {
@@ -5935,7 +5499,9 @@ private String calcularExpressaoSimples(String texto) {
                 mensagem
         );
 
-        falar(mensagem);
+        if (responderComVozAtual) {
+            falar(mensagem);
+        }
     }
 
     private void adicionarMensagem(
@@ -6361,7 +5927,36 @@ private String calcularExpressaoSimples(String texto) {
     }
 
     @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (resultCode != RESULT_OK || data == null || data.getData() == null) return;
+        if (requestCode != REQUEST_AUDIO_REFERENCIA && requestCode != REQUEST_AUDIO_CONSENTIMENTO) return;
+
+        Uri uri = data.getData();
+        try {
+            int flags = data.getFlags() & Intent.FLAG_GRANT_READ_URI_PERMISSION;
+            if (flags != 0) getContentResolver().takePersistableUriPermission(uri, flags);
+        } catch (Exception ignored) {
+        }
+
+        if (requestCode == REQUEST_AUDIO_REFERENCIA) {
+            audioReferenciaUri = uri;
+            preferencias.edit().putString("audio_referencia_uri", uri.toString()).apply();
+            adicionarMensagem("JARVIS", "Áudio de referência configurado com sucesso.");
+        } else {
+            audioConsentimentoUri = uri;
+            preferencias.edit().putString("audio_consentimento_uri", uri.toString()).apply();
+            adicionarMensagem("JARVIS", "Áudio de consentimento configurado com sucesso.");
+        }
+    }
+
+    @Override
     public void onBackPressed() {
+        if (verificacaoEmAndamento) {
+            verificacaoEmAndamento = false;
+            verificacaoRunToken++;
+            if (verificacaoHandler != null) verificacaoHandler.removeCallbacksAndMessages(null);
+        }
         voltarSistema();
     }
 
@@ -6376,6 +5971,22 @@ private String calcularExpressaoSimples(String texto) {
         }
 
         pararReconhecimento();
+
+        verificacaoEmAndamento = false;
+        verificacaoRunToken++;
+        if (verificacaoHandler != null) verificacaoHandler.removeCallbacksAndMessages(null);
+
+        if (audioReferenciaPlayer != null) {
+            try { audioReferenciaPlayer.stop(); } catch (Exception ignored) {}
+            try { audioReferenciaPlayer.release(); } catch (Exception ignored) {}
+            audioReferenciaPlayer = null;
+        }
+
+        if (audioConsentimentoPlayer != null) {
+            try { audioConsentimentoPlayer.stop(); } catch (Exception ignored) {}
+            try { audioConsentimentoPlayer.release(); } catch (Exception ignored) {}
+            audioConsentimentoPlayer = null;
+        }
 
         if (tts != null) {
 
