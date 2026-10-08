@@ -108,8 +108,8 @@ public class MainActivity extends Activity {
 
     private JarvisMemory memoria;
     private boolean memoriaAutomatica = true;
-private final JarvisBrain cerebro =
-        new JarvisBrain();
+    private final JarvisBrain cerebro =
+            new JarvisBrain();
     private static final int TELA_PRINCIPAL = 0;
     private static final int TELA_MENU_JARVIS = 1;
     private static final int TELA_GERENCIAR_JARVIS = 2;
@@ -439,12 +439,6 @@ private final JarvisBrain cerebro =
                                 reactorView.setOuvindo(false);
                             }
 
-                            if (error == SpeechRecognizer.ERROR_NO_MATCH
-                                    || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
-                                liberarReconhecedor();
-                                return;
-                            }
-
                             String mensagem;
 
                             switch (error) {
@@ -506,9 +500,11 @@ private final JarvisBrain cerebro =
                             if (resultados == null
                                     || resultados.isEmpty()) {
 
+                                responderComVozAtual = true;
                                 responder(
                                         "Não consegui entender o comando."
                                 );
+                                responderComVozAtual = false;
 
                                 liberarReconhecedor();
                                 return;
@@ -776,7 +772,11 @@ private final JarvisBrain cerebro =
         if (homeWeatherText != null) {
             String cidade = preferencias.getString("cidade_clima", "");
             if (cidade.isEmpty()) {
-                homeWeatherText.setText("☁  Clima não configurado");
+                homeWeatherText.setText(
+                        modoOnline
+                                ? "☁  Clima não configurado"
+                                : "☁  Clima indisponível no modo OFFLINE"
+                );
             } else {
                 homeWeatherText.setText("☁  " + cidade + "  •  clima disponível no modo ONLINE");
             }
@@ -804,11 +804,43 @@ private final JarvisBrain cerebro =
         commandInput.setPadding(dp(16), 0, dp(12), 0);
         commandInput.setBackground(campoFundo);
 
+        commandInput.setImeOptions(
+                android.view.inputmethod.EditorInfo.IME_ACTION_SEND
+        );
+
+        commandInput.setInputType(
+                android.text.InputType.TYPE_CLASS_TEXT
+                        | android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+        );
+
         commandInput.setOnFocusChangeListener((v, focused) -> {
             if (focused && aoFocar != null && !chatMode) {
                 aoFocar.run();
             }
         });
+
+        commandInput.setOnEditorActionListener(
+                (v, actionId, event) -> {
+
+                    boolean enviarPorAcao =
+                            actionId ==
+                                    android.view.inputmethod.EditorInfo.IME_ACTION_SEND;
+
+                    boolean enviarPorEnter =
+                            event != null
+                                    && event.getKeyCode()
+                                    == android.view.KeyEvent.KEYCODE_ENTER
+                                    && event.getAction()
+                                    == android.view.KeyEvent.ACTION_DOWN;
+
+                    if (enviarPorAcao || enviarPorEnter) {
+                        enviarTextoDigitado();
+                        return true;
+                    }
+
+                    return false;
+                }
+        );
 
         entrada.addView(
                 commandInput,
@@ -819,6 +851,10 @@ private final JarvisBrain cerebro =
         microfone.setImageResource(R.drawable.ic_jarvis_mic);
         microfone.setBackgroundColor(Color.TRANSPARENT);
         microfone.setColorFilter(Color.rgb(80, 205, 255));
+        microfone.setPadding(
+                dp(8), dp(8), dp(8), dp(8)
+        );
+        microfone.setScaleType(ImageButton.ScaleType.CENTER);
         microfone.setContentDescription("Microfone");
         microfone.setOnClickListener(v -> {
             if (!chatMode) {
@@ -834,6 +870,10 @@ private final JarvisBrain cerebro =
         enviar.setImageResource(R.drawable.ic_jarvis_send);
         enviar.setBackgroundColor(Color.TRANSPARENT);
         enviar.setColorFilter(Color.rgb(80, 205, 255));
+        enviar.setPadding(
+                dp(8), dp(8), dp(8), dp(8)
+        );
+        enviar.setScaleType(ImageButton.ScaleType.CENTER);
         enviar.setContentDescription("Enviar");
         enviar.setOnClickListener(v -> enviarTextoDigitado());
 
@@ -2496,7 +2536,7 @@ private final JarvisBrain cerebro =
         setContentView(layout);
     }
 
-    private LinearLayout criarTelaBase(
+    private TelaRolavelLayout criarTelaBase(
             String titulo,
             String subtitulo) {
 
@@ -2599,10 +2639,23 @@ voltar.setOnClickListener(
         TextView tituloView =
                 criarTexto(titulo);
 
-        tituloView.setTextSize(22);
+        tituloView.setTextSize(20);
+        tituloView.setIncludeFontPadding(true);
+        tituloView.setMaxLines(2);
+        tituloView.setEllipsize(
+                android.text.TextUtils.TruncateAt.END
+        );
+        tituloView.setGravity(
+                Gravity.CENTER_VERTICAL
+        );
 
         titulos.addView(
-                tituloView
+                tituloView,
+                new LinearLayout.LayoutParams(
+                        -1,
+                        0,
+                        1
+                )
         );
 
         TextView subtituloView =
@@ -2610,16 +2663,24 @@ voltar.setOnClickListener(
 
         subtituloView.setTextSize(11);
         subtituloView.setTextColor(Color.GRAY);
+        subtituloView.setSingleLine(true);
+        subtituloView.setEllipsize(
+                android.text.TextUtils.TruncateAt.END
+        );
 
         titulos.addView(
-                subtituloView
+                subtituloView,
+                new LinearLayout.LayoutParams(
+                        -1,
+                        dp(24)
+                )
         );
 
         header.addView(
                 titulos,
                 new LinearLayout.LayoutParams(
                         0,
-                        dp(52),
+                        dp(64),
                         1
                 )
         );
@@ -2628,7 +2689,7 @@ voltar.setOnClickListener(
                 header,
                 new LinearLayout.LayoutParams(
                         -1,
-                        dp(58)
+                        dp(70)
                 )
         );
 
@@ -3478,20 +3539,37 @@ private String calcularExpressaoSimples(String texto) {
         return null;
     }
 
-    String valor = texto.trim().toLowerCase(Locale.ROOT);
+    String valor = texto
+            .trim()
+            .toLowerCase(Locale.ROOT);
 
-    valor = valor.replace("quanto é", "");
-    valor = valor.replace("quanto e", "");
-    valor = valor.replace("calcule", "");
-    valor = valor.replace("calcular", "");
-    valor = valor.replace("resultado de", "");
-    valor = valor.replace("qual é", "");
-    valor = valor.replace("qual e", "");
-    valor = valor.replace("?", "");
-    valor = valor.trim();
-
-    if (valor.isEmpty() || valor.length() > 60) {
+    if (valor.isEmpty() || valor.length() > 500) {
         return null;
+    }
+
+    /*
+     * Permite perguntas naturais simples sem transformar
+     * a calculadora em um interpretador de linguagem livre.
+     */
+    String[] prefixos = {
+            "quanto é o resultado de ",
+            "quanto e o resultado de ",
+            "qual é o resultado de ",
+            "qual e o resultado de ",
+            "resultado de ",
+            "quanto é ",
+            "quanto e ",
+            "calcule ",
+            "calcular ",
+            "qual é ",
+            "qual e "
+    };
+
+    for (String prefixo : prefixos) {
+        if (valor.startsWith(prefixo)) {
+            valor = valor.substring(prefixo.length()).trim();
+            break;
+        }
     }
 
     valor = valor
@@ -3499,51 +3577,76 @@ private String calcularExpressaoSimples(String texto) {
             .replace("multiplicado por", "*")
             .replace("dividido por", "/")
             .replace("mais", "+")
-            .replace("menos", "-");
+            .replace("menos", "-")
+            .replace("×", "*")
+            .replace("÷", "/")
+            .replace("=", "")
+            .replace("?", "")
+            .trim();
 
-    if (valor.matches("[0-9]+([.,][0-9]+)?\\s*[+\\-*/]\\s*[0-9]+([.,][0-9]+)?")) {
-                    String expressao = valor.replace(',', '.').replaceAll("\\s+", "");
-            java.util.regex.Matcher matcher = java.util.regex.Pattern
-                    .compile("([0-9]+(?:\\.[0-9]+)?)([+\\-*/])([0-9]+(?:\\.[0-9]+)?)")
-                    .matcher(expressao);
+    if (valor.isEmpty()) {
+        return null;
+    }
 
-            if (!matcher.matches()) {
-                return null;
-            }
+    /*
+     * Sem número e sem operador, não é matemática.
+     */
+    if (!valor.matches(".*[0-9].*")) {
+        return null;
+    }
 
-            double a = Double.parseDouble(matcher.group(1));
-            double b = Double.parseDouble(matcher.group(3));
-            double resultado;
+    if (!valor.matches(".*[+\\-*/%x].*")) {
+        return null;
+    }
 
-            switch (matcher.group(2)) {
-                case "+":
-                    resultado = a + b;
-                    break;
-                case "-":
-                    resultado = a - b;
-                    break;
-                case "*":
-                    resultado = a * b;
-                    break;
-                case "/":
-                    if (b == 0) {
-                        return "Não é possível dividir por zero.";
-                    }
-                    resultado = a / b;
-                    break;
-                default:
-                    return null;
-            }
+    try {
 
-            if (resultado == Math.rint(resultado)) {
-                return "O resultado é " + String.format(Locale.getDefault(), "%.0f", resultado) + ".";
-            }
+        JarvisMathEngine.Fraction resultado =
+                JarvisMathEngine.calculate(valor);
 
-            return "O resultado é " + String.format(Locale.getDefault(), "%.4f", resultado) + ".";
+        String representacao;
+
+        try {
+            /*
+             * Quando a fração possui decimal finito,
+             * mostramos o decimal exato. Ex.: 1/2 -> 0.5.
+             */
+            representacao =
+                    resultado.toExactDecimal()
+                            .replace('.', ',');
+        } catch (ArithmeticException naoEhDecimalFinito) {
+            /*
+             * Caso como 2/3: mantemos a fração exata.
+             */
+            representacao = resultado.toString();
         }
+
+        return
+                "O resultado é "
+                        + representacao
+                        + ".";
+
+    } catch (ArithmeticException e) {
+
+        if (e.getMessage() != null
+                && e.getMessage().toLowerCase(Locale.ROOT)
+                .contains("zero")) {
+
+            return "Não é possível dividir por zero.";
+        }
+
+        return
+                "Não consegui calcular essa expressão com exatidão.";
+
+    } catch (IllegalArgumentException e) {
+
+        return null;
+
+    } catch (Exception e) {
 
         return null;
     }
+}
 
     private boolean processarMemoriaSocial(
             String texto) {
