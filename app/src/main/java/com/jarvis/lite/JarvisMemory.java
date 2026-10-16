@@ -18,9 +18,9 @@ import java.util.Set;
 /**
  * Memória persistente local do JARVIS.
  *
- * Mantém compatibilidade com a API existente,
- * acrescentando:
+ * O SQLite passa a ser o armazenamento principal.
  *
+ * Compatibilidade mantida com os métodos públicos existentes:
  * - relevância por palavras;
  * - categoria;
  * - recência;
@@ -30,9 +30,10 @@ import java.util.Set;
  * - contexto ordenado por relevância;
  * - memória chave/valor;
  * - importação/exportação JSON;
- * - persistência segura do contador de acesso.
+ * - persistência do contador de acesso;
+ * - migração dos dados antigos do SharedPreferences.
  *
- * Tudo funciona localmente, sem Internet.
+ * Todo o processamento ocorre localmente, sem Internet.
  */
 public class JarvisMemory {
 
@@ -42,8 +43,12 @@ public class JarvisMemory {
     private static final String KEY_ITEMS =
             "items";
 
-    private static final int MAX_ITEMS =
-            150;
+    /*
+     * Esta chave registra que a migração dos dados antigos
+     * foi concluída. Não é a chave que contém as memórias.
+     */
+    private static final String KEY_SQLITE_MIGRATED =
+            "sqlite_migrated_v1";
 
     private static final int MAX_TEXT =
             500;
@@ -54,23 +59,193 @@ public class JarvisMemory {
     private static final int MAX_TAGS =
             12;
 
-    private static final int MAX_CONTEXT_SCAN =
-            150;
-
     private static final long DAY_MS =
             24L * 60L * 60L * 1000L;
 
     private final SharedPreferences prefs;
 
+    private final JarvisMemoryDatabase database;
+
     public JarvisMemory(Context context) {
 
+        Context appContext =
+                context.getApplicationContext();
+
         prefs =
-                context
-                        .getApplicationContext()
-                        .getSharedPreferences(
-                                PREFS,
-                                Context.MODE_PRIVATE
+                appContext.getSharedPreferences(
+                        PREFS,
+                        Context.MODE_PRIVATE
+                );
+
+        database =
+                new JarvisMemoryDatabase(
+                        appContext
+                );
+
+        /*
+         * Migra os dados legados apenas uma vez.
+         * O conteúdo antigo não é apagado durante a migração.
+         */
+        migrateLegacyItemsOnce();
+    }
+
+    // ============================================================
+    // MIGRAÇÃO DO SHARED PREFERENCES PARA SQLITE
+    // ============================================================
+
+    private synchronized void migrateLegacyItemsOnce() {
+
+        if (
+                prefs.getBoolean(
+                        KEY_SQLITE_MIGRATED,
+                        false
+                )
+        ) {
+            return;
+        }
+
+        try {
+
+            String legacyJson =
+                    prefs.getString(
+                            KEY_ITEMS,
+                            "[]"
+                    );
+
+            JSONArray legacyItems;
+
+            try {
+
+                legacyItems =
+                        new JSONArray(
+                                legacyJson
                         );
+
+            } catch (Exception ignored) {
+
+                /*
+                 * Não marcamos a migração como concluída
+                 * se os dados antigos não puderem ser lidos.
+                 */
+                return;
+            }
+
+            /*
+             * Se o banco ainda está vazio, importa o conjunto
+             * legado em uma única transação.
+             */
+            if (!database.hasAnyItems()) {
+
+                if (
+                        database.replaceAllItems(
+                                legacyItems
+                        )
+                ) {
+
+                    prefs.edit()
+                            .putBoolean(
+                                    KEY_SQLITE_MIGRATED,
+                                    true
+                            )
+                            .apply();
+                }
+
+                return;
+            }
+
+            /*
+             * O banco já contém registros.
+             *
+             * Nesse caso, não substituímos os registros existentes
+             * pelos dados potencialmente mais antigos do SharedPreferences.
+             *
+             * Apenas adicionamos memórias legadas que ainda não existem.
+             * Isso permite retomar uma migração interrompida sem
+             * sobrescrever registros já presentes no SQLite.
+             */
+            boolean complete = true;
+
+            for (
+                    int i = 0;
+                    i < legacyItems.length();
+                    i++
+            ) {
+
+                JSONObject item =
+                        legacyItems.optJSONObject(i);
+
+                if (item == null) {
+                    continue;
+                }
+
+                String text =
+                        item.optString(
+                                "text",
+                                ""
+                        ).trim();
+
+                if (text.isEmpty()) {
+                    continue;
+                }
+
+                if (text.length() > MAX_TEXT) {
+
+                    text =
+                            text.substring(
+                                    0,
+                                    MAX_TEXT
+                            );
+                }
+
+                String category =
+                        sanitizeCategory(
+                                item.optString(
+                                        "category",
+                                        "geral"
+                                )
+                        );
+
+                /*
+                 * Não sobrescreve uma memória que já está no banco.
+                 */
+                if (
+                        database.findExact(
+                                text,
+                                category
+                        ) != null
+                ) {
+                    continue;
+                }
+
+                /*
+                 * Uma falha deixa a migração pendente para
+                 * que ela possa ser tentada novamente.
+                 */
+                if (!database.upsertItem(item)) {
+
+                    complete = false;
+
+                    break;
+                }
+            }
+
+            if (complete) {
+
+                prefs.edit()
+                        .putBoolean(
+                                KEY_SQLITE_MIGRATED,
+                                true
+                        )
+                        .apply();
+            }
+
+        } catch (Exception ignored) {
+
+            /*
+             * Mantém a migração pendente em caso de falha.
+             * Não apaga nem altera a cópia legada.
+             */
+        }
     }
 
     // ============================================================
@@ -78,7 +253,8 @@ public class JarvisMemory {
     // ============================================================
 
     public synchronized boolean remember(
-            String text) {
+            String text
+    ) {
 
         return remember(
                 text,
@@ -88,7 +264,8 @@ public class JarvisMemory {
 
     public synchronized boolean remember(
             String text,
-            String category) {
+            String category
+    ) {
 
         return rememberInternal(
                 text,
@@ -99,13 +276,13 @@ public class JarvisMemory {
     }
 
     /**
-     * Guarda uma memória com importância
-     * entre 0 e 100.
+     * Guarda uma memória com importância entre 0 e 100.
      */
     public synchronized boolean rememberImportant(
             String text,
             String category,
-            int importance) {
+            int importance
+    ) {
 
         return rememberInternal(
                 text,
@@ -123,7 +300,8 @@ public class JarvisMemory {
             String text,
             String category,
             int importance,
-            String[] tags) {
+            String[] tags
+    ) {
 
         if (text == null) {
             return false;
@@ -137,6 +315,7 @@ public class JarvisMemory {
         }
 
         if (value.length() > MAX_TEXT) {
+
             value =
                     value.substring(
                             0,
@@ -158,8 +337,8 @@ public class JarvisMemory {
         try {
 
             /*
-             * Se a memória já existir,
-             * atualiza em vez de criar duplicata.
+             * Se a memória já existir, atualiza em vez
+             * de criar uma duplicata.
              */
             for (
                     int i = 0;
@@ -191,7 +370,7 @@ public class JarvisMemory {
                                 .equals(
                                         normalize(value)
                                 )
-                                &&
+                        &&
                         normalize(existingCategory)
                                 .equals(
                                         normalize(categoria)
@@ -248,14 +427,12 @@ public class JarvisMemory {
                             )
                     );
 
-                    saveItems(items);
-
-                    return true;
+                    return saveItems(items);
                 }
             }
 
             /*
-             * Nova memória.
+             * Cria uma nova memória.
              */
             JSONObject novo =
                     new JSONObject();
@@ -307,17 +484,14 @@ public class JarvisMemory {
                     )
             );
 
-            items.put(
-                    novo
-            );
+            items.put(novo);
 
-            saveItems(
-                    limitItems(
-                            items
-                    )
+            /*
+             * limitItems não elimina memórias por quantidade.
+             */
+            return saveItems(
+                    limitItems(items)
             );
-
-            return true;
 
         } catch (Exception ignored) {
 
@@ -331,7 +505,8 @@ public class JarvisMemory {
 
     public synchronized boolean rememberKeyValue(
             String key,
-            String value) {
+            String value
+    ) {
 
         return rememberKeyValue(
                 key,
@@ -343,11 +518,13 @@ public class JarvisMemory {
     public synchronized boolean rememberKeyValue(
             String key,
             String value,
-            String category) {
+            String category
+    ) {
 
         if (
                 key == null
-                        || value == null
+                ||
+                value == null
         ) {
             return false;
         }
@@ -360,15 +537,14 @@ public class JarvisMemory {
 
         if (
                 chave.isEmpty()
-                        || valor.isEmpty()
+                ||
+                valor.isEmpty()
         ) {
             return false;
         }
 
         return rememberImportant(
-                chave
-                        + ": "
-                        + valor,
+                chave + ": " + valor,
                 category,
                 75
         );
@@ -380,7 +556,8 @@ public class JarvisMemory {
 
     public synchronized boolean update(
             String query,
-            String newText) {
+            String newText
+    ) {
 
         return update(
                 query,
@@ -392,11 +569,13 @@ public class JarvisMemory {
     public synchronized boolean update(
             String query,
             String newText,
-            String category) {
+            String category
+    ) {
 
         if (
                 query == null
-                        || newText == null
+                ||
+                newText == null
         ) {
             return false;
         }
@@ -409,7 +588,8 @@ public class JarvisMemory {
 
         if (
                 busca.isEmpty()
-                        || novoTexto.isEmpty()
+                ||
+                novoTexto.isEmpty()
         ) {
             return false;
         }
@@ -427,9 +607,7 @@ public class JarvisMemory {
                 readItems();
 
         String normalizada =
-                normalize(
-                        busca
-                );
+                normalize(busca);
 
         JSONObject melhor =
                 null;
@@ -466,25 +644,17 @@ public class JarvisMemory {
 
                 if (score > melhorScore) {
 
-                    melhorScore =
-                            score;
-
-                    melhor =
-                            item;
+                    melhorScore = score;
+                    melhor = item;
                 }
 
                 if (
                         normalize(texto)
-                                .equals(
-                                        normalizada
-                                )
+                                .equals(normalizada)
                 ) {
 
-                    melhor =
-                            item;
-
-                    melhorScore =
-                            10000;
+                    melhor = item;
+                    melhorScore = 10000;
 
                     break;
                 }
@@ -492,7 +662,8 @@ public class JarvisMemory {
 
             if (
                     melhor == null
-                            || melhorScore < 20
+                    ||
+                    melhorScore < 20
             ) {
                 return false;
             }
@@ -504,9 +675,7 @@ public class JarvisMemory {
 
             melhor.put(
                     "category",
-                    sanitizeCategory(
-                            category
-                    )
+                    sanitizeCategory(category)
             );
 
             melhor.put(
@@ -522,11 +691,7 @@ public class JarvisMemory {
                     )
             );
 
-            saveItems(
-                    items
-            );
-
-            return true;
+            return saveItems(items);
 
         } catch (Exception ignored) {
 
@@ -566,9 +731,7 @@ public class JarvisMemory {
                     );
 
             if (!texto.isEmpty()) {
-                resultado.add(
-                        texto
-                );
+                resultado.add(texto);
             }
         }
 
@@ -580,22 +743,22 @@ public class JarvisMemory {
     // ============================================================
 
     public synchronized List<String> getByCategory(
-            String category) {
+            String category
+    ) {
 
         ArrayList<String> resultado =
                 new ArrayList<>();
 
         if (
                 category == null
-                        || category.trim().isEmpty()
+                ||
+                category.trim().isEmpty()
         ) {
             return resultado;
         }
 
         String categoria =
-                normalize(
-                        category
-                );
+                normalize(category);
 
         JSONArray items =
                 readItems();
@@ -633,9 +796,7 @@ public class JarvisMemory {
                     );
 
             if (!texto.isEmpty()) {
-                resultado.add(
-                        texto
-                );
+                resultado.add(texto);
             }
         }
 
@@ -667,25 +828,17 @@ public class JarvisMemory {
             resultado
                     .append(i + 1)
                     .append(". ")
-                    .append(
-                            todas.get(i)
-                    );
+                    .append(todas.get(i));
 
-            if (
-                    i + 1
-                            < todas.size()
-            ) {
-                resultado.append(
-                        "\n"
-                );
+            if (i + 1 < todas.size()) {
+                resultado.append("\n");
             }
         }
 
         return resultado.toString();
     }
 
-    public synchronized String
-    formatDetailedForDisplay() {
+    public synchronized String formatDetailedForDisplay() {
 
         JSONArray items =
                 readItems();
@@ -697,8 +850,7 @@ public class JarvisMemory {
         StringBuilder resultado =
                 new StringBuilder();
 
-        int numero =
-                1;
+        int numero = 1;
 
         for (
                 int i = items.length() - 1;
@@ -755,9 +907,7 @@ public class JarvisMemory {
                     .append("}");
 
             if (i > 0) {
-                resultado.append(
-                        "\n"
-                );
+                resultado.append("\n");
             }
         }
 
@@ -768,20 +918,18 @@ public class JarvisMemory {
     // ESQUECER
     // ============================================================
 
-    public synchronized int forget(
-            String query) {
+    public synchronized int forget(String query) {
 
         if (
                 query == null
-                        || query.trim().isEmpty()
+                ||
+                query.trim().isEmpty()
         ) {
             return 0;
         }
 
         String busca =
-                normalize(
-                        query
-                );
+                normalize(query);
 
         JSONArray old =
                 readItems();
@@ -789,8 +937,7 @@ public class JarvisMemory {
         JSONArray next =
                 new JSONArray();
 
-        int removidas =
-                0;
+        int removidas = 0;
 
         try {
 
@@ -815,24 +962,21 @@ public class JarvisMemory {
 
                 if (
                         !texto.isEmpty()
-                                &&
-                        normalize(texto)
-                                .contains(busca)
+                        &&
+                        normalize(texto).contains(busca)
                 ) {
 
                     removidas++;
 
                 } else {
 
-                    next.put(
-                            item
-                    );
+                    next.put(item);
                 }
             }
 
-            saveItems(
-                    next
-            );
+            if (!saveItems(next)) {
+                return 0;
+            }
 
         } catch (Exception ignored) {
 
@@ -843,19 +987,19 @@ public class JarvisMemory {
     }
 
     public synchronized int forgetCategory(
-            String category) {
+            String category
+    ) {
 
         if (
                 category == null
-                        || category.trim().isEmpty()
+                ||
+                category.trim().isEmpty()
         ) {
             return 0;
         }
 
         String busca =
-                normalize(
-                        category
-                );
+                normalize(category);
 
         JSONArray old =
                 readItems();
@@ -863,8 +1007,7 @@ public class JarvisMemory {
         JSONArray next =
                 new JSONArray();
 
-        int removidas =
-                0;
+        int removidas = 0;
 
         try {
 
@@ -888,23 +1031,20 @@ public class JarvisMemory {
                         );
 
                 if (
-                        normalize(categoria)
-                                .equals(busca)
+                        normalize(categoria).equals(busca)
                 ) {
 
                     removidas++;
 
                 } else {
 
-                    next.put(
-                            item
-                    );
+                    next.put(item);
                 }
             }
 
-            saveItems(
-                    next
-            );
+            if (!saveItems(next)) {
+                return 0;
+            }
 
         } catch (Exception ignored) {
 
@@ -915,6 +1055,15 @@ public class JarvisMemory {
     }
 
     public synchronized void clear() {
+
+        /*
+         * Limpa a memória atual do SQLite e remove a cópia
+         * legada apenas quando o usuário pede para limpar tudo.
+         *
+         * A marca de migração permanece ativa para impedir
+         * que os dados antigos sejam importados novamente.
+         */
+        database.clear();
 
         prefs.edit()
                 .remove(KEY_ITEMS)
@@ -927,11 +1076,13 @@ public class JarvisMemory {
 
     public synchronized String relevantContext(
             String query,
-            int maxItems) {
+            int maxItems
+    ) {
 
         if (
                 query == null
-                        || maxItems <= 0
+                ||
+                maxItems <= 0
         ) {
             return "";
         }
@@ -952,34 +1103,23 @@ public class JarvisMemory {
         StringBuilder resultado =
                 new StringBuilder();
 
-        int quantidade =
-                0;
+        int quantidade = 0;
 
-        for (
-                ScoredMemory memoria
-                        : ranking
-        ) {
+        for (ScoredMemory memoria : ranking) {
 
             if (memoria.score < 8) {
                 continue;
             }
 
             if (quantidade > 0) {
-                resultado.append(
-                        "\n"
-                );
+                resultado.append("\n");
             }
 
-            resultado.append(
-                    memoria.text
-            );
+            resultado.append(memoria.text);
 
             quantidade++;
 
-            if (
-                    quantidade
-                            >= maxItems
-            ) {
+            if (quantidade >= maxItems) {
                 break;
             }
         }
@@ -993,15 +1133,18 @@ public class JarvisMemory {
 
     public synchronized List<String> search(
             String query,
-            int maxItems) {
+            int maxItems
+    ) {
 
         ArrayList<String> resultado =
                 new ArrayList<>();
 
         if (
                 query == null
-                        || query.trim().isEmpty()
-                        || maxItems <= 0
+                ||
+                query.trim().isEmpty()
+                ||
+                maxItems <= 0
         ) {
             return resultado;
         }
@@ -1012,23 +1155,15 @@ public class JarvisMemory {
                         maxItems
                 );
 
-        for (
-                ScoredMemory memoria
-                        : ranking
-        ) {
+        for (ScoredMemory memoria : ranking) {
 
             if (memoria.score < 8) {
                 continue;
             }
 
-            resultado.add(
-                    memoria.text
-            );
+            resultado.add(memoria.text);
 
-            if (
-                    resultado.size()
-                            >= maxItems
-            ) {
+            if (resultado.size() >= maxItems) {
                 break;
             }
         }
@@ -1037,7 +1172,8 @@ public class JarvisMemory {
     }
 
     public synchronized String getBestMatchJson(
-            String query) {
+            String query
+    ) {
 
         List<ScoredMemory> ranking =
                 rank(
@@ -1056,11 +1192,11 @@ public class JarvisMemory {
     }
 
     /**
-     * Aumenta o contador de uso da melhor
-     * memória correspondente.
+     * Aumenta o contador de uso da melhor memória correspondente.
      */
     public synchronized boolean touchBestMatch(
-            String query) {
+            String query
+    ) {
 
         List<ScoredMemory> ranking =
                 rank(
@@ -1070,7 +1206,8 @@ public class JarvisMemory {
 
         if (
                 ranking.isEmpty()
-                        || ranking.get(0).score < 8
+                ||
+                ranking.get(0).score < 8
         ) {
             return false;
         }
@@ -1078,9 +1215,7 @@ public class JarvisMemory {
         try {
 
             JSONObject item =
-                    ranking
-                            .get(0)
-                            .json;
+                    ranking.get(0).json;
 
             item.put(
                     "accessCount",
@@ -1095,11 +1230,9 @@ public class JarvisMemory {
                     System.currentTimeMillis()
             );
 
-            saveRankedBack(
+            return saveRankedBack(
                     ranking.get(0)
             );
-
-            return true;
 
         } catch (Exception ignored) {
 
@@ -1112,17 +1245,15 @@ public class JarvisMemory {
     // ============================================================
 
     public synchronized int size() {
-
-        return readItems()
-                .length();
+        return database.size();
     }
 
-    public synchronized boolean contains(
-            String query) {
+    public synchronized boolean contains(String query) {
 
         if (
                 query == null
-                        || query.trim().isEmpty()
+                ||
+                query.trim().isEmpty()
         ) {
             return false;
         }
@@ -1135,9 +1266,8 @@ public class JarvisMemory {
 
         return
                 !ranking.isEmpty()
-                        && ranking
-                        .get(0)
-                        .score >= 8;
+                &&
+                ranking.get(0).score >= 8;
     }
 
     // ============================================================
@@ -1193,17 +1323,15 @@ public class JarvisMemory {
     // ============================================================
 
     public synchronized String exportJson() {
-
-        return readItems()
-                .toString();
+        return readItems().toString();
     }
 
-    public synchronized boolean importJson(
-            String json) {
+    public synchronized boolean importJson(String json) {
 
         if (
                 json == null
-                        || json.trim().isEmpty()
+                ||
+                json.trim().isEmpty()
         ) {
             return false;
         }
@@ -1211,18 +1339,18 @@ public class JarvisMemory {
         try {
 
             JSONArray origem =
-                    new JSONArray(
-                            json
-                    );
+                    new JSONArray(json);
 
             JSONArray limpa =
                     new JSONArray();
 
+            /*
+             * Não existe mais limite fixo de 150 itens.
+             * Continuamos validando cada objeto antes de importar.
+             */
             for (
                     int i = 0;
-                    i < origem.length()
-                            && limpa.length()
-                            < MAX_ITEMS;
+                    i < origem.length();
                     i++
             ) {
 
@@ -1234,21 +1362,16 @@ public class JarvisMemory {
                 }
 
                 String texto =
-                        original
-                                .optString(
-                                        "text",
-                                        ""
-                                )
-                                .trim();
+                        original.optString(
+                                "text",
+                                ""
+                        ).trim();
 
                 if (texto.isEmpty()) {
                     continue;
                 }
 
-                if (
-                        texto.length()
-                                > MAX_TEXT
-                ) {
+                if (texto.length() > MAX_TEXT) {
 
                     texto =
                             texto.substring(
@@ -1329,9 +1452,7 @@ public class JarvisMemory {
                 );
 
                 JSONArray tags =
-                        original.optJSONArray(
-                                "tags"
-                        );
+                        original.optJSONArray("tags");
 
                 item.put(
                         "tags",
@@ -1343,16 +1464,10 @@ public class JarvisMemory {
                                 : tags
                 );
 
-                limpa.put(
-                        item
-                );
+                limpa.put(item);
             }
 
-            saveItems(
-                    limpa
-            );
-
-            return true;
+            return saveItems(limpa);
 
         } catch (Exception ignored) {
 
@@ -1360,23 +1475,21 @@ public class JarvisMemory {
         }
     }
 
-    public synchronized String getMemoryJson(
-            int index) {
+    public synchronized String getMemoryJson(int index) {
 
         JSONArray items =
                 readItems();
 
         if (
                 index < 0
-                        || index >= items.length()
+                ||
+                index >= items.length()
         ) {
             return "";
         }
 
         JSONObject item =
-                items.optJSONObject(
-                        index
-                );
+                items.optJSONObject(index);
 
         return item == null
                 ? ""
@@ -1389,28 +1502,27 @@ public class JarvisMemory {
 
     private List<ScoredMemory> rank(
             String query,
-            int maxItems) {
+            int maxItems
+    ) {
 
         ArrayList<ScoredMemory> ranking =
                 new ArrayList<>();
 
         if (
                 query == null
-                        || query.trim().isEmpty()
-                        || maxItems <= 0
+                ||
+                query.trim().isEmpty()
+                ||
+                maxItems <= 0
         ) {
             return ranking;
         }
 
         String normalizedQuery =
-                normalize(
-                        query
-                );
+                normalize(query);
 
         String[] queryTokens =
-                tokenize(
-                        normalizedQuery
-                );
+                tokenize(normalizedQuery);
 
         if (queryTokens.length == 0) {
             return ranking;
@@ -1419,11 +1531,12 @@ public class JarvisMemory {
         JSONArray items =
                 readItems();
 
+        /*
+         * Analisa todos os registros, em vez de limitar
+         * a busca aos 150 primeiros.
+         */
         int scanned =
-                Math.min(
-                        items.length(),
-                        MAX_CONTEXT_SCAN
-                );
+                items.length();
 
         for (
                 int i = 0;
@@ -1474,7 +1587,8 @@ public class JarvisMemory {
                     @Override
                     public int compare(
                             ScoredMemory a,
-                            ScoredMemory b) {
+                            ScoredMemory b
+                    ) {
 
                         int byScore =
                                 Integer.compare(
@@ -1512,10 +1626,7 @@ public class JarvisMemory {
                 }
         );
 
-        if (
-                ranking.size()
-                        > maxItems
-        ) {
+        if (ranking.size() > maxItems) {
 
             return new ArrayList<>(
                     ranking.subList(
@@ -1534,7 +1645,8 @@ public class JarvisMemory {
 
     private int scoreMemory(
             String normalizedQuery,
-            JSONObject item) {
+            JSONObject item
+    ) {
 
         String text =
                 normalize(
@@ -1546,52 +1658,39 @@ public class JarvisMemory {
 
         if (
                 text.isEmpty()
-                        || normalizedQuery.isEmpty()
+                ||
+                normalizedQuery.isEmpty()
         ) {
             return 0;
         }
 
-        int score =
-                0;
+        int score = 0;
 
         /*
-         * Correspondência exata.
+         * Correspondência exata ou parcial.
          */
-        if (
-                text.equals(
-                        normalizedQuery
-                )
-        ) {
+        if (text.equals(normalizedQuery)) {
 
             score += 100;
 
-        } else if (
-                text.contains(
-                        normalizedQuery
-                )
-        ) {
+        } else if (text.contains(normalizedQuery)) {
 
             score += 55;
 
         } else if (
-                normalizedQuery.contains(
-                        text
-                )
-                        && text.length() >= 4
+                normalizedQuery.contains(text)
+                &&
+                text.length() >= 4
         ) {
 
             score += 40;
         }
 
         String[] queryTokens =
-                tokenize(
-                        normalizedQuery
-                );
+                tokenize(normalizedQuery);
 
         String[] textTokens =
-                tokenize(
-                        text
-                );
+                tokenize(text);
 
         Set<String> textSet =
                 new HashSet<>();
@@ -1601,38 +1700,25 @@ public class JarvisMemory {
                 textTokens
         );
 
-        int matched =
-                0;
+        int matched = 0;
+        int meaningful = 0;
 
-        int meaningful =
-                0;
+        for (String token : queryTokens) {
 
-        for (
-                String token
-                        : queryTokens
-        ) {
-
-            if (
-                    isStopWord(
-                            token
-                    )
-            ) {
+            if (isStopWord(token)) {
                 continue;
             }
 
             meaningful++;
 
-            if (
-                    textSet.contains(
-                            token
-                    )
-            ) {
+            if (textSet.contains(token)) {
 
                 matched++;
 
             } else if (
                     token.length() >= 5
-                            && text.contains(token)
+                    &&
+                    text.contains(token)
             ) {
 
                 matched++;
@@ -1656,24 +1742,16 @@ public class JarvisMemory {
 
         boolean categoriaCoincide =
                 !category.isEmpty()
-                        &&
-                normalizedQuery.contains(
-                        category
-                );
+                &&
+                normalizedQuery.contains(category);
 
         if (categoriaCoincide) {
             score += 18;
         }
 
         /*
-         * IMPORTANTE:
-         *
-         * Importância e recência só entram
-         * depois de existir alguma correspondência.
-         *
-         * Assim uma consulta genérica como
-         * "você" não ganha uma memória
-         * aleatoriamente só porque ela é recente.
+         * Importância e recência só contam depois
+         * de existir alguma correspondência.
          */
         if (score <= 0) {
             return 0;
@@ -1689,8 +1767,7 @@ public class JarvisMemory {
                         100
                 );
 
-        score +=
-                importance / 10;
+        score += importance / 10;
 
         long time =
                 item.optLong(
@@ -1704,27 +1781,18 @@ public class JarvisMemory {
         long age =
                 Math.max(
                         0L,
-                        System.currentTimeMillis()
-                                - time
+                        System.currentTimeMillis() - time
                 );
 
-        if (
-                age < DAY_MS
-        ) {
+        if (age < DAY_MS) {
 
             score += 12;
 
-        } else if (
-                age
-                        < 7L * DAY_MS
-        ) {
+        } else if (age < 7L * DAY_MS) {
 
             score += 7;
 
-        } else if (
-                age
-                        < 30L * DAY_MS
-        ) {
+        } else if (age < 30L * DAY_MS) {
 
             score += 3;
         }
@@ -1738,11 +1806,7 @@ public class JarvisMemory {
                         )
                 );
 
-        score +=
-                Math.min(
-                        10,
-                        accesses
-                );
+        score += Math.min(10, accesses);
 
         return score;
     }
@@ -1751,14 +1815,16 @@ public class JarvisMemory {
     // PERSISTIR ACESSO DA MEMÓRIA
     // ============================================================
 
-    private void saveRankedBack(
-            ScoredMemory target) {
+    private boolean saveRankedBack(
+            ScoredMemory target
+    ) {
 
         if (
                 target == null
-                        || target.json == null
+                ||
+                target.json == null
         ) {
-            return;
+            return false;
         }
 
         JSONArray items =
@@ -1767,9 +1833,7 @@ public class JarvisMemory {
         try {
 
             String targetText =
-                    normalize(
-                            target.text
-                    );
+                    normalize(target.text);
 
             String targetCategory =
                     normalize(
@@ -1809,26 +1873,16 @@ public class JarvisMemory {
                         );
 
                 if (
-                        !itemText.equals(
-                                targetText
-                        )
+                        !itemText.equals(targetText)
                         ||
-                        !itemCategory.equals(
-                                targetCategory
-                        )
+                        !itemCategory.equals(targetCategory)
                 ) {
                     continue;
                 }
 
                 /*
-                 * O objeto de target pertence
-                 * à árvore JSON usada pelo ranking.
-                 *
-                 * readItems() criou outra árvore.
-                 *
-                 * Portanto atualizamos apenas os
-                 * campos necessários no objeto
-                 * recém-lido e persistimos essa árvore.
+                 * Atualiza os campos de acesso no conjunto
+                 * de registros lido do banco.
                  */
                 item.put(
                         "accessCount",
@@ -1852,20 +1906,15 @@ public class JarvisMemory {
                         )
                 );
 
-                saveItems(
-                        items
-                );
-
-                return;
+                return saveItems(items);
             }
 
         } catch (Exception ignored) {
 
-            /*
-             * Uma falha ao registrar o acesso
-             * não deve quebrar a memória inteira.
-             */
+            return false;
         }
+
+        return false;
     }
 
     // ============================================================
@@ -1874,14 +1923,18 @@ public class JarvisMemory {
 
     private JSONArray readItems() {
 
+        /*
+         * O SQLite é agora a fonte principal dos dados.
+         * A cópia antiga só é usada durante a migração.
+         */
         try {
 
-            return new JSONArray(
-                    prefs.getString(
-                            KEY_ITEMS,
-                            "[]"
-                    )
-            );
+            JSONArray items =
+                    database.getAllItems();
+
+            return items == null
+                    ? new JSONArray()
+                    : items;
 
         } catch (Exception ignored) {
 
@@ -1889,248 +1942,45 @@ public class JarvisMemory {
         }
     }
 
-    private void saveItems(
-            JSONArray items) {
+    private boolean saveItems(JSONArray items) {
 
-        prefs.edit()
-                .putString(
-                        KEY_ITEMS,
-                        items == null
-                                ? "[]"
-                                : items.toString()
-                )
-                .apply();
+        /*
+         * Persiste no SQLite.
+         *
+         * Não altera KEY_ITEMS em cada gravação, preservando
+         * a cópia legada até que a limpeza total seja solicitada.
+         */
+        try {
+
+            JSONArray safeItems =
+                    items == null
+                            ? new JSONArray()
+                            : items;
+
+            return database.replaceAllItems(
+                    safeItems
+            );
+
+        } catch (Exception ignored) {
+
+            return false;
+        }
     }
 
     // ============================================================
     // LIMITE DE MEMÓRIAS
     // ============================================================
 
-    private JSONArray limitItems(
-            JSONArray items) {
-
-        if (
-                items == null
-                        || items.length()
-                        <= MAX_ITEMS
-        ) {
-
-            return items == null
-                    ? new JSONArray()
-                    : items;
-        }
+    private JSONArray limitItems(JSONArray items) {
 
         /*
-         * Primeiro preserva memórias mais
-         * importantes, acessadas e recentes.
+         * Compatibilidade com as chamadas existentes.
+         *
+         * Não descarta mais registros por quantidade.
          */
-        ArrayList<JSONObject> lista =
-                new ArrayList<>();
-
-        for (
-                int i = 0;
-                i < items.length();
-                i++
-        ) {
-
-            JSONObject item =
-                    items.optJSONObject(i);
-
-            if (item != null) {
-                lista.add(
-                        item
-                );
-            }
-        }
-
-        Collections.sort(
-                lista,
-                new Comparator<JSONObject>() {
-
-                    @Override
-                    public int compare(
-                            JSONObject a,
-                            JSONObject b) {
-
-                        int sa =
-                                retentionScore(
-                                        a
-                                );
-
-                        int sb =
-                                retentionScore(
-                                        b
-                                );
-
-                        return Integer.compare(
-                                sb,
-                                sa
-                        );
-                    }
-                }
-        );
-
-        JSONArray reduzido =
-                new JSONArray();
-
-        int limite =
-                Math.min(
-                        MAX_ITEMS,
-                        lista.size()
-                );
-
-        for (
-                int i = 0;
-                i < limite;
-                i++
-        ) {
-
-            reduzido.put(
-                    lista.get(i)
-            );
-        }
-
-        /*
-         * Reordena pela data original para
-         * manter a memória legível.
-         */
-        ArrayList<JSONObject> finalList =
-                new ArrayList<>();
-
-        for (
-                int i = 0;
-                i < reduzido.length();
-                i++
-        ) {
-
-            JSONObject item =
-                    reduzido.optJSONObject(i);
-
-            if (item != null) {
-                finalList.add(
-                        item
-                );
-            }
-        }
-
-        Collections.sort(
-                finalList,
-                new Comparator<JSONObject>() {
-
-                    @Override
-                    public int compare(
-                            JSONObject a,
-                            JSONObject b) {
-
-                        return Long.compare(
-                                a.optLong(
-                                        "time",
-                                        0L
-                                ),
-                                b.optLong(
-                                        "time",
-                                        0L
-                                )
-                        );
-                    }
-                }
-        );
-
-        JSONArray ordenado =
-                new JSONArray();
-
-        for (
-                JSONObject item
-                        : finalList
-        ) {
-
-            if (item != null) {
-                ordenado.put(
-                        item
-                );
-            }
-        }
-
-        return ordenado;
-    }
-
-    private int retentionScore(
-            JSONObject item) {
-
-        if (item == null) {
-            return 0;
-        }
-
-        int importance =
-                clamp(
-                        item.optInt(
-                                "importance",
-                                50
-                        ),
-                        0,
-                        100
-                );
-
-        int accesses =
-                Math.min(
-                        20,
-                        Math.max(
-                                0,
-                                item.optInt(
-                                        "accessCount",
-                                        0
-                                )
-                        )
-                );
-
-        long time =
-                item.optLong(
-                        "updatedTime",
-                        item.optLong(
-                                "time",
-                                0L
-                        )
-                );
-
-        long age =
-                Math.max(
-                        0L,
-                        System.currentTimeMillis()
-                                - time
-                );
-
-        int recency;
-
-        if (
-                age
-                        < DAY_MS
-        ) {
-
-            recency = 20;
-
-        } else if (
-                age
-                        < 7L * DAY_MS
-        ) {
-
-            recency = 12;
-
-        } else if (
-                age
-                        < 30L * DAY_MS
-        ) {
-
-            recency = 6;
-
-        } else {
-
-            recency = 0;
-        }
-
-        return
-                importance
-                        + accesses
-                        + recency;
+        return items == null
+                ? new JSONArray()
+                : items;
     }
 
     // ============================================================
@@ -2139,7 +1989,8 @@ public class JarvisMemory {
 
     private JSONArray tagsToJson(
             String[] supplied,
-            String text) {
+            String text
+    ) {
 
         JSONArray tags =
                 new JSONArray();
@@ -2149,26 +2000,20 @@ public class JarvisMemory {
 
         if (supplied != null) {
 
-            for (
-                    String tag
-                            : supplied
-            ) {
+            for (String tag : supplied) {
 
                 String n =
-                        normalize(
-                                tag
-                        );
+                        normalize(tag);
 
                 if (
                         !n.isEmpty()
-                                && unique.add(n)
-                                && tags.length()
-                                < MAX_TAGS
+                        &&
+                        unique.add(n)
+                        &&
+                        tags.length() < MAX_TAGS
                 ) {
 
-                    tags.put(
-                            n
-                    );
+                    tags.put(n);
                 }
             }
         }
@@ -2182,26 +2027,17 @@ public class JarvisMemory {
 
             if (
                     isStopWord(token)
-                            || token.length() < 4
+                    ||
+                    token.length() < 4
             ) {
                 continue;
             }
 
-            if (
-                    unique.add(
-                            token
-                    )
-            ) {
-
-                tags.put(
-                        token
-                );
+            if (unique.add(token)) {
+                tags.put(token);
             }
 
-            if (
-                    tags.length()
-                            >= MAX_TAGS
-            ) {
+            if (tags.length() >= MAX_TAGS) {
                 break;
             }
         }
@@ -2213,12 +2049,12 @@ public class JarvisMemory {
     // TOKENIZAÇÃO
     // ============================================================
 
-    private String[] tokenize(
-            String text) {
+    private String[] tokenize(String text) {
 
         if (
                 text == null
-                        || text.trim().isEmpty()
+                ||
+                text.trim().isEmpty()
         ) {
 
             return new String[0];
@@ -2234,8 +2070,7 @@ public class JarvisMemory {
     // PALAVRAS DE PARADA
     // ============================================================
 
-    private boolean isStopWord(
-            String word) {
+    private boolean isStopWord(String word) {
 
         switch (word) {
 
@@ -2306,8 +2141,7 @@ public class JarvisMemory {
     // CATEGORIA
     // ============================================================
 
-    private String sanitizeCategory(
-            String category) {
+    private String sanitizeCategory(String category) {
 
         if (category == null) {
             return "geral";
@@ -2320,10 +2154,7 @@ public class JarvisMemory {
             return "geral";
         }
 
-        if (
-                value.length()
-                        > MAX_CATEGORY
-        ) {
+        if (value.length() > MAX_CATEGORY) {
 
             value =
                     value.substring(
@@ -2339,15 +2170,12 @@ public class JarvisMemory {
     // NORMALIZAÇÃO
     // ============================================================
 
-    private String normalize(
-            String text) {
+    private String normalize(String text) {
 
         String value =
                 text == null
                         ? ""
-                        : text.toLowerCase(
-                                Locale.ROOT
-                        );
+                        : text.toLowerCase(Locale.ROOT);
 
         value =
                 Normalizer.normalize(
@@ -2370,7 +2198,8 @@ public class JarvisMemory {
     private int clamp(
             int value,
             int min,
-            int max) {
+            int max
+    ) {
 
         return Math.max(
                 min,
@@ -2388,13 +2217,16 @@ public class JarvisMemory {
     private static class ScoredMemory {
 
         final JSONObject json;
+
         final String text;
+
         final int score;
 
         ScoredMemory(
                 JSONObject json,
                 String text,
-                int score) {
+                int score
+        ) {
 
             this.json = json;
             this.text = text;
