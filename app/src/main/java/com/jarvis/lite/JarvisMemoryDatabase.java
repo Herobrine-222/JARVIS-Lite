@@ -1,3 +1,4 @@
+
 package com.jarvis.lite;
 
 import android.content.ContentValues;
@@ -21,55 +22,28 @@ import java.util.Locale;
  * - Oferecer consultas por categoria e texto.
  * - Permitir migração e importação de registros JSON.
  *
- * Este arquivo ainda precisa ser conectado ao JarvisMemory.
+ * Esta classe ainda precisa ser conectada ao JarvisMemory.
  * A criação desta classe, isoladamente, não migra os dados antigos.
  */
-public final class JarvisMemoryDatabase
-        extends SQLiteOpenHelper {
+public final class JarvisMemoryDatabase extends SQLiteOpenHelper {
 
-    private static final String DATABASE_NAME =
-            "jarvis_memory.db";
-
+    private static final String DATABASE_NAME = "jarvis_memory.db";
     private static final int DATABASE_VERSION = 1;
+    private static final String TABLE_MEMORIES = "memories";
 
-    private static final String TABLE_MEMORIES =
-            "memories";
-
-    private static final String COL_ID =
-            "_id";
-
-    private static final String COL_TEXT =
-            "memory_text";
-
-    private static final String COL_CATEGORY =
-            "category";
-
-    private static final String COL_NORMALIZED_TEXT =
-            "normalized_text";
-
-    private static final String COL_NORMALIZED_CATEGORY =
-            "normalized_category";
-
-    private static final String COL_TIME =
-            "created_time";
-
-    private static final String COL_UPDATED_TIME =
-            "updated_time";
-
-    private static final String COL_LAST_ACCESS_TIME =
-            "last_access_time";
-
-    private static final String COL_IMPORTANCE =
-            "importance";
-
-    private static final String COL_ACCESS_COUNT =
-            "access_count";
-
-    private static final String COL_TAGS =
-            "tags_json";
+    private static final String COL_ID = "_id";
+    private static final String COL_TEXT = "memory_text";
+    private static final String COL_CATEGORY = "category";
+    private static final String COL_NORMALIZED_TEXT = "normalized_text";
+    private static final String COL_NORMALIZED_CATEGORY = "normalized_category";
+    private static final String COL_TIME = "created_time";
+    private static final String COL_UPDATED_TIME = "updated_time";
+    private static final String COL_LAST_ACCESS_TIME = "last_access_time";
+    private static final String COL_IMPORTANCE = "importance";
+    private static final String COL_ACCESS_COUNT = "access_count";
+    private static final String COL_TAGS = "tags_json";
 
     private static final int MAX_TEXT = 500;
-
     private static final int MAX_CATEGORY = 80;
 
     public JarvisMemoryDatabase(Context context) {
@@ -90,42 +64,19 @@ public final class JarvisMemoryDatabase
 
         db.execSQL(
                 "CREATE TABLE " + TABLE_MEMORIES + " ("
-                        + COL_ID
-                        + " INTEGER PRIMARY KEY AUTOINCREMENT, "
-
-                        + COL_TEXT
-                        + " TEXT NOT NULL, "
-
-                        + COL_CATEGORY
-                        + " TEXT NOT NULL, "
-
-                        + COL_NORMALIZED_TEXT
-                        + " TEXT NOT NULL, "
-
-                        + COL_NORMALIZED_CATEGORY
-                        + " TEXT NOT NULL, "
-
-                        + COL_TIME
-                        + " INTEGER NOT NULL, "
-
-                        + COL_UPDATED_TIME
-                        + " INTEGER NOT NULL, "
-
-                        + COL_LAST_ACCESS_TIME
-                        + " INTEGER NOT NULL DEFAULT 0, "
-
-                        + COL_IMPORTANCE
-                        + " INTEGER NOT NULL DEFAULT 50, "
-
-                        + COL_ACCESS_COUNT
-                        + " INTEGER NOT NULL DEFAULT 0, "
-
-                        + COL_TAGS
-                        + " TEXT NOT NULL DEFAULT '[]', "
-
+                        + COL_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, "
+                        + COL_TEXT + " TEXT NOT NULL, "
+                        + COL_CATEGORY + " TEXT NOT NULL, "
+                        + COL_NORMALIZED_TEXT + " TEXT NOT NULL, "
+                        + COL_NORMALIZED_CATEGORY + " TEXT NOT NULL, "
+                        + COL_TIME + " INTEGER NOT NULL, "
+                        + COL_UPDATED_TIME + " INTEGER NOT NULL, "
+                        + COL_LAST_ACCESS_TIME + " INTEGER NOT NULL DEFAULT 0, "
+                        + COL_IMPORTANCE + " INTEGER NOT NULL DEFAULT 50, "
+                        + COL_ACCESS_COUNT + " INTEGER NOT NULL DEFAULT 0, "
+                        + COL_TAGS + " TEXT NOT NULL DEFAULT '[]', "
                         + "UNIQUE ("
-                        + COL_NORMALIZED_TEXT
-                        + ", "
+                        + COL_NORMALIZED_TEXT + ", "
                         + COL_NORMALIZED_CATEGORY
                         + ")"
                         + ")"
@@ -133,20 +84,14 @@ public final class JarvisMemoryDatabase
 
         db.execSQL(
                 "CREATE INDEX idx_memories_category "
-                        + "ON "
-                        + TABLE_MEMORIES
-                        + " ("
-                        + COL_NORMALIZED_CATEGORY
-                        + ")"
+                        + "ON " + TABLE_MEMORIES
+                        + " (" + COL_NORMALIZED_CATEGORY + ")"
         );
 
         db.execSQL(
                 "CREATE INDEX idx_memories_updated "
-                        + "ON "
-                        + TABLE_MEMORIES
-                        + " ("
-                        + COL_UPDATED_TIME
-                        + ")"
+                        + "ON " + TABLE_MEMORIES
+                        + " (" + COL_UPDATED_TIME + ")"
         );
     }
 
@@ -156,13 +101,10 @@ public final class JarvisMemoryDatabase
             int oldVersion,
             int newVersion
     ) {
-
         /*
          * Não apagamos a tabela aqui.
-         *
-         * Quando o esquema mudar, devemos adicionar
-         * uma migração específica para preservar
-         * as memórias já armazenadas.
+         * Futuras alterações no esquema devem usar migrações
+         * específicas para preservar as memórias existentes.
          */
     }
 
@@ -170,17 +112,14 @@ public final class JarvisMemoryDatabase
     // INSERIR OU ATUALIZAR UMA MEMÓRIA
     // ============================================================
 
-    public synchronized boolean upsertItem(
-            JSONObject item
-    ) {
+    public synchronized boolean upsertItem(JSONObject item) {
 
         if (item == null) {
             return false;
         }
 
-        SQLiteDatabase db = getWritableDatabase();
-
         try {
+            SQLiteDatabase db = getWritableDatabase();
             return upsertItemInternal(db, item);
         } catch (Exception ignored) {
             return false;
@@ -192,10 +131,11 @@ public final class JarvisMemoryDatabase
             JSONObject item
     ) {
 
-        String text = item.optString(
-                "text",
-                ""
-        ).trim();
+        if (item == null) {
+            return false;
+        }
+
+        String text = item.optString("text", "").trim();
 
         if (text.isEmpty()) {
             return false;
@@ -214,15 +154,8 @@ public final class JarvisMemoryDatabase
 
         long now = System.currentTimeMillis();
 
-        long createdTime = item.optLong(
-                "time",
-                now
-        );
-
-        long updatedTime = item.optLong(
-                "updatedTime",
-                createdTime
-        );
+        long createdTime = item.optLong("time", now);
+        long updatedTime = item.optLong("updatedTime", createdTime);
 
         long lastAccessTime = Math.max(
                 0L,
@@ -251,10 +184,7 @@ public final class JarvisMemoryDatabase
         values.put(COL_TEXT, text);
         values.put(COL_CATEGORY, category);
         values.put(COL_NORMALIZED_TEXT, normalizedText);
-        values.put(
-                COL_NORMALIZED_CATEGORY,
-                normalizedCategory
-        );
+        values.put(COL_NORMALIZED_CATEGORY, normalizedCategory);
         values.put(COL_TIME, createdTime);
         values.put(COL_UPDATED_TIME, updatedTime);
         values.put(COL_LAST_ACCESS_TIME, lastAccessTime);
@@ -294,12 +224,10 @@ public final class JarvisMemoryDatabase
     public synchronized JSONArray getAllItems() {
 
         JSONArray result = new JSONArray();
-
-        SQLiteDatabase db = getReadableDatabase();
-
         Cursor cursor = null;
 
         try {
+            SQLiteDatabase db = getReadableDatabase();
 
             cursor = db.query(
                     TABLE_MEMORIES,
@@ -312,7 +240,6 @@ public final class JarvisMemoryDatabase
             );
 
             while (cursor.moveToNext()) {
-
                 JSONObject item = cursorToJson(cursor);
 
                 if (item != null) {
@@ -321,14 +248,8 @@ public final class JarvisMemoryDatabase
             }
 
         } catch (Exception ignored) {
-
-            /*
-             * Retorna os registros que conseguiram
-             * ser lidos sem derrubar o aplicativo.
-             */
-
+            // Retorna os registros que conseguiram ser lidos.
         } finally {
-
             if (cursor != null) {
                 cursor.close();
             }
@@ -341,9 +262,7 @@ public final class JarvisMemoryDatabase
     // LER MEMÓRIAS POR CATEGORIA
     // ============================================================
 
-    public synchronized JSONArray getItemsByCategory(
-            String category
-    ) {
+    public synchronized JSONArray getItemsByCategory(String category) {
 
         JSONArray result = new JSONArray();
 
@@ -351,11 +270,10 @@ public final class JarvisMemoryDatabase
             return result;
         }
 
-        SQLiteDatabase db = getReadableDatabase();
-
         Cursor cursor = null;
 
         try {
+            SQLiteDatabase db = getReadableDatabase();
 
             cursor = db.query(
                     TABLE_MEMORIES,
@@ -368,7 +286,6 @@ public final class JarvisMemoryDatabase
             );
 
             while (cursor.moveToNext()) {
-
                 JSONObject item = cursorToJson(cursor);
 
                 if (item != null) {
@@ -377,11 +294,8 @@ public final class JarvisMemoryDatabase
             }
 
         } catch (Exception ignored) {
-
-            // Mantém a resposta vazia em caso de falha.
-
+            // Mantém os resultados já encontrados.
         } finally {
-
             if (cursor != null) {
                 cursor.close();
             }
@@ -409,11 +323,10 @@ public final class JarvisMemoryDatabase
                 sanitizeCategory(category)
         );
 
-        SQLiteDatabase db = getReadableDatabase();
-
         Cursor cursor = null;
 
         try {
+            SQLiteDatabase db = getReadableDatabase();
 
             cursor = db.query(
                     TABLE_MEMORIES,
@@ -435,11 +348,8 @@ public final class JarvisMemoryDatabase
             }
 
         } catch (Exception ignored) {
-
             return null;
-
         } finally {
-
             if (cursor != null) {
                 cursor.close();
             }
@@ -452,26 +362,28 @@ public final class JarvisMemoryDatabase
     // EXCLUIR MEMÓRIAS QUE CONTENHAM UM TEXTO
     // ============================================================
 
-    public synchronized int deleteContainingText(
-            String query
-    ) {
+    public synchronized int deleteContainingText(String query) {
 
         if (query == null || query.trim().isEmpty()) {
             return 0;
         }
 
         String search = normalize(query);
-
         JSONArray items = getAllItems();
 
-        SQLiteDatabase db = getWritableDatabase();
+        SQLiteDatabase db;
+
+        try {
+            db = getWritableDatabase();
+        } catch (Exception ignored) {
+            return 0;
+        }
 
         int deleted = 0;
 
         db.beginTransaction();
 
         try {
-
             for (int i = 0; i < items.length(); i++) {
 
                 JSONObject item = items.optJSONObject(i);
@@ -493,10 +405,7 @@ public final class JarvisMemoryDatabase
                         new String[]{
                                 normalize(text),
                                 normalize(
-                                        item.optString(
-                                                "category",
-                                                "geral"
-                                        )
+                                        item.optString("category", "geral")
                                 )
                         }
                 );
@@ -507,11 +416,8 @@ public final class JarvisMemoryDatabase
             db.setTransactionSuccessful();
 
         } catch (Exception ignored) {
-
             deleted = 0;
-
         } finally {
-
             db.endTransaction();
         }
 
@@ -522,24 +428,19 @@ public final class JarvisMemoryDatabase
     // EXCLUIR UMA CATEGORIA
     // ============================================================
 
-    public synchronized int deleteCategory(
-            String category
-    ) {
+    public synchronized int deleteCategory(String category) {
 
         if (category == null || category.trim().isEmpty()) {
             return 0;
         }
 
         try {
-
             return getWritableDatabase().delete(
                     TABLE_MEMORIES,
                     COL_NORMALIZED_CATEGORY + " = ?",
                     new String[]{normalize(category)}
             );
-
         } catch (Exception ignored) {
-
             return 0;
         }
     }
@@ -557,16 +458,8 @@ public final class JarvisMemoryDatabase
             return false;
         }
 
-        ContentValues values = new ContentValues();
-
-        values.put(
-                COL_LAST_ACCESS_TIME,
-                System.currentTimeMillis()
-        );
-
-        SQLiteDatabase db = getWritableDatabase();
-
         try {
+            SQLiteDatabase db = getWritableDatabase();
 
             db.execSQL(
                     "UPDATE " + TABLE_MEMORIES
@@ -585,7 +478,6 @@ public final class JarvisMemoryDatabase
             return findExact(text, category) != null;
 
         } catch (Exception ignored) {
-
             return false;
         }
     }
@@ -599,7 +491,6 @@ public final class JarvisMemoryDatabase
         Cursor cursor = null;
 
         try {
-
             cursor = getReadableDatabase().rawQuery(
                     "SELECT COUNT(*) FROM " + TABLE_MEMORIES,
                     null
@@ -610,11 +501,8 @@ public final class JarvisMemoryDatabase
             }
 
         } catch (Exception ignored) {
-
             return 0;
-
         } finally {
-
             if (cursor != null) {
                 cursor.close();
             }
@@ -628,7 +516,6 @@ public final class JarvisMemoryDatabase
     }
 
     public synchronized void clear() {
-
         getWritableDatabase().delete(
                 TABLE_MEMORIES,
                 null,
@@ -637,48 +524,68 @@ public final class JarvisMemoryDatabase
     }
 
     // ============================================================
-    // SUBSTITUIR O CONTEÚDO EM UMA TRANSAÇÃO
+    // SUBSTITUIR TODAS AS MEMÓRIAS EM UMA TRANSAÇÃO
     // Usado para importação/migração, não para cada consulta.
     // ============================================================
 
-    public synchronized boolean replaceAllItems(
-            JSONArray items
-    ) {
+    public synchronized boolean replaceAllItems(JSONArray items) {
 
         if (items == null) {
             return false;
         }
 
-        SQLiteDatabase db = getWritableDatabase();
-
-        db.beginTransaction();
+        SQLiteDatabase db;
 
         try {
+            db = getWritableDatabase();
+        } catch (Exception ignored) {
+            return false;
+        }
 
-            db.delete(TABLE_MEMORIES, null, null);
+        try {
+            db.beginTransaction();
 
-            for (int i = 0; i < items.length(); i++) {
+            try {
+                db.delete(TABLE_MEMORIES, null, null);
 
-                JSONObject item = items.optJSONObject(i);
+                for (int i = 0; i < items.length(); i++) {
 
-                if (item == null) {
-                    continue;
+                    JSONObject item = items.optJSONObject(i);
+
+                    if (item == null) {
+                        continue;
+                    }
+
+                    String text = item.optString(
+                            "text",
+                            ""
+                    ).trim();
+
+                    // Ignora entradas vazias ou malformadas.
+                    if (text.isEmpty()) {
+                        continue;
+                    }
+
+                    /*
+                     * Uma memória válida que falhar ao ser salva
+                     * provoca a reversão de toda a transação.
+                     */
+                    if (!upsertItemInternal(db, item)) {
+                        throw new IllegalStateException(
+                                "Falha ao salvar a memória de índice " + i
+                        );
+                    }
                 }
 
-                upsertItemInternal(db, item);
+                db.setTransactionSuccessful();
+                return true;
+
+            } finally {
+                db.endTransaction();
             }
 
-            db.setTransactionSuccessful();
-
-            return true;
-
         } catch (Exception ignored) {
-
             return false;
-
-        } finally {
-
-            db.endTransaction();
         }
     }
 
@@ -689,7 +596,6 @@ public final class JarvisMemoryDatabase
     private JSONObject cursorToJson(Cursor cursor) {
 
         try {
-
             JSONObject item = new JSONObject();
 
             item.put(
@@ -723,9 +629,7 @@ public final class JarvisMemoryDatabase
             item.put(
                     "lastAccessTime",
                     cursor.getLong(
-                            cursor.getColumnIndexOrThrow(
-                                    COL_LAST_ACCESS_TIME
-                            )
+                            cursor.getColumnIndexOrThrow(COL_LAST_ACCESS_TIME)
                     )
             );
 
@@ -748,23 +652,19 @@ public final class JarvisMemoryDatabase
             );
 
             try {
-
                 item.put(
                         "tags",
                         new JSONArray(
                                 tagsJson == null ? "[]" : tagsJson
                         )
                 );
-
             } catch (Exception ignored) {
-
                 item.put("tags", new JSONArray());
             }
 
             return item;
 
         } catch (Exception ignored) {
-
             return null;
         }
     }
@@ -804,15 +704,7 @@ public final class JarvisMemoryDatabase
                 .trim();
     }
 
-    private int clamp(
-            int value,
-            int min,
-            int max
-    ) {
-
-        return Math.max(
-                min,
-                Math.min(max, value)
-        );
+    private int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
     }
 }
