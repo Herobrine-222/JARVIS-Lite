@@ -1,37 +1,40 @@
+
 package com.jarvis.lite;
 
+import android.Manifest;
 import android.content.ComponentName;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.os.Build;
 import android.util.Log;
 
 /**
- * Núcleo global de voz do JARVIS.
+ * Núcleo global de voz do JARVIS Lite.
  *
  * Responsabilidades:
- * - ser o VoiceInteractionService oficial do JARVIS;
- * - detectar quando o Android tornou o JARVIS o assistente ativo;
- * - iniciar o motor de voz sem abrir a MainActivity;
- * - manter o serviço global leve;
- * - evitar inicializações duplicadas.
+ * - funcionar como VoiceInteractionService oficial;
+ * - verificar se o JARVIS é o assistente ativo;
+ * - respeitar a permissão do microfone;
+ * - respeitar a configuração microfone_ativo;
+ * - iniciar e encerrar o motor de voz;
+ * - não abrir a MainActivity automaticamente.
  *
  * Fluxo:
  *
  * Android
- *   ↓
- * VoiceInteractionService
- *   ↓
- * JarvisVoiceService
- *   ↓
- * Wake Word
- *   ↓
- * Sessão JARVIS
+ *   -> VoiceInteractionService
+ *   -> JarvisVoiceService
+ *   -> Wake Word
+ *   -> Sessão JARVIS
  */
 public class VoiceInteractionService
         extends android.service.voice.VoiceInteractionService {
 
-    private static final String TAG =
-            "JARVIS_VOICE_CORE";
+    private static final String TAG = "JARVIS_VOICE_CORE";
+
+    private static final String PREF_CONFIG = "jarvis_config";
+    private static final String PREF_MICROFONE_ATIVO =
+            "microfone_ativo";
 
     private boolean sistemaPronto = false;
 
@@ -39,15 +42,12 @@ public class VoiceInteractionService
     public void onCreate() {
         super.onCreate();
 
-        Log.d(
-                TAG,
-                "VoiceInteractionService criado."
-        );
+        Log.d(TAG, "VoiceInteractionService criado.");
     }
 
     /**
-     * Chamado pelo Android quando o serviço global
-     * de voz está pronto para funcionar.
+     * Chamado pelo Android quando o serviço de voz
+     * está pronto para receber interações.
      */
     @Override
     public void onReady() {
@@ -55,33 +55,58 @@ public class VoiceInteractionService
 
         sistemaPronto = true;
 
-        Log.d(
-                TAG,
-                "JARVIS tornou-se VoiceInteractionService ativo."
-        );
+        Log.d(TAG, "Sistema de voz preparado.");
 
         iniciarMotorDeVoz();
     }
 
     /**
-     * Inicia o motor real de reconhecimento,
-     * sem abrir qualquer Activity.
+     * Verifica se o usuário concedeu a permissão
+     * necessária para utilizar o microfone.
+     *
+     * Este método não solicita a permissão:
+     * isso deve ser feito pela interface do aplicativo.
+     */
+    private boolean temPermissaoMicrofone() {
+        return checkSelfPermission(
+                Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    /**
+     * Lê a configuração salva pelo aplicativo.
+     * Por padrão, mantém o comportamento anterior:
+     * microfone ativo quando não existe preferência salva.
+     */
+    private boolean microfoneAtivadoPeloUsuario() {
+        return getSharedPreferences(
+                PREF_CONFIG,
+                MODE_PRIVATE
+        ).getBoolean(
+                PREF_MICROFONE_ATIVO,
+                true
+        );
+    }
+
+    /**
+     * Verifica as condições antes de iniciar
+     * o motor global de voz.
      */
     private void iniciarMotorDeVoz() {
 
         if (!sistemaPronto) {
+            Log.d(TAG, "Sistema ainda não está pronto.");
             return;
         }
 
         try {
-
             ComponentName componente =
                     new ComponentName(
                             this,
                             VoiceInteractionService.class
                     );
 
-            boolean ativo =
+            boolean assistenteAtivo =
                     android.service.voice
                             .VoiceInteractionService
                             .isActiveService(
@@ -89,13 +114,33 @@ public class VoiceInteractionService
                                     componente
                             );
 
-            if (!ativo) {
-
+            if (!assistenteAtivo) {
                 Log.d(
                         TAG,
-                        "JARVIS não é o assistente global ativo."
+                        "JARVIS não é o assistente ativo."
                 );
 
+                encerrarMotorDeVoz();
+                return;
+            }
+
+            if (!microfoneAtivadoPeloUsuario()) {
+                Log.d(
+                        TAG,
+                        "Microfone desativado nas configurações."
+                );
+
+                encerrarMotorDeVoz();
+                return;
+            }
+
+            if (!temPermissaoMicrofone()) {
+                Log.w(
+                        TAG,
+                        "Permissão do microfone não concedida."
+                );
+
+                encerrarMotorDeVoz();
                 return;
             }
 
@@ -110,12 +155,14 @@ public class VoiceInteractionService
             );
 
             /*
-             * O VoiceInteractionService é iniciado
-             * pelo próprio sistema. Dessa forma,
-             * podemos solicitar a retomada do motor
-             * de voz sem abrir a interface do JARVIS.
+             * O VoiceInteractionService ativo solicita
+             * a inicialização do motor de voz.
+             *
+             * O JarvisVoiceService é responsável por
+             * promover-se a serviço em primeiro plano.
              */
-            if (Build.VERSION.SDK_INT >= 26) {
+            if (Build.VERSION.SDK_INT >=
+                    Build.VERSION_CODES.O) {
 
                 startForegroundService(intent);
 
@@ -126,14 +173,68 @@ public class VoiceInteractionService
 
             Log.d(
                     TAG,
-                    "Motor global de voz solicitado."
+                    "Solicitação de inicialização enviada."
+            );
+
+        } catch (SecurityException e) {
+
+            Log.e(
+                    TAG,
+                    "Permissão ou segurança impediu a inicialização.",
+                    e
+            );
+
+            encerrarMotorDeVoz();
+
+        } catch (IllegalStateException e) {
+
+            Log.e(
+                    TAG,
+                    "O Android não permitiu iniciar o motor.",
+                    e
+            );
+
+            encerrarMotorDeVoz();
+
+        } catch (Exception e) {
+
+            Log.e(
+                    TAG,
+                    "Falha ao iniciar o motor global de voz.",
+                    e
+            );
+
+            encerrarMotorDeVoz();
+        }
+    }
+
+    /**
+     * Encerra o serviço de voz para evitar que
+     * ele continue tentando escutar quando o assistente
+     * deixa de estar ativo ou quando o microfone é desativado.
+     */
+    private void encerrarMotorDeVoz() {
+        try {
+            Intent intent =
+                    new Intent(
+                            this,
+                            JarvisVoiceService.class
+                    );
+
+            boolean solicitado = stopService(intent);
+
+            Log.d(
+                    TAG,
+                    solicitado
+                            ? "Encerramento do motor solicitado."
+                            : "Motor já estava encerrado."
             );
 
         } catch (Exception e) {
 
             Log.e(
                     TAG,
-                    "Falha ao iniciar motor global de voz.",
+                    "Falha ao encerrar o motor de voz.",
                     e
             );
         }
@@ -150,51 +251,24 @@ public class VoiceInteractionService
 
         Log.d(
                 TAG,
-                "VoiceInteractionService entrando em shutdown."
+                "Assistente global entrando em shutdown."
         );
 
-        try {
-
-            Intent intent =
-                    new Intent(
-                            this,
-                            JarvisVoiceService.class
-                    );
-
-            intent.setAction(
-                    JarvisVoiceService.ACTION_PAUSE
-            );
-
-            startService(intent);
-
-        } catch (Exception e) {
-
-            Log.e(
-                    TAG,
-                    "Falha ao pausar motor de voz.",
-                    e
-            );
-        }
+        encerrarMotorDeVoz();
 
         super.onShutdown();
     }
 
     /**
-     * Mantemos o serviço global sem interface.
-     *
-     * O JARVIS não deve abrir MainActivity
-     * simplesmente porque o usuário falou a palavra
-     * de ativação.
+     * Não abre a MainActivity apenas porque o Android
+     * preparou uma sessão de voz.
      */
     @Override
     public void onPrepareToShowSession(
             android.os.Bundle args,
             int flags) {
 
-        super.onPrepareToShowSession(
-                args,
-                flags
-        );
+        super.onPrepareToShowSession(args, flags);
 
         Log.d(
                 TAG,
@@ -203,26 +277,16 @@ public class VoiceInteractionService
     }
 
     /**
-     * Chamado quando o usuário tenta iniciar o
-     * assistente pela interface de sistema.
-     *
-     * Nesta primeira etapa não abrimos a
-     * MainActivity automaticamente.
+     * Mantém o comportamento anterior na tela de bloqueio:
+     * não abre automaticamente a interface do JARVIS.
      */
     @Override
     public void onLaunchVoiceAssistFromKeyguard() {
 
         Log.d(
                 TAG,
-                "Assistente solicitado pela tela de bloqueio."
+                "Assistente solicitado na tela de bloqueio."
         );
-
-        /*
-         * Não abrimos Activity aqui.
-         *
-         * O motor global continuará sendo responsável
-         * pela interação de voz.
-         */
     }
 
     @Override
@@ -235,7 +299,8 @@ public class VoiceInteractionService
                 "VoiceInteractionService destruído."
         );
 
+        encerrarMotorDeVoz();
+
         super.onDestroy();
     }
-       
 }
