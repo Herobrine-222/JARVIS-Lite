@@ -1,4 +1,3 @@
-
 package com.jarvis.lite;
 
 import java.util.ArrayList;
@@ -6,10 +5,14 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Coordenador inicial do VISION.
+ * Coordenador dos módulos especialistas do VISION.
  *
- * Reutiliza os motores, a memória e a base de conhecimento
- * que já existem no JARVIS Lite.
+ * Reutiliza o motor de raciocínio, a memória persistente
+ * e a base de conhecimento já existentes no JARVIS Lite.
+ *
+ * Não cria uma segunda base de memória.
+ * Não acessa a internet.
+ * Não executa comandos do sistema operacional.
  */
 public final class JarvisVisionCore {
 
@@ -20,6 +23,24 @@ public final class JarvisVisionCore {
     private final List<JarvisVisionModule> modules =
             new ArrayList<>();
 
+    /*
+     * Diagnóstico da última tentativa de processamento.
+     *
+     * Os erros são registrados pelo tipo da exceção,
+     * sem armazenar o conteúdo privado das mensagens.
+     */
+    private String lastProcessedModule = "";
+    private String lastFailedModule = "";
+    private String lastModuleError = "";
+    private int moduleFailureCount = 0;
+
+    /**
+     * Construtor principal.
+     *
+     * Recebe o gerenciador compartilhado do aplicativo.
+     * Dessa forma, os especialistas podem reutilizar
+     * a memória e as ferramentas existentes.
+     */
     public JarvisVisionCore(
             JarvisContextManager contextManager
     ) {
@@ -32,9 +53,20 @@ public final class JarvisVisionCore {
         this.contextManager = contextManager;
         this.memory = contextManager.getMemory();
         this.reasoningEngine = new JarvisReasoningEngine();
+
+        registerDefaultModules();
     }
 
-    public JarvisVisionCore(JarvisMemory memory) {
+    /**
+     * Construtor de compatibilidade.
+     *
+     * Permite utilizar o núcleo somente com a memória.
+     * Sem ContextManager, os módulos que dependem
+     * das ferramentas do aparelho não são registrados.
+     */
+    public JarvisVisionCore(
+            JarvisMemory memory
+    ) {
         if (memory == null) {
             throw new IllegalArgumentException(
                     "A memória não pode ser nula."
@@ -44,6 +76,38 @@ public final class JarvisVisionCore {
         this.memory = memory;
         this.contextManager = null;
         this.reasoningEngine = new JarvisReasoningEngine();
+
+        registerDefaultModules();
+    }
+
+    /**
+     * Registra os especialistas já existentes no projeto.
+     *
+     * O registro automático evita que o núcleo seja
+     * criado com uma lista vazia de módulos.
+     */
+    private void registerDefaultModules() {
+
+        registerModule(new JarvisEdithModule());
+
+        registerModule(new JarvisKarenModule());
+
+        registerModule(new JarvisUModule());
+
+        /*
+         * O DUM-E utiliza as ferramentas mantidas
+         * pelo ContextManager para consultar o aparelho.
+         */
+        if (contextManager != null) {
+            registerModule(new JarvisDumEModule());
+        }
+
+        /*
+         * FRIDAY permanece disponível para as funções
+         * conversacionais e de consulta à memória
+         * que seu módulo já implementa.
+         */
+        registerModule(new JarvisFridayModule());
     }
 
     public JarvisReasoningEngine.Analysis analyze(
@@ -59,7 +123,9 @@ public final class JarvisVisionCore {
     }
 
     /**
-     * Consulta a base de conhecimento existente.
+     * Consulta a base de conhecimento offline existente.
+     *
+     * Retorna null quando não existe resposta cadastrada.
      */
     public String answerFromExistingKnowledgeBase(
             String input
@@ -67,6 +133,11 @@ public final class JarvisVisionCore {
         return JarvisKnowledgeBase.answer(input);
     }
 
+    /**
+     * Registra um módulo adicional.
+     *
+     * Não permite registrar dois módulos com o mesmo nome.
+     */
     public synchronized boolean registerModule(
             JarvisVisionModule module
     ) {
@@ -74,15 +145,29 @@ public final class JarvisVisionCore {
             return false;
         }
 
-        String name = module.getName();
+        final String name;
+
+        try {
+            name = module.getName();
+        } catch (RuntimeException error) {
+            return false;
+        }
 
         if (name == null || name.trim().isEmpty()) {
             return false;
         }
 
         for (JarvisVisionModule registered : modules) {
-            if (registered.getName() != null
-                    && registered.getName().equalsIgnoreCase(
+            String registeredName;
+
+            try {
+                registeredName = registered.getName();
+            } catch (RuntimeException error) {
+                continue;
+            }
+
+            if (registeredName != null
+                    && registeredName.equalsIgnoreCase(
                             name.trim()
                     )) {
                 return false;
@@ -93,11 +178,15 @@ public final class JarvisVisionCore {
         return true;
     }
 
+    /**
+     * Retorna uma cópia não modificável dos nomes registrados.
+     */
     public synchronized List<String> getRegisteredModuleNames() {
+
         List<String> names = new ArrayList<>();
 
         for (JarvisVisionModule module : modules) {
-            names.add(module.getName());
+            names.add(getSafeModuleName(module));
         }
 
         return Collections.unmodifiableList(names);
@@ -105,9 +194,20 @@ public final class JarvisVisionCore {
 
     /**
      * Encaminha a mensagem aos módulos registrados.
-     * Retorna null quando nenhum deles consegue responder.
+     *
+     * Um módulo pode devolver null quando não consegue
+     * tratar a solicitação. Nesse caso, o próximo módulo
+     * compatível terá a oportunidade de responder.
+     *
+     * Uma falha isolada não deve interromper os demais.
      */
-    public synchronized String processModules(String input) {
+    public synchronized String processModules(
+            String input
+    ) {
+        lastProcessedModule = "";
+        lastFailedModule = "";
+        lastModuleError = "";
+
         if (input == null || input.trim().isEmpty()) {
             return null;
         }
@@ -116,6 +216,9 @@ public final class JarvisVisionCore {
                 reasoningEngine.analyze(input);
 
         for (JarvisVisionModule module : modules) {
+
+            String moduleName = getSafeModuleName(module);
+
             try {
                 if (!module.supports(analysis)) {
                     continue;
@@ -129,16 +232,92 @@ public final class JarvisVisionCore {
 
                 if (response != null
                         && !response.trim().isEmpty()) {
+
+                    lastProcessedModule = moduleName;
+
                     return response.trim();
                 }
-            } catch (RuntimeException ignored) {
-                // Um módulo com falha não deve derrubar o JARVIS.
+
+            } catch (RuntimeException error) {
+
+                /*
+                 * Guarda apenas dados técnicos básicos.
+                 * Não registra a mensagem privada do usuário.
+                 */
+                lastFailedModule = moduleName;
+                lastModuleError =
+                        error.getClass().getSimpleName();
+
+                moduleFailureCount++;
+
+                /*
+                 * Continua o processamento para que
+                 * outro módulo possa tentar responder.
+                 */
             }
         }
 
         return null;
     }
 
+    private String getSafeModuleName(
+            JarvisVisionModule module
+    ) {
+        if (module == null) {
+            return "desconhecido";
+        }
+
+        try {
+            String name = module.getName();
+
+            if (name != null && !name.trim().isEmpty()) {
+                return name.trim();
+            }
+
+        } catch (RuntimeException ignored) {
+            // Usa o nome da classe como alternativa.
+        }
+
+        return module.getClass().getSimpleName();
+    }
+
+    /**
+     * Nome do último módulo que produziu uma resposta.
+     */
+    public synchronized String getLastProcessedModule() {
+        return lastProcessedModule;
+    }
+
+    /**
+     * Nome do último módulo que apresentou uma falha.
+     */
+    public synchronized String getLastFailedModule() {
+        return lastFailedModule;
+    }
+
+    /**
+     * Tipo da última exceção ocorrida.
+     *
+     * String vazia significa que nenhuma falha
+     * foi registrada na última tentativa.
+     */
+    public synchronized String getLastModuleError() {
+        return lastModuleError;
+    }
+
+    /**
+     * Total de falhas de módulos nesta instância.
+     *
+     * O contador não é persistente: ele vale somente
+     * durante a vida desta instância do núcleo.
+     */
+    public synchronized int getModuleFailureCount() {
+        return moduleFailureCount;
+    }
+
+    /**
+     * Recupera informações relevantes da memória existente.
+     */
     public String getRelevantMemory(String query) {
         if (query == null || query.trim().isEmpty()) {
             return "";
@@ -151,6 +330,9 @@ public final class JarvisVisionCore {
         return memory.relevantContext(query, 5);
     }
 
+    /**
+     * Pesquisa registros da memória existente.
+     */
     public List<String> searchMemory(String query) {
         if (query == null || query.trim().isEmpty()) {
             return new ArrayList<>();
