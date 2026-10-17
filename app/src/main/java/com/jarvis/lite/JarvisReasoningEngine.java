@@ -1,25 +1,26 @@
+
 package com.jarvis.lite;
 
 import java.text.Normalizer;
 import java.util.Locale;
 
 /**
- * Motor local de classificação e roteamento do JARVIS Lite.
+ * Motor local de classificacao e roteamento do JARVIS Lite.
  *
  * Responsabilidades:
- * - identificar a intenção provável de uma mensagem;
+ * - identificar a intencao provavel de uma mensagem;
  * - recomendar o especialista mais adequado;
- * - atribuir uma estimativa simples de confiança;
- * - normalizar texto em português, incluindo letras acentuadas;
+ * - atribuir uma estimativa simples de confianca;
+ * - normalizar texto em portugues, incluindo letras acentuadas;
  * - funcionar localmente, sem internet;
- * - não executar comandos, acessar sensores ou alterar o aparelho.
+ * - nao executar comandos, acessar sensores ou alterar o aparelho.
  *
- * IMPORTANTE: esta classe classifica mensagens. Ela não é, sozinha,
- * um modelo de linguagem generativo e não produz as respostas finais.
+ * Esta classe classifica mensagens. Ela nao e, sozinha,
+ * um modelo de linguagem generativo e nao produz as respostas finais.
  */
 public final class JarvisReasoningEngine {
 
-    /** Tipos de intenção reconhecidos pelo mecanismo. */
+    /** Tipos de intencao reconhecidos pelo mecanismo. */
     public enum Intent {
         GREETING,
         MATHEMATICS,
@@ -35,7 +36,7 @@ public final class JarvisReasoningEngine {
         UNKNOWN
     }
 
-    /** Especialistas disponíveis para receber cada tipo de solicitação. */
+    /** Especialistas disponiveis para receber solicitacoes. */
     public enum Specialist {
         CORE,
         FRIDAY,
@@ -46,7 +47,7 @@ public final class JarvisReasoningEngine {
         MEMORY
     }
 
-    /** Resultado imutável da análise de uma mensagem. */
+    /** Resultado imutavel da analise de uma mensagem. */
     public static final class Analysis {
 
         private final Intent intent;
@@ -62,16 +63,26 @@ public final class JarvisReasoningEngine {
                 String normalizedText,
                 String reason
         ) {
-            this.intent = intent == null ? Intent.UNKNOWN : intent;
+            this.intent = intent == null
+                    ? Intent.UNKNOWN
+                    : intent;
+
             this.specialist = specialist == null
                     ? Specialist.CORE
                     : specialist;
-            this.confidence = clamp(confidence, 0.0f, 1.0f);
+
+            this.confidence = clamp(
+                    confidence,
+                    0.0f,
+                    1.0f
+            );
+
             this.normalizedText = normalizedText == null
                     ? ""
                     : normalizedText;
+
             this.reason = reason == null
-                    ? "Análise concluída."
+                    ? "Analise concluida."
                     : reason;
         }
 
@@ -88,7 +99,7 @@ public final class JarvisReasoningEngine {
         }
 
         /**
-         * Texto em minúsculas, sem acentos e com espaços normalizados.
+         * Texto em minusculas, sem acentos e com espacos normalizados.
          */
         public String getNormalizedText() {
             return normalizedText;
@@ -99,12 +110,15 @@ public final class JarvisReasoningEngine {
         }
 
         /**
-         * Informa se a estimativa de confiança alcança o mínimo informado.
-         * Valores de mínimo abaixo de 0 ou acima de 1 são limitados
-         * ao intervalo permitido.
+         * Informa se a estimativa de confianca alcanca
+         * o minimo informado.
          */
         public boolean isConfident(float minimum) {
-            return confidence >= clamp(minimum, 0.0f, 1.0f);
+            return confidence >= clamp(
+                    minimum,
+                    0.0f,
+                    1.0f
+            );
         }
 
         @Override
@@ -120,12 +134,15 @@ public final class JarvisReasoningEngine {
     }
 
     /**
-     * Analisa uma mensagem sem internet e sem executar ações.
+     * Analisa uma mensagem localmente, sem executar acoes.
      *
-     * A ordem das regras é intencional: pedidos explícitos de encerramento,
-     * consultas de sistema e memória são reconhecidos antes do fallback geral.
+     * A ordem das regras e intencional:
+     * primeiro comandos e consultas especificas;
+     * depois conhecimento offline e matematica;
+     * por ultimo, perguntas gerais e conversa.
      */
     public Analysis analyze(String message) {
+
         final String text = normalize(message);
 
         if (text.isEmpty()) {
@@ -134,11 +151,11 @@ public final class JarvisReasoningEngine {
                     Specialist.CORE,
                     0.0f,
                     text,
-                    "Mensagem vazia ou sem conteúdo útil."
+                    "Mensagem vazia ou sem conteudo util."
             );
         }
 
-        // 1. Comando de encerramento.
+        // 1. Pedido explicito para encerrar a sessao.
         if (containsAny(text,
                 "encerrar sessao",
                 "encerrar a sessao",
@@ -148,28 +165,28 @@ public final class JarvisReasoningEngine {
                 "jarvis pode dormir",
                 "voltar ao modo de espera",
                 "entrar em modo de espera")) {
+
             return result(
                     Intent.END_SESSION,
                     Specialist.CORE,
                     0.98f,
                     text,
-                    "Pedido explícito para encerrar ou suspender a sessão."
+                    "Pedido explicito para encerrar ou suspender a sessao."
             );
         }
 
-        // 2. Saudação exata, evitando classificar mensagens inteiras
-        // como saudações quando contêm outras solicitações.
+        // 2. Saudacoes curtas.
         if (isGreeting(text)) {
             return result(
                     Intent.GREETING,
                     Specialist.FRIDAY,
                     0.96f,
                     text,
-                    "Saudação reconhecida."
+                    "Saudacao reconhecida."
             );
         }
 
-        // 3. Verificação informativa do aparelho.
+        // 3. Verificacao informativa do aparelho.
         if (containsAny(text,
                 "verificacao do aparelho",
                 "verificar o aparelho",
@@ -183,16 +200,17 @@ public final class JarvisReasoningEngine {
                 "verificar se tem virus",
                 "checar malware",
                 "verificacao de malware")) {
+
             return result(
                     Intent.DEVICE_CHECK,
                     Specialist.DUM_E,
                     0.90f,
                     text,
-                    "Pedido de verificação informativa do aparelho."
+                    "Pedido de verificacao informativa do aparelho."
             );
         }
 
-        // 4. Dados locais de bateria.
+        // 4. Consultas sobre bateria.
         if (containsAny(text,
                 "bateria",
                 "por cento de bateria",
@@ -201,16 +219,17 @@ public final class JarvisReasoningEngine {
                 "temperatura da bateria",
                 "temperatura do celular",
                 "celular esta carregando")) {
+
             return result(
                     Intent.BATTERY,
                     Specialist.DUM_E,
                     0.94f,
                     text,
-                    "Possível consulta local sobre a bateria."
+                    "Possivel consulta local sobre a bateria."
             );
         }
 
-        // 5. Dados locais de armazenamento.
+        // 5. Consultas sobre armazenamento.
         if (containsAny(text,
                 "armazenamento",
                 "espaco livre",
@@ -220,18 +239,26 @@ public final class JarvisReasoningEngine {
                 "armazenamento do celular",
                 "quanto armazenamento",
                 "espaco disponivel")) {
+
             return result(
                     Intent.STORAGE,
                     Specialist.DUM_E,
                     0.92f,
                     text,
-                    "Possível consulta local sobre armazenamento."
+                    "Possivel consulta local sobre armazenamento."
             );
         }
 
-        // 6. Memória persistente e histórico.
-        // Evitamos usar apenas a palavra "lembra", que pode aparecer
-        // incidentalmente em perguntas sem relação com a memória.
+        /*
+         * 6. Memoria persistente e historico.
+         *
+         * A FRIDAY ja implementa a consulta por meio do nucleo
+         * e da memoria existente. Por isso, o especialista
+         * recomendado passa a ser FRIDAY, evitando anunciar
+         * um modulo MEMORY que nao esta registrado.
+         *
+         * A intencao MEMORY e preservada para compatibilidade.
+         */
         if (containsAny(text,
                 "o que voce lembra de mim",
                 "o que voce lembra sobre mim",
@@ -250,16 +277,18 @@ public final class JarvisReasoningEngine {
                 "o que eu te contei",
                 "o que eu falei anteriormente",
                 "consultar minhas lembrancas")) {
+
             return result(
                     Intent.MEMORY,
-                    Specialist.MEMORY,
+                    Specialist.FRIDAY,
                     0.88f,
                     text,
-                    "Pedido relacionado à memória ou ao histórico de conversa."
+                    "Consulta de memoria encaminhada a FRIDAY, "
+                            + "que reutiliza o armazenamento existente."
             );
         }
 
-        // 7. Solicitações sobre o código e o projeto vão para EDITH.
+        // 7. Desenvolvimento do projeto e codigo.
         if (containsAny(text,
                 "jarvis lite",
                 "nosso projeto",
@@ -277,46 +306,60 @@ public final class JarvisReasoningEngine {
                 "corrigir o codigo",
                 "implementar um modulo",
                 "criar um modulo java")) {
+
             return result(
                     Intent.PROJECT,
                     Specialist.EDITH,
                     0.88f,
                     text,
-                    "Mensagem relacionada ao desenvolvimento do JARVIS Lite ou a código."
+                    "Mensagem relacionada ao desenvolvimento "
+                            + "do JARVIS Lite ou a codigo."
             );
         }
 
-        // 8. Matemática e cálculos vão para o núcleo de cálculo.
-        if (containsAny(text,
-                "quanto e",
-                "calcule",
-                "calcular",
-                "faz a conta",
-                "faca a conta",
-                "resultado de",
-                "raiz quadrada",
-                "porcentagem de",
-                "equacao",
-                "resolver a equacao",
-                "resolva a equacao",
-                "somar",
-                "subtrair",
-                "multiplicar",
-                "dividir",
-                "dividido por",
-                "vezes",
-                "matematica",
-                "calculo matematico")) {
+        /*
+         * 8. Perguntas que correspondem diretamente a assuntos
+         * cadastrados na base de conhecimento offline.
+         *
+         * O modulo U tem prioridade para consultar a base existente.
+         * Se nao encontrar resposta, pode devolver null e permitir
+         * que a FRIDAY tente responder.
+         *
+         * Perguntas que incluem numeros sao deixadas para as
+         * regras posteriores, para nao confundir um calculo
+         * concreto com uma simples consulta de formula.
+         */
+        if (isKnownKnowledgeQuestion(text)) {
+            return result(
+                    Intent.GENERAL_CONVERSATION,
+                    Specialist.U,
+                    0.86f,
+                    text,
+                    "Pergunta reconhecida como candidata a consulta "
+                            + "na base de conhecimento offline pelo modulo U."
+            );
+        }
+
+        /*
+         * 9. Calculos e matematica.
+         *
+         * Evita classificar toda frase que contenha "quanto e"
+         * ou "vezes" como matematica.
+         *
+         * IMPORTANTE: este resultado ainda depende de um modulo
+         * compativel com Specialist.CORE no fluxo VISION.
+         */
+        if (isLikelyMathematics(text)) {
             return result(
                     Intent.MATHEMATICS,
                     Specialist.CORE,
                     0.84f,
                     text,
-                    "Possível pedido de cálculo ou resolução matemática."
+                    "Possivel pedido de calculo ou resolucao matematica."
             );
         }
 
-        // 9. Ajuda escolar vai para KAREN.
+        // 10. Ajuda escolar.
         if (containsAny(text,
                 "atividade da escola",
                 "dever de casa",
@@ -334,16 +377,18 @@ public final class JarvisReasoningEngine {
                 "ajuda com o dever",
                 "exercicio da escola",
                 "exercicio escolar")) {
+
             return result(
                     Intent.SCHOOL_HELP,
                     Specialist.KAREN,
                     0.86f,
                     text,
-                    "Pedido de explicação, estudo ou ajuda escolar encaminhado à KAREN."
+                    "Pedido de explicacao, estudo ou ajuda escolar "
+                            + "encaminhado a KAREN."
             );
         }
 
-        // 10. Orientação prática, explicações graduais e apoio contextual.
+        // 11. Orientacao pratica e explicacoes graduais.
         if (containsAny(text,
                 "passo a passo",
                 "me explica",
@@ -376,55 +421,67 @@ public final class JarvisReasoningEngine {
                 "me de um exemplo",
                 "me ajuda com isso",
                 "me ajude com isso")) {
+
             return result(
                     Intent.GUIDANCE,
                     Specialist.KAREN,
                     0.84f,
                     text,
-                    "Pedido de orientação contextual ou explicação passo a passo."
+                    "Pedido de orientacao contextual ou explicacao "
+                            + "passo a passo."
             );
         }
 
-        // 11. Fallback conservador.
-        if (text.isEmpty()) {
+        /*
+         * 12. Outras perguntas podem tentar primeiro a base
+         * offline por meio do modulo U.
+         *
+         * O U so responde quando a base existente encontra algo.
+         * Caso contrario, o nucleo pode continuar ate a FRIDAY,
+         * que trata conversas gerais e pedidos de esclarecimento.
+         */
+        if (looksLikeKnowledgeQuestion(text)) {
             return result(
-                    Intent.UNKNOWN,
-                    Specialist.CORE,
-                    0.0f,
+                    Intent.GENERAL_CONVERSATION,
+                    Specialist.U,
+                    0.70f,
                     text,
-                    "Mensagem sem conteúdo identificável."
+                    "Pergunta geral encaminhada primeiro ao modulo U "
+                            + "para consulta offline, com fallback conversacional."
             );
         }
 
+        // 13. Fallback conservador.
         return result(
                 Intent.GENERAL_CONVERSATION,
                 Specialist.FRIDAY,
                 0.55f,
                 text,
-                "Nenhuma intenção específica foi identificada com confiança suficiente."
+                "Nenhuma intencao especifica foi identificada "
+                        + "com confianca suficiente."
         );
     }
 
-    /** Alias em português para componentes que usam o nome analisar(). */
+    /** Alias em portugues para componentes que usam o nome analisar(). */
     public Analysis analisar(String mensagem) {
         return analyze(mensagem);
     }
 
     /**
      * Retorna o especialista recomendado.
-     * A recomendação não concede permissões ao módulo.
+     * A recomendacao nao concede permissoes ao modulo.
      */
     public Specialist recommendSpecialist(String message) {
         return analyze(message).getSpecialist();
     }
 
-    /** Produz uma descrição legível da classificação para diagnóstico. */
+    /** Descricao legivel da classificacao para diagnostico. */
     public String describeIntent(String message) {
         Analysis analysis = analyze(message);
 
-        return "Intenção: " + analysis.getIntent().name()
+        return "Intencao: " + analysis.getIntent().name()
                 + "; especialista: " + analysis.getSpecialist().name()
-                + "; confiança: " + analysis.getConfidence()
+                + "; confianca: " + analysis.getConfidence()
                 + "; motivo: " + analysis.getReason();
     }
 
@@ -444,12 +501,155 @@ public final class JarvisReasoningEngine {
         );
     }
 
+    /**
+     * Detecta perguntas que correspondem a assuntos ja cadastrados
+     * na JarvisKnowledgeBase.
+     *
+     * Nao tenta resolver calculos que contenham valores numericos.
+     */
+    private static boolean isKnownKnowledgeQuestion(String text) {
+        if (text == null || text.isEmpty()) {
+            return false;
+        }
+
+        if (containsDigit(text)) {
+            return false;
+        }
+
+        return containsAny(text,
+                "quem descobriu o brasil",
+                "quem descobriu brasil",
+                "descobridor do brasil",
+                "quando o brasil ficou independente",
+                "quando foi a independencia do brasil",
+                "capital do brasil",
+                "qual planeta nos vivemos",
+                "em qual planeta nos vivemos",
+                "qual e o nosso planeta",
+                "qual e a estrela do sistema solar",
+                "qual estrela fica no centro do sistema solar",
+                "qual e o planeta vermelho",
+                "qual planeta e conhecido como planeta vermelho",
+                "planeta vermelho",
+                "fotossintese",
+                "formula quimica da agua",
+                "formula da agua",
+                "formula da area do triangulo",
+                "area do triangulo",
+                "area de um triangulo",
+                "formula da area do retangulo",
+                "area do retangulo",
+                "formula da area do quadrado",
+                "area do quadrado",
+                "formula do perimetro do quadrado",
+                "perimetro de um quadrado",
+                "formula da area do circulo",
+                "area do circulo",
+                "teorema de pitagoras",
+                "o que e um substantivo",
+                "explique o substantivo",
+                "o que e um verbo",
+                "explique o verbo");
+    }
+
+    /**
+     * Identifica pedidos matematicos sem tratar qualquer ocorrencia
+     * de "quanto e" ou "vezes" como um calculo.
+     */
+    private static boolean isLikelyMathematics(String text) {
+        if (text == null || text.isEmpty()) {
+            return false;
+        }
+
+        if (containsAny(text,
+                "calcule",
+                "calcular",
+                "faz a conta",
+                "faca a conta",
+                "resultado de",
+                "raiz quadrada",
+                "porcentagem de",
+                "equacao",
+                "resolver a equacao",
+                "resolva a equacao",
+                "somar",
+                "subtrair",
+                "multiplicar",
+                "dividir",
+                "dividido por",
+                "calculo matematico")) {
+            return true;
+        }
+
+        return hasArithmeticExpression(text);
+    }
+
+    /**
+     * Reconhece expressoes simples como "2 + 2", "3 x 4"
+     * e "10 dividido por 2".
+     */
+    private static boolean hasArithmeticExpression(String text) {
+        return text.matches(
+                ".*\\d+\\s*(?:\\+|\\-|\\*|/|×|÷|x|vezes|"
+                        + "dividido por|mais|menos)\\s*\\d+.*"
+        );
+    }
+
+    private static boolean containsDigit(String text) {
+        if (text == null) {
+            return false;
+        }
+
+        for (int i = 0; i < text.length(); i++) {
+            if (Character.isDigit(text.charAt(i))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Detecta formatos comuns de perguntas factuais.
+     */
+    private static boolean looksLikeKnowledgeQuestion(String text) {
+        if (text == null || text.isEmpty()) {
+            return false;
+        }
+
+        if (text.contains("?")) {
+            return true;
+        }
+
+        return startsWithAny(text,
+                "quem ",
+                "qual ",
+                "quais ",
+                "quando ",
+                "onde ",
+                "aonde ",
+                "por que ",
+                "porque ",
+                "o que ",
+                "o que e ",
+                "como funciona ",
+                "como surgiu ",
+                "como acontece ",
+                "explique ",
+                "me diga ",
+                "me conte ",
+                "me fale sobre ",
+                "quero saber ");
+    }
+
     private static boolean isGreeting(String text) {
         if (text == null || text.isEmpty()) {
             return false;
         }
 
-        String candidate = text.replaceAll("[!?.]+$", "").trim();
+        String candidate = text
+                .replaceAll("[!?.]+$", "")
+                .trim();
 
         return candidate.equals("oi")
                 || candidate.equals("ola")
@@ -464,8 +664,34 @@ public final class JarvisReasoningEngine {
                 || candidate.equals("opa jarvis");
     }
 
-    private static boolean containsAny(String text, String... terms) {
-        if (text == null || text.isEmpty() || terms == null) {
+    private static boolean startsWithAny(
+            String text,
+            String... prefixes
+    ) {
+        if (text == null
+                || text.isEmpty()
+                || prefixes == null) {
+            return false;
+        }
+
+        for (String prefix : prefixes) {
+            if (prefix != null
+                    && !prefix.isEmpty()
+                    && text.startsWith(prefix)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static boolean containsAny(
+            String text,
+            String... terms
+    ) {
+        if (text == null
+                || text.isEmpty()
+                || terms == null) {
             return false;
         }
 
@@ -482,22 +708,28 @@ public final class JarvisReasoningEngine {
     }
 
     /**
-     * Normaliza acentos usando a biblioteca padrão do Java e padroniza espaços.
-     * Não depende de internet nem de APIs específicas do Android.
+     * Normaliza acentos usando a biblioteca padrao do Java.
+     * Nao depende de internet nem de APIs especificas do Android.
      */
     private static String normalize(String text) {
         if (text == null) {
             return "";
         }
 
-        String lower = text.trim().toLowerCase(Locale.ROOT);
+        String lower = text
+                .trim()
+                .toLowerCase(Locale.ROOT);
+
         String decomposed = Normalizer.normalize(
                 lower,
                 Normalizer.Form.NFD
         );
-        String withoutMarks = decomposed.replaceAll("\\p{M}+", "");
 
-        // Remove caracteres de controle e normaliza espaços.
+        String withoutMarks = decomposed.replaceAll(
+                "\\p{M}+",
+                ""
+        );
+
         return withoutMarks
                 .replaceAll("[\\p{Cc}&&[^\\t]]", " ")
                 .replaceAll("\\s+", " ")
