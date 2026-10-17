@@ -1,12 +1,18 @@
 
 package com.jarvis.lite;
 
+import java.util.Locale;
+
 /**
  * DUM-E: especialista em consultas informativas
  * sobre o aparelho.
  *
- * Utiliza JarvisDeviceTools, já existente no projeto.
- * Não altera configurações nem executa ações destrutivas.
+ * Utiliza o JarvisDeviceTools já mantido pelo
+ * JarvisContextManager.
+ *
+ * Não altera configurações, não executa ações
+ * destrutivas e não realiza uma verificação
+ * antivírus completa.
  */
 public final class JarvisDumEModule
         implements JarvisVisionModule {
@@ -20,12 +26,8 @@ public final class JarvisDumEModule
     public boolean supports(
             JarvisReasoningEngine.Analysis analysis
     ) {
-        if (analysis == null
-                || analysis.getSpecialist() == null) {
-            return false;
-        }
-
-        return analysis.getSpecialist()
+        return analysis != null
+                && analysis.getSpecialist()
                 == JarvisReasoningEngine.Specialist.DUM_E;
     }
 
@@ -46,59 +48,82 @@ public final class JarvisDumEModule
                 core.getContextManager();
 
         if (contextManager == null) {
-            return "O DUM-E precisa receber o contexto "
+            return "O DUM-E precisa do contexto "
                     + "do aplicativo para consultar "
                     + "as informações do aparelho.";
+        }
+
+        /*
+         * Reutiliza a ferramenta já criada pelo
+         * JarvisContextManager.
+         *
+         * Não cria uma segunda instância de
+         * JarvisDeviceTools nem tenta obter o Context
+         * por um método inexistente.
+         */
+        JarvisDeviceTools tools =
+                contextManager.getDeviceTools();
+
+        if (tools == null) {
+            return "As informações locais do aparelho "
+                    + "estão indisponíveis no momento.";
         }
 
         String normalized =
                 analysis.getNormalizedText();
 
-        if (normalized == null) {
-            normalized = input.toLowerCase();
+        if (normalized == null
+                || normalized.trim().isEmpty()) {
+            normalized = input
+                    .trim()
+                    .toLowerCase(Locale.ROOT);
         }
 
-        JarvisDeviceTools tools;
-
-        try {
-            tools = new JarvisDeviceTools(
-                    getApplicationContext(contextManager)
-            );
-        } catch (RuntimeException exception) {
-            return "Não foi possível acessar as "
-                    + "informações locais do aparelho.";
-        }
-
+        /*
+         * CONSULTAS SOBRE BATERIA
+         */
         if (normalized.contains("bateria")
                 || normalized.contains("carregando")
                 || normalized.contains("temperatura do celular")) {
+
             return tools.resumoBateria();
         }
 
+        /*
+         * CONSULTAS SOBRE ARMAZENAMENTO
+         */
         if (normalized.contains("armazenamento")
                 || normalized.contains("espaco livre")
-                || normalized.contains("memoria interna")) {
+                || normalized.contains("memoria interna")
+                || normalized.contains("quanto de espaco")) {
+
             return tools.resumoArmazenamento();
         }
 
+        /*
+         * PEDIDOS DE VERIFICAÇÃO DO APARELHO
+         *
+         * Esta resposta explica o limite do módulo.
+         * Não afirma que uma verificação antivírus
+         * completa foi realizada.
+         */
         if (normalized.contains("verificacao do aparelho")
                 || normalized.contains("verificar o aparelho")
                 || normalized.contains("verificar seguranca")
                 || normalized.contains("verificacao basica")) {
+
             return "Posso consultar informações básicas "
                     + "do aparelho, mas isso não equivale "
                     + "a uma verificação antivírus completa.";
         }
 
+        /*
+         * A mensagem não corresponde a nenhuma
+         * consulta implementada neste módulo.
+         *
+         * null permite que o núcleo continue o fluxo
+         * e tente encontrar outro módulo responsável.
+         */
         return null;
-    }
-
-    private android.content.Context getApplicationContext(
-            JarvisContextManager contextManager
-    ) {
-        throw new UnsupportedOperationException(
-                "A integração com o Context do aplicativo "
-                        + "precisa ser definida."
-        );
     }
 }
