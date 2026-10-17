@@ -2,10 +2,11 @@
 package com.jarvis.lite;
 
 /**
- * EDITH: especialista em análise e encaminhamento.
+ * EDITH: especialista em análise de pedidos relacionados
+ * ao projeto JARVIS Lite.
  *
- * Reutiliza o mecanismo de raciocínio existente.
- * Não executa ações no dispositivo.
+ * Utiliza o classificador existente e não executa ações
+ * nem altera o dispositivo.
  */
 public final class JarvisEdithModule
         implements JarvisVisionModule {
@@ -19,7 +20,9 @@ public final class JarvisEdithModule
     public boolean supports(
             JarvisReasoningEngine.Analysis analysis
     ) {
-        return analysis != null;
+        return analysis != null
+                && analysis.getSpecialist()
+                == JarvisReasoningEngine.Specialist.EDITH;
     }
 
     @Override
@@ -28,22 +31,24 @@ public final class JarvisEdithModule
             JarvisReasoningEngine.Analysis analysis,
             JarvisVisionCore core
     ) {
-        if (input == null || input.trim().isEmpty()
-                || analysis == null || core == null) {
+        if (input == null
+                || input.trim().isEmpty()
+                || analysis == null
+                || core == null
+                || !supports(analysis)) {
             return null;
         }
 
-        JarvisReasoningEngine.Specialist specialist =
-                core.recommendSpecialist(input);
+        int confidence = Math.round(
+                analysis.getConfidence() * 100
+        );
 
-        if (specialist == null) {
-            return null;
-        }
-
-        return "EDITH analisou seu pedido. "
-                + "O mecanismo de raciocínio recomenda "
-                + "o especialista: "
-                + specialist.toString()
-                + ".";
+        return "EDITH identificou um pedido relacionado "
+                + "ao projeto JARVIS Lite. "
+                + "Motivo da classificação: "
+                + analysis.getReason()
+                + " Confiança estimada: "
+                + confidence
+                + "%.";
     }
 }
