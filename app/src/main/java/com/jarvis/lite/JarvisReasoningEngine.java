@@ -1,4 +1,3 @@
-
 package com.jarvis.lite;
 
 import java.text.Normalizer;
@@ -210,15 +209,27 @@ public final class JarvisReasoningEngine {
             );
         }
 
-        // 4. Consultas sobre bateria.
+        // 4. Consultas sobre bateria, carga e temperatura.
         if (containsAny(text,
                 "bateria",
                 "por cento de bateria",
                 "porcentagem da bateria",
+                "percentual da bateria",
+                "percentual de bateria",
                 "nivel da bateria",
+                "nivel de bateria",
+                "status da bateria",
+                "estado da bateria",
                 "temperatura da bateria",
+                "temperatura bateria",
                 "temperatura do celular",
-                "celular esta carregando")) {
+                "celular esta carregando",
+                "esta carregando",
+                "esta na tomada",
+                "estado de carregamento",
+                "carregamento do celular",
+                "quanto de bateria",
+                "quanto resta de bateria")) {
 
             return result(
                     Intent.BATTERY,
@@ -233,12 +244,19 @@ public final class JarvisReasoningEngine {
         if (containsAny(text,
                 "armazenamento",
                 "espaco livre",
-                "memoria interna",
-                "quanto de espaco",
+                "espaco disponivel",
                 "espaco no celular",
-                "armazenamento do celular",
+                "espaco no aparelho",
+                "quanto de espaco",
+                "quanto espaco",
                 "quanto armazenamento",
-                "espaco disponivel")) {
+                "memoria interna",
+                "armazenamento interno",
+                "armazenamento do celular",
+                "armazenamento do aparelho",
+                "espaco ocupado",
+                "espaco utilizado",
+                "quanto resta de espaco")) {
 
             return result(
                     Intent.STORAGE,
@@ -250,7 +268,75 @@ public final class JarvisReasoningEngine {
         }
 
         /*
-         * 6. Memoria persistente e historico.
+         * 6. Consultas sobre memoria RAM.
+         *
+         * O DUM-E ja implementa essa consulta por meio de
+         * JarvisDeviceTools.resumoRam().
+         *
+         * Mantemos GENERAL_CONVERSATION como intencao para
+         * preservar a compatibilidade com os modulos existentes.
+         * O especialista DUM_E indica o destino real da solicitacao.
+         */
+        if (containsAny(text,
+                "memoria ram",
+                "ram disponivel",
+                "ram utilizada",
+                "ram usada",
+                "ram total",
+                "uso da ram",
+                "uso de ram",
+                "quanto de ram",
+                "ram do celular",
+                "memoria de acesso aleatorio")
+                || containsWholeWord(text, "ram")) {
+
+            return result(
+                    Intent.GENERAL_CONVERSATION,
+                    Specialist.DUM_E,
+                    0.92f,
+                    text,
+                    "Consulta sobre memoria RAM encaminhada ao DUM-E."
+            );
+        }
+
+        /*
+         * 7. Informacoes gerais do aparelho.
+         *
+         * O DUM-E consulta as informacoes atraves das ferramentas
+         * locais ja existentes. Esta classificacao nao concede
+         * permissoes nem adiciona acesso especial ao Android.
+         */
+        if (containsAny(text,
+                "informacoes do aparelho",
+                "informacao do aparelho",
+                "dados do aparelho",
+                "informacoes do celular",
+                "informacao do celular",
+                "dados do celular",
+                "resumo do aparelho",
+                "detalhes do aparelho",
+                "qual e meu aparelho",
+                "modelo do meu celular",
+                "modelo do celular",
+                "modelo do aparelho",
+                "marca do celular",
+                "qual android",
+                "versao do android",
+                "qual versao do android",
+                "sistema do celular",
+                "informacoes do dispositivo")) {
+
+            return result(
+                    Intent.GENERAL_CONVERSATION,
+                    Specialist.DUM_E,
+                    0.90f,
+                    text,
+                    "Consulta de informacoes do aparelho encaminhada ao DUM-E."
+            );
+        }
+
+        /*
+         * 8. Memoria persistente e historico.
          *
          * A FRIDAY ja implementa a consulta por meio do nucleo
          * e da memoria existente. Por isso, o especialista
@@ -288,7 +374,7 @@ public final class JarvisReasoningEngine {
             );
         }
 
-        // 7. Desenvolvimento do projeto e codigo.
+        // 9. Desenvolvimento do projeto e codigo.
         if (containsAny(text,
                 "jarvis lite",
                 "nosso projeto",
@@ -318,7 +404,7 @@ public final class JarvisReasoningEngine {
         }
 
         /*
-         * 8. Perguntas que correspondem diretamente a assuntos
+         * 10. Perguntas que correspondem diretamente a assuntos
          * cadastrados na base de conhecimento offline.
          *
          * O modulo U tem prioridade para consultar a base existente.
@@ -341,7 +427,7 @@ public final class JarvisReasoningEngine {
         }
 
         /*
-         * 9. Calculos e matematica.
+         * 11. Calculos e matematica.
          *
          * Evita classificar toda frase que contenha "quanto e"
          * ou "vezes" como matematica.
@@ -359,7 +445,7 @@ public final class JarvisReasoningEngine {
             );
         }
 
-        // 10. Ajuda escolar.
+        // 12. Ajuda escolar.
         if (containsAny(text,
                 "atividade da escola",
                 "dever de casa",
@@ -388,7 +474,7 @@ public final class JarvisReasoningEngine {
             );
         }
 
-        // 11. Orientacao pratica e explicacoes graduais.
+        // 13. Orientacao pratica e explicacoes graduais.
         if (containsAny(text,
                 "passo a passo",
                 "me explica",
@@ -433,7 +519,7 @@ public final class JarvisReasoningEngine {
         }
 
         /*
-         * 12. Outras perguntas podem tentar primeiro a base
+         * 14. Outras perguntas podem tentar primeiro a base
          * offline por meio do modulo U.
          *
          * O U so responde quando a base existente encontra algo.
@@ -451,7 +537,7 @@ public final class JarvisReasoningEngine {
             );
         }
 
-        // 13. Fallback conservador.
+        // 15. Fallback conservador.
         return result(
                 Intent.GENERAL_CONVERSATION,
                 Specialist.FRIDAY,
@@ -683,6 +769,36 @@ public final class JarvisReasoningEngine {
         }
 
         return false;
+    }
+
+    /**
+     * Reconhece uma palavra isolada mesmo quando há pontuação
+     * ao redor. Evita que "ram" seja detectado dentro de
+     * palavras como "programa".
+     */
+    private static boolean containsWholeWord(
+            String text,
+            String word
+    ) {
+        if (text == null || text.trim().isEmpty()
+                || word == null || word.trim().isEmpty()) {
+            return false;
+        }
+
+        String cleanText = text
+                .replaceAll("[^a-z0-9]+", " ")
+                .trim();
+
+        String cleanWord = normalize(word)
+                .replaceAll("[^a-z0-9]+", " ")
+                .trim();
+
+        if (cleanText.isEmpty() || cleanWord.isEmpty()) {
+            return false;
+        }
+
+        return (" " + cleanText + " ")
+                .contains(" " + cleanWord + " ");
     }
 
     private static boolean containsAny(
