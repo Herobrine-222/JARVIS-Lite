@@ -70,6 +70,8 @@ public class MainActivity extends Activity {
     private boolean chatMode = false;
 
     private boolean verificacaoEncontrouSuspeito = false;
+    private boolean verificacaoConcluidaComSucesso = false;
+    private boolean verificacaoTentada = false;
     private String nomeAppSuspeito = "";
     private String detalheAppSuspeito = "";
 
@@ -87,9 +89,9 @@ public class MainActivity extends Activity {
     private MediaPlayer audioReferenciaPlayer;
     private MediaPlayer audioConsentimentoPlayer;
 
-    private boolean verificacaoEmAndamento = false;
+    private volatile boolean verificacaoEmAndamento = false;
     private Handler verificacaoHandler;
-    private int verificacaoRunToken = 0;
+    private volatile int verificacaoRunToken = 0;
 
     private SpeechRecognizer speechRecognizer;
     private boolean ouvindo = false;
@@ -143,6 +145,16 @@ public class MainActivity extends Activity {
 
         ultimaVerificacao =
                 preferencias.getLong("ultima_verificacao", 0L);
+        verificacaoConcluidaComSucesso =
+                preferencias.getBoolean("verificacao_concluida_com_sucesso", false);
+        verificacaoTentada = preferencias.getBoolean(
+                "verificacao_tentada",
+                ultimaVerificacao > 0L
+        );
+        verificacaoEncontrouSuspeito =
+                preferencias.getBoolean("verificacao_encontrou_suspeito", false);
+        nomeAppSuspeito = preferencias.getString("verificacao_app_suspeito", "");
+        detalheAppSuspeito = preferencias.getString("verificacao_detalhe_app_suspeito", "");
 
         memoria = new JarvisMemory(this);
 
@@ -181,7 +193,8 @@ public class MainActivity extends Activity {
         iniciarRelogio();
         iniciarVoz();
 
-        if (Build.VERSION.SDK_INT >= 23
+        if (microfoneAtivado
+                && Build.VERSION.SDK_INT >= 23
                 && checkSelfPermission(
                         Manifest.permission.RECORD_AUDIO
                 ) != PackageManager.PERMISSION_GRANTED) {
@@ -207,7 +220,7 @@ public class MainActivity extends Activity {
             adicionarMensagem(
                     "JARVIS",
                     modoOnline
-                            ? "Modo ONLINE ativo."
+                            ? "Modo ONLINE selecionado. A integração externa ainda não está conectada nesta versão."
                             : "Modo OFFLINE ativo."
             );
 
@@ -227,52 +240,29 @@ public class MainActivity extends Activity {
     }
 
    private void configurarAreaSegura(View root) {
+        if (Build.VERSION.SDK_INT >= 30) {
+            root.setOnApplyWindowInsetsListener((v, insets) -> {
+                Insets barras = insets.getInsets(
+                        WindowInsets.Type.statusBars()
+                                | WindowInsets.Type.navigationBars()
+                );
 
-    if (Build.VERSION.SDK_INT >= 30) {
-
-        root.setOnApplyWindowInsetsListener(
-                (v, insets) -> {
-
-                    Insets barras =
-                            insets.getInsets(
-                                    WindowInsets.Type.statusBars()
-                                            | WindowInsets.Type.navigationBars()
-                            );
-
-                    Insets teclado =
-                            insets.getInsets(
-                                    WindowInsets.Type.ime()
-                            );
-
-                    int parteInferior =
-                            Math.max(
-                                    barras.bottom,
-                                    teclado.bottom
-                            );
-
-                    v.setPadding(
-                            dp(18),
-                            dp(10) + barras.top,
-                            dp(18),
-                            dp(24) + parteInferior
-                    );
-
-                    return insets;
-                }
-        );
-
-        root.requestApplyInsets();
-
-    } else {
-
-        root.setPadding(
-                dp(18),
-                dp(10),
-                dp(18),
-                dp(24)
-        );
-    }
-} 
+                // O teclado já é tratado por SOFT_INPUT_ADJUST_RESIZE.
+                // Somar os insets do teclado ao padding pode empurrar o campo
+                // de mensagem para fora da tela quando o IME é aberto.
+                v.setPadding(
+                        dp(10),
+                        dp(8) + barras.top,
+                        dp(10),
+                        dp(12) + barras.bottom
+                );
+                return insets;
+            });
+            root.requestApplyInsets();
+        } else {
+            root.setPadding(dp(10), dp(8), dp(10), dp(12));
+        }
+    } 
 
     private void iniciarVoz() {
         try {
@@ -626,6 +616,10 @@ public class MainActivity extends Activity {
 
         telaAtual = TELA_PRINCIPAL;
         chatMode = false;
+        // Não manter referências a uma conversa que saiu da tela.
+        chatContainer = null;
+        chatScroll = null;
+        commandInput = null;
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -670,15 +664,18 @@ public class MainActivity extends Activity {
         homeDateText.setTextColor(Color.WHITE);
         homeDateText.setGravity(Gravity.CENTER);
         homeDateText.setIncludeFontPadding(true);
-        homeDateText.setMaxLines(1);
-        root.addView(homeDateText, new LinearLayout.LayoutParams(-1, dp(46)));
+        homeDateText.setMaxLines(2);
+        homeDateText.setHorizontallyScrolling(false);
+        root.addView(homeDateText, new LinearLayout.LayoutParams(-1, dp(48)));
 
         // Clima: usa apenas informação configurada/obtida pelo próprio app.
         homeWeatherText = criarTexto("");
         homeWeatherText.setTextSize(14);
         homeWeatherText.setTextColor(Color.LTGRAY);
         homeWeatherText.setGravity(Gravity.CENTER);
-        homeWeatherText.setPadding(dp(12), dp(4), dp(12), dp(4));
+        homeWeatherText.setMaxLines(2);
+        homeWeatherText.setHorizontallyScrolling(false);
+        homeWeatherText.setPadding(dp(8), dp(4), dp(8), dp(4));
         root.addView(homeWeatherText, new LinearLayout.LayoutParams(-1, dp(56)));
 
         // Reator central.
@@ -744,10 +741,10 @@ public class MainActivity extends Activity {
             }
         });
 
-        root.addView(entrada, new LinearLayout.LayoutParams(-1, dp(64)));
+        root.addView(entrada, parametrosEntradaMensagem());
 
         TextView modo = criarTexto(
-                modoOnline ? "● MODO ONLINE EM USO" : "● MODO OFFLINE EM USO"
+                modoOnline ? "● MODO ONLINE SELECIONADO" : "● MODO OFFLINE ATIVO"
         );
         modo.setTextSize(10);
         modo.setTextColor(Color.rgb(80, 205, 255));
@@ -763,9 +760,9 @@ public class MainActivity extends Activity {
 
         if (homeDateText != null) {
             homeDateText.setText(
-                    new SimpleDateFormat("dd MMM", Locale.getDefault())
+                    new SimpleDateFormat("dd 'DE' MMMM", new Locale("pt", "BR"))
                             .format(new Date())
-                            .toUpperCase(Locale.getDefault())
+                            .toUpperCase(new Locale("pt", "BR"))
             );
         }
 
@@ -778,39 +775,49 @@ public class MainActivity extends Activity {
                                 : "☁  Clima indisponível no modo OFFLINE"
                 );
             } else {
-                homeWeatherText.setText("☁  " + cidade + "  •  clima disponível no modo ONLINE");
+                homeWeatherText.setText(
+                        "☁  Cidade configurada: " + cidade
+                                + "  •  consulta de clima ainda não integrada"
+                );
             }
         }
     }
 
     private LinearLayout criarEntradaMensagem(Runnable aoFocar) {
-
         LinearLayout entrada = new LinearLayout(this);
-        entrada.setOrientation(LinearLayout.HORIZONTAL);
-        entrada.setGravity(Gravity.CENTER_VERTICAL);
-        entrada.setPadding(dp(10), dp(4), dp(10), dp(4));
+        entrada.setOrientation(LinearLayout.VERTICAL);
+        entrada.setGravity(Gravity.START);
+        entrada.setPadding(dp(12), dp(5), dp(8), dp(4));
+        entrada.setMinimumHeight(dp(92));
 
         GradientDrawable campoFundo = new GradientDrawable();
         campoFundo.setColor(Color.rgb(3, 13, 25));
         campoFundo.setCornerRadius(dp(22));
         campoFundo.setStroke(dp(1), Color.rgb(0, 150, 255));
+        entrada.setBackground(campoFundo);
 
         commandInput = new EditText(this);
         commandInput.setHint("Digite uma mensagem...");
         commandInput.setHintTextColor(Color.rgb(125, 145, 165));
         commandInput.setTextColor(Color.WHITE);
-        commandInput.setSingleLine(true);
-        commandInput.setTextSize(14);
-        commandInput.setPadding(dp(16), 0, dp(12), 0);
-        commandInput.setBackground(campoFundo);
-
-        commandInput.setImeOptions(
-                android.view.inputmethod.EditorInfo.IME_ACTION_SEND
-        );
-
+        commandInput.setTextSize(15);
+        commandInput.setSingleLine(false);
+        commandInput.setMinLines(1);
+        commandInput.setMaxLines(5);
+        commandInput.setHorizontallyScrolling(false);
+        commandInput.setGravity(Gravity.TOP | Gravity.START);
+        commandInput.setIncludeFontPadding(true);
+        commandInput.setPadding(dp(4), dp(7), dp(4), dp(4));
+        commandInput.setBackgroundColor(Color.TRANSPARENT);
         commandInput.setInputType(
                 android.text.InputType.TYPE_CLASS_TEXT
                         | android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+                        | android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                        | android.text.InputType.TYPE_TEXT_FLAG_AUTO_CORRECT
+        );
+        commandInput.setImeOptions(
+                android.view.inputmethod.EditorInfo.IME_ACTION_SEND
+                        | android.view.inputmethod.EditorInfo.IME_FLAG_NO_EXTRACT_UI
         );
 
         commandInput.setOnFocusChangeListener((v, focused) -> {
@@ -819,43 +826,31 @@ public class MainActivity extends Activity {
             }
         });
 
-        commandInput.setOnEditorActionListener(
-                (v, actionId, event) -> {
-
-                    boolean enviarPorAcao =
-                            actionId ==
-                                    android.view.inputmethod.EditorInfo.IME_ACTION_SEND;
-
-                    boolean enviarPorEnter =
-                            event != null
-                                    && event.getKeyCode()
-                                    == android.view.KeyEvent.KEYCODE_ENTER
-                                    && event.getAction()
-                                    == android.view.KeyEvent.ACTION_DOWN;
-
-                    if (enviarPorAcao || enviarPorEnter) {
-                        enviarTextoDigitado();
-                        return true;
-                    }
-
-                    return false;
-                }
-        );
+        // O botão de envio permanece disponível no balão. O ENTER dentro
+        // de um campo multilinha deve poder inserir uma nova linha.
+        commandInput.setOnEditorActionListener((v, actionId, event) -> {
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEND
+                    || actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE) {
+                enviarTextoDigitado();
+                return true;
+            }
+            return false;
+        });
 
         entrada.addView(
                 commandInput,
-                new LinearLayout.LayoutParams(0, dp(52), 1)
+                new LinearLayout.LayoutParams(-1, -2)
         );
 
-        ImageButton microfone = new ImageButton(this);
-        microfone.setImageResource(R.drawable.ic_jarvis_mic);
-        microfone.setBackgroundColor(Color.TRANSPARENT);
-        microfone.setColorFilter(Color.rgb(80, 205, 255));
-        microfone.setPadding(
-                dp(8), dp(8), dp(8), dp(8)
+        LinearLayout acoes = new LinearLayout(this);
+        acoes.setOrientation(LinearLayout.HORIZONTAL);
+        acoes.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+        acoes.setPadding(0, dp(2), 0, 0);
+
+        ImageButton microfone = criarBotaoEntrada(
+                R.drawable.ic_jarvis_mic,
+                "Microfone"
         );
-        microfone.setScaleType(ImageButton.ScaleType.CENTER);
-        microfone.setContentDescription("Microfone");
         microfone.setOnClickListener(v -> {
             if (!chatMode) {
                 abrirChatIA();
@@ -864,23 +859,65 @@ public class MainActivity extends Activity {
             else pararReconhecimento();
         });
 
-        entrada.addView(microfone, new LinearLayout.LayoutParams(dp(48), dp(52)));
-
-        ImageButton enviar = new ImageButton(this);
-        enviar.setImageResource(R.drawable.ic_jarvis_send);
-        enviar.setBackgroundColor(Color.TRANSPARENT);
-        enviar.setColorFilter(Color.rgb(80, 205, 255));
-        enviar.setPadding(
-                dp(8), dp(8), dp(8), dp(8)
+        ImageButton enviar = criarBotaoEntrada(
+                R.drawable.ic_jarvis_send,
+                "Enviar mensagem"
         );
-        enviar.setScaleType(ImageButton.ScaleType.CENTER);
-        enviar.setContentDescription("Enviar");
         enviar.setOnClickListener(v -> enviarTextoDigitado());
 
-        entrada.addView(enviar, new LinearLayout.LayoutParams(dp(48), dp(52)));
+        LinearLayout.LayoutParams acaoParams =
+                new LinearLayout.LayoutParams(dp(42), dp(42));
+        acaoParams.leftMargin = dp(6);
+        acoes.addView(microfone, new LinearLayout.LayoutParams(acaoParams));
+        acoes.addView(enviar, new LinearLayout.LayoutParams(acaoParams));
+        entrada.addView(
+                acoes,
+                new LinearLayout.LayoutParams(-1, dp(42))
+        );
 
         return entrada;
     }
+
+    private ImageButton criarBotaoEntrada(int recurso, String descricao) {
+        ImageButton botao = new ImageButton(this);
+        botao.setImageResource(recurso);
+        botao.setColorFilter(Color.rgb(80, 205, 255));
+        botao.setScaleType(ImageButton.ScaleType.CENTER_INSIDE);
+        botao.setPadding(dp(10), dp(10), dp(10), dp(10));
+        botao.setContentDescription(descricao);
+
+        GradientDrawable fundo = new GradientDrawable();
+        fundo.setShape(GradientDrawable.OVAL);
+        fundo.setColor(Color.rgb(5, 24, 40));
+        fundo.setStroke(dp(1), Color.rgb(0, 115, 175));
+        botao.setBackground(fundo);
+        botao.setMinimumWidth(dp(42));
+        botao.setMinimumHeight(dp(42));
+        return botao;
+    }
+
+    private LinearLayout.LayoutParams parametrosEntradaMensagem() {
+        LinearLayout.LayoutParams params =
+                new LinearLayout.LayoutParams(-1, -2);
+        // A tela raiz mantém uma margem segura; este recuo negativo deixa
+        // o balão visualmente quase de ponta a ponta, com pequena margem.
+        params.leftMargin = -dp(4);
+        params.rightMargin = -dp(4);
+        params.topMargin = dp(4);
+        params.bottomMargin = dp(4);
+        return params;
+    }
+
+    private int larguraMaximaBalaoMensagem() {
+        int larguraTela = getResources().getDisplayMetrics().widthPixels;
+        int larguraResponsiva = Math.round(larguraTela * 0.84f);
+        return Math.max(dp(1), Math.min(dp(520), larguraResponsiva));
+    }
+
+    private boolean mensagemInvalida(String autor, String mensagem) {
+        return mensagem == null || mensagem.trim().isEmpty();
+    }
+
 
 
     private LinearLayout criarPainelNeon() {
@@ -975,13 +1012,14 @@ public class MainActivity extends Activity {
 
         // Reator pequeno, igual ao modo conversa da referência.
         ReactorView miniReator = new ReactorView(this);
+        reactorView = miniReator;
         LinearLayout.LayoutParams miniParams =
                 new LinearLayout.LayoutParams(dp(120), dp(120));
         miniParams.gravity = Gravity.CENTER_HORIZONTAL;
         root.addView(miniReator, miniParams);
 
         LinearLayout entrada = criarEntradaMensagem(null);
-        root.addView(entrada, new LinearLayout.LayoutParams(-1, dp(62)));
+        root.addView(entrada, parametrosEntradaMensagem());
 
         setContentView(root);
 
@@ -1563,7 +1601,7 @@ public class MainActivity extends Activity {
         vozIdBg.setCornerRadius(dp(16));
         vozIdBg.setStroke(dp(1), Color.rgb(0,150,255));
         vozIdInput.setBackground(vozIdBg);
-        layout.addView(vozIdInput, new LinearLayout.LayoutParams(-1, dp(54)));
+        layout.addView(vozIdInput, new LinearLayout.LayoutParams(-1, dp(60)));
 
         TextView cloneInfo = criarTexto(
                 "O campo do ID não finge criar uma clonagem local. Ele apenas deixa o JARVIS pronto para conectar uma voz "
@@ -1980,9 +2018,11 @@ public class MainActivity extends Activity {
     private void abrirVerificacao() {
         telaAtual = TELA_VERIFICACAO;
         verificacaoEmAndamento = false;
-        if (verificacaoHandler != null) verificacaoHandler.removeCallbacksAndMessages(null);
+        if (verificacaoHandler != null) {
+            verificacaoHandler.removeCallbacksAndMessages(null);
+        }
 
-        LinearLayout layout = criarTelaBase(
+        TelaRolavelLayout layout = criarTelaBase(
                 "VERIFICAÇÃO DO APARELHO",
                 "ANÁLISE BÁSICA DO JARVIS"
         );
@@ -1993,67 +2033,78 @@ public class MainActivity extends Activity {
         titulo.setTextColor(Color.WHITE);
         titulo.setGravity(Gravity.CENTER);
         titulo.setIncludeFontPadding(true);
-        layout.addView(titulo, new LinearLayout.LayoutParams(-1, dp(52)));
+        titulo.setPadding(dp(4), dp(3), dp(4), dp(3));
+        layout.addView(titulo, new LinearLayout.LayoutParams(-1, dp(48)));
 
         TextView subtitulo = criarTexto(
-                "Analisaremos aplicativos instalados e informações de permissões acessíveis ao JARVIS.\n"
+                "Analisaremos aplicativos instalados e informações de permissões acessíveis ao JARVIS. "
                         + "Esta é uma verificação básica; não é um antivírus e não examina todos os arquivos protegidos do Android."
         );
         subtitulo.setTextSize(13);
         subtitulo.setTextColor(Color.LTGRAY);
         subtitulo.setGravity(Gravity.CENTER);
         subtitulo.setIncludeFontPadding(true);
+        subtitulo.setMaxLines(5);
+        subtitulo.setHorizontallyScrolling(false);
         layout.addView(subtitulo, parametrosTexto());
 
         ReactorView scanner = new ReactorView(this);
-        LinearLayout.LayoutParams scannerParams = new LinearLayout.LayoutParams(-1, dp(190));
+        LinearLayout.LayoutParams scannerParams =
+                new LinearLayout.LayoutParams(-1, dp(150));
         scannerParams.gravity = Gravity.CENTER_HORIZONTAL;
         layout.addView(scanner, scannerParams);
 
         android.widget.FrameLayout barra = new android.widget.FrameLayout(this);
         GradientDrawable barraBg = new GradientDrawable();
-        barraBg.setColor(Color.rgb(4,18,30));
+        barraBg.setColor(Color.rgb(4, 18, 30));
         barraBg.setCornerRadius(dp(10));
-        barraBg.setStroke(dp(1), Color.rgb(0,150,255));
+        barraBg.setStroke(dp(1), Color.rgb(0, 150, 255));
         barra.setBackground(barraBg);
         barra.setPadding(dp(2), dp(2), dp(2), dp(2));
 
         View preenchimento = new View(this);
         GradientDrawable fillBg = new GradientDrawable();
-        fillBg.setColor(Color.rgb(0,150,255));
+        fillBg.setColor(Color.rgb(0, 150, 255));
         fillBg.setCornerRadius(dp(8));
         preenchimento.setBackground(fillBg);
-        android.widget.FrameLayout.LayoutParams fillParams = new android.widget.FrameLayout.LayoutParams(0, -1);
+        android.widget.FrameLayout.LayoutParams fillParams =
+                new android.widget.FrameLayout.LayoutParams(0, -1);
         fillParams.gravity = Gravity.START | Gravity.CENTER_VERTICAL;
         barra.addView(preenchimento, fillParams);
 
-        LinearLayout.LayoutParams barraParams = new LinearLayout.LayoutParams(-1, dp(18));
-        barraParams.setMargins(dp(18), dp(12), dp(18), dp(4));
+        LinearLayout.LayoutParams barraParams =
+                new LinearLayout.LayoutParams(-1, dp(24));
+        barraParams.setMargins(dp(10), dp(10), dp(10), dp(2));
         layout.addView(barra, barraParams);
 
         TextView porcentagem = criarTexto("0%");
-        porcentagem.setTextSize(17);
+        porcentagem.setTextSize(16);
         porcentagem.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD);
-        porcentagem.setTextColor(Color.rgb(80,205,255));
+        porcentagem.setTextColor(Color.rgb(80, 205, 255));
         porcentagem.setGravity(Gravity.CENTER);
         porcentagem.setIncludeFontPadding(true);
-        layout.addView(porcentagem, new LinearLayout.LayoutParams(-1, dp(48)));
+        layout.addView(porcentagem, new LinearLayout.LayoutParams(-1, dp(36)));
 
-        TextView status1 = criarTexto("○  Aguardando início...");
-        TextView status2 = criarTexto("○  Aplicativos e permissões acessíveis...");
-        TextView status3 = criarTexto("○  Preparando análise...");
-        status1.setTextSize(13); status2.setTextSize(13); status3.setTextSize(13);
-        status1.setTextColor(Color.rgb(80,205,255));
+        TextView status1 = criarTexto("○  Consultando aplicativos acessíveis...");
+        TextView status2 = criarTexto("○  Consultando permissões declaradas...");
+        TextView status3 = criarTexto("○  Aguardando conclusão da análise...");
+        status1.setTextSize(12);
+        status2.setTextSize(12);
+        status3.setTextSize(12);
+        status1.setTextColor(Color.rgb(80, 205, 255));
         status2.setTextColor(Color.GRAY);
         status3.setTextColor(Color.GRAY);
         layout.addView(status1, parametrosTexto());
         layout.addView(status2, parametrosTexto());
         layout.addView(status3, parametrosTexto());
 
-        TextView observacao = criarTexto("A análise pode levar alguns instantes.");
+        TextView observacao = criarTexto(
+                "O percentual é uma estimativa visual; o resultado só aparece após a consulta local terminar."
+        );
         observacao.setTextSize(11);
         observacao.setTextColor(Color.GRAY);
         observacao.setGravity(Gravity.CENTER);
+        observacao.setMaxLines(3);
         layout.addView(observacao, parametrosTexto());
 
         Button iniciar = criarBotao("INICIAR VERIFICAÇÃO");
@@ -2061,55 +2112,97 @@ public class MainActivity extends Activity {
 
         iniciar.setOnClickListener(v -> {
             if (verificacaoEmAndamento) return;
+
             verificacaoEmAndamento = true;
-            int token = ++verificacaoRunToken;
+            verificacaoTentada = true;
+            preferencias.edit().putBoolean("verificacao_tentada", true).apply();
+            final int token = ++verificacaoRunToken;
+            // O último resultado concluído é preservado caso o usuário cancele
+            // esta nova tentativa. A execução atual só o substitui ao terminar.
             iniciar.setVisibility(View.GONE);
             scanner.setOuvindo(true);
             verificacaoHandler = new Handler();
-            final int[] p = {0};
+
+            final int[] progresso = {0};
+            final boolean[] analiseConcluida = {false};
+
+            // A inspeção começa junto com a animação. O indicador não chega
+            // a 100% nem abre o resultado antes de a consulta real terminar.
+            Thread tarefaAnalise = new Thread(() -> {
+                try {
+                    executarVerificacao(token);
+                } finally {
+                    runOnUiThread(() -> {
+                        if (verificacaoEmAndamento
+                                && token == verificacaoRunToken) {
+                            analiseConcluida[0] = true;
+                        }
+                    });
+                }
+            }, "jarvis-verificacao-basica");
+            tarefaAnalise.start();
 
             Runnable andamento = new Runnable() {
-                @Override public void run() {
-                    if (!verificacaoEmAndamento || token != verificacaoRunToken) return;
-                    p[0] = Math.min(100, p[0] + 5);
-                    int largura = (int)Math.round(barra.getWidth() * (p[0] / 100.0));
-                    android.widget.FrameLayout.LayoutParams lp =
-                            (android.widget.FrameLayout.LayoutParams) preenchimento.getLayoutParams();
-                    lp.width = Math.max(0, largura - dp(4));
-                    preenchimento.setLayoutParams(lp);
-                    porcentagem.setText(p[0] + "%");
-
-                    if (p[0] >= 20) {
-                        status1.setText("✓  Aplicativos analisados...");
-                        status1.setTextColor(Color.rgb(70,230,150));
-                        status2.setText("○  Verificando permissões declaradas...");
-                        status2.setTextColor(Color.rgb(80,205,255));
-                    }
-                    if (p[0] >= 60) {
-                        status2.setText("✓  Permissões declaradas analisadas...");
-                        status2.setTextColor(Color.rgb(70,230,150));
-                        status3.setText("○  Finalizando análise acessível...");
-                        status3.setTextColor(Color.rgb(80,205,255));
-                    }
-                    if (p[0] >= 95) {
-                        status3.setText("✓  Análise básica concluída...");
-                        status3.setTextColor(Color.rgb(70,230,150));
-                    }
-                    if (p[0] < 100) {
-                        verificacaoHandler.postDelayed(this, 85);
+                @Override
+                public void run() {
+                    if (!verificacaoEmAndamento
+                            || token != verificacaoRunToken) {
                         return;
                     }
 
-                    new Thread(() -> {
-                        executarVerificacao();
-                        runOnUiThread(() -> {
-                            if (!verificacaoEmAndamento || token != verificacaoRunToken) return;
-                            verificacaoEmAndamento = false;
-                            scanner.setOuvindo(false);
-                            if (verificacaoHandler != null) verificacaoHandler.removeCallbacksAndMessages(null);
-                            abrirResultadoVerificacao();
-                        });
-                    }).start();
+                    if (analiseConcluida[0]) {
+                        progresso[0] = Math.min(100, progresso[0] + 10);
+                    } else {
+                        // Estimativa visual limitada a 90% enquanto a
+                        // consulta do PackageManager ainda está em andamento.
+                        progresso[0] = Math.min(90, progresso[0] + 5);
+                    }
+
+                    int larguraInterna = Math.max(0, barra.getWidth() - dp(4));
+                    int largura = Math.round(larguraInterna * (progresso[0] / 100.0f));
+                    android.widget.FrameLayout.LayoutParams lp =
+                            (android.widget.FrameLayout.LayoutParams)
+                                    preenchimento.getLayoutParams();
+                    lp.width = Math.max(0, largura);
+                    preenchimento.setLayoutParams(lp);
+                    porcentagem.setText(progresso[0] + "%");
+
+                    if (progresso[0] >= 35) {
+                        status2.setTextColor(Color.rgb(80, 205, 255));
+                    }
+                    if (progresso[0] >= 70) {
+                        status3.setTextColor(Color.rgb(80, 205, 255));
+                    }
+
+                    if (analiseConcluida[0] && progresso[0] >= 100) {
+                        if (verificacaoConcluidaComSucesso) {
+                            status1.setText("✓  Aplicativos acessíveis consultados.");
+                            status2.setText("✓  Permissões declaradas consultadas.");
+                            status3.setText("✓  Análise básica concluída.");
+                            status1.setTextColor(Color.rgb(70, 230, 150));
+                            status2.setTextColor(Color.rgb(70, 230, 150));
+                            status3.setTextColor(Color.rgb(70, 230, 150));
+                        } else {
+                            status1.setText("⚠  Não foi possível consultar os aplicativos.");
+                            status2.setText("⚠  A análise não foi concluída.");
+                            status3.setText("⚠  Nenhum resultado de segurança foi confirmado.");
+                            status1.setTextColor(Color.rgb(255, 190, 70));
+                            status2.setTextColor(Color.rgb(255, 190, 70));
+                            status3.setTextColor(Color.rgb(255, 190, 70));
+                        }
+
+                        verificacaoEmAndamento = false;
+                        scanner.setOuvindo(false);
+                        if (verificacaoHandler != null) {
+                            verificacaoHandler.removeCallbacksAndMessages(null);
+                        }
+                        abrirResultadoVerificacao();
+                        return;
+                    }
+
+                    if (verificacaoHandler != null) {
+                        verificacaoHandler.postDelayed(this, 85);
+                    }
                 }
             };
             verificacaoHandler.post(andamento);
@@ -2120,7 +2213,9 @@ public class MainActivity extends Activity {
                 verificacaoEmAndamento = false;
                 verificacaoRunToken++;
                 scanner.setOuvindo(false);
-                if (verificacaoHandler != null) verificacaoHandler.removeCallbacksAndMessages(null);
+                if (verificacaoHandler != null) {
+                    verificacaoHandler.removeCallbacksAndMessages(null);
+                }
             }
             abrirMenuJarvis();
         });
@@ -2131,42 +2226,59 @@ public class MainActivity extends Activity {
     }
 
     private void abrirResultadoVerificacao() {
+        boolean sucesso = verificacaoConcluidaComSucesso;
+        boolean alerta = sucesso && verificacaoEncontrouSuspeito;
 
         LinearLayout layout = criarTelaBase(
-                verificacaoEncontrouSuspeito
-                        ? "RESULTADO DA VERIFICAÇÃO (COM ALERTA)"
-                        : "RESULTADO DA VERIFICAÇÃO (SEM AMEAÇAS)",
-                "ANÁLISE BÁSICA DO JARVIS"
+                "RESULTADO DA ANÁLISE",
+                sucesso ? "VERIFICAÇÃO BÁSICA DO JARVIS" : "ANÁLISE NÃO CONCLUÍDA"
         );
 
-        LinearLayout icone = criarPainelResultado(
-                verificacaoEncontrouSuspeito
-                        ? "!"
-                        : "✓",
-                verificacaoEncontrouSuspeito
-                        ? Color.rgb(255, 70, 70)
-                        : Color.rgb(55, 235, 165)
-        );
+        int corIndicador = !sucesso
+                ? Color.rgb(255, 190, 70)
+                : alerta
+                        ? Color.rgb(255, 90, 90)
+                        : Color.rgb(55, 235, 165);
+        String simboloIndicador = !sucesso ? "!" : alerta ? "!" : "✓";
 
+        LinearLayout icone = criarPainelResultado(simboloIndicador, corIndicador);
         LinearLayout.LayoutParams iconeParams =
-                new LinearLayout.LayoutParams(-1, dp(205));
+                new LinearLayout.LayoutParams(dp(190), dp(190));
+        iconeParams.gravity = Gravity.CENTER_HORIZONTAL;
+        iconeParams.topMargin = dp(8);
+        iconeParams.bottomMargin = dp(4);
         layout.addView(icone, iconeParams);
 
-        TextView titulo = criarTexto(
-                verificacaoEncontrouSuspeito
-                        ? "Foi encontrado um aplicativo que merece revisão."
-                        : "Nenhuma ameaça foi identificada na verificação básica."
-        );
-        titulo.setTextSize(18);
+        String textoTitulo;
+        if (!sucesso) {
+            textoTitulo = "Não foi possível concluir a análise básica.";
+        } else if (alerta) {
+            textoTitulo = "Foi encontrado um aplicativo que merece revisão.";
+        } else {
+            textoTitulo = "Nenhum aplicativo atendeu aos critérios simples de alerta.";
+        }
+
+        TextView titulo = criarTexto(textoTitulo);
+        titulo.setTextSize(17);
         titulo.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD);
         titulo.setIncludeFontPadding(true);
         titulo.setMaxLines(4);
+        titulo.setHorizontallyScrolling(false);
         titulo.setGravity(Gravity.CENTER);
         titulo.setTextColor(Color.WHITE);
         layout.addView(titulo, parametrosTexto());
 
-        if (verificacaoEncontrouSuspeito) {
-
+        if (!sucesso) {
+            TextView detalheFalha = criarTexto(
+                    "O Android ou o sistema não disponibilizou as informações necessárias. "
+                            + "Tente novamente mais tarde. Nenhum resultado de segurança foi confirmado."
+            );
+            detalheFalha.setTextSize(13);
+            detalheFalha.setTextColor(Color.rgb(255, 190, 70));
+            detalheFalha.setGravity(Gravity.CENTER);
+            detalheFalha.setMaxLines(6);
+            layout.addView(detalheFalha, parametrosTexto());
+        } else if (alerta) {
             LinearLayout app = criarPainelNeon();
 
             TextView simbolo = criarTexto("⚠");
@@ -2178,47 +2290,54 @@ public class MainActivity extends Activity {
             dados.setOrientation(LinearLayout.VERTICAL);
 
             TextView nome = criarTexto(
-                    nomeAppSuspeito.isEmpty()
-                            ? "App suspeito"
-                            : nomeAppSuspeito
+                    nomeAppSuspeito.isEmpty() ? "Aplicativo para revisão" : nomeAppSuspeito
             );
             nome.setTextSize(14);
             nome.setTextColor(Color.WHITE);
+            nome.setMaxLines(3);
 
             TextView detalhe = criarTexto(
                     detalheAppSuspeito.isEmpty()
-                            ? "Fonte: desconhecida"
+                            ? "Fonte de instalação desconhecida"
                             : detalheAppSuspeito
             );
             detalhe.setTextSize(11);
             detalhe.setTextColor(Color.LTGRAY);
+            detalhe.setMaxLines(4);
 
-            dados.addView(nome);
-            dados.addView(detalhe);
-
-            app.addView(simbolo, new LinearLayout.LayoutParams(dp(52), dp(58)));
-            app.addView(dados, new LinearLayout.LayoutParams(0, dp(58), 1));
+            dados.addView(nome, new LinearLayout.LayoutParams(-1, -2));
+            dados.addView(detalhe, new LinearLayout.LayoutParams(-1, -2));
+            app.addView(simbolo, new LinearLayout.LayoutParams(dp(52), -1));
+            app.addView(dados, new LinearLayout.LayoutParams(0, -2, 1));
 
             LinearLayout.LayoutParams appParams =
-                    new LinearLayout.LayoutParams(-1, dp(76));
-            appParams.setMargins(dp(10), dp(8), dp(10), dp(8));
+                    new LinearLayout.LayoutParams(-1, -2);
+            appParams.setMargins(dp(4), dp(8), dp(4), dp(8));
             layout.addView(app, appParams);
-
         } else {
-
             TextView detalhe = criarTexto(
-                    "Nenhuma ameaça foi identificada\nna verificação básica."
+                    "Nenhum aplicativo correspondeu aos critérios simples usados nesta análise. "
+                            + "Isso não garante que o aparelho esteja livre de ameaças."
             );
-            detalhe.setTextSize(14);
+            detalhe.setTextSize(13);
             detalhe.setTextColor(Color.rgb(80, 205, 255));
             detalhe.setGravity(Gravity.CENTER);
+            detalhe.setMaxLines(6);
             layout.addView(detalhe, parametrosTexto());
         }
+
+        TextView aviso = criarTexto(
+                "Esta é uma análise limitada às informações acessíveis ao aplicativo; não é um antivírus."
+        );
+        aviso.setTextSize(11);
+        aviso.setTextColor(Color.GRAY);
+        aviso.setGravity(Gravity.CENTER);
+        aviso.setMaxLines(4);
+        layout.addView(aviso, parametrosTexto());
 
         Button ok = criarBotao("OK");
         ok.setOnClickListener(v -> abrirMenuJarvis());
         layout.addView(ok, parametrosBotao());
-
         setContentView(layout);
     }
 
@@ -2245,22 +2364,27 @@ public class MainActivity extends Activity {
     }
 
     private String resultadoVerificacao() {
-        if (ultimaVerificacao == 0L) {
+        if (!verificacaoTentada && ultimaVerificacao == 0L) {
             return "VERIFICAÇÃO AINDA NÃO EXECUTADA";
         }
-
+        if (!verificacaoConcluidaComSucesso) {
+            return "A análise básica não foi concluída; não há resultado confirmado.";
+        }
         return verificacaoEncontrouSuspeito
-                ? "Foi encontrado um aplicativo que merece revisão."
-                : "Nenhuma ameaça foi identificada na verificação básica.";
+                ? "Um aplicativo correspondeu aos critérios simples de atenção."
+                : "Nenhum aplicativo correspondeu aos critérios simples de atenção.";
     }
 
     private String listaAppsVerificados() {
 
-        if (ultimaVerificacao == 0L) {
+        if (!verificacaoTentada && ultimaVerificacao == 0L) {
             return "Nenhuma verificação foi executada ainda.";
         }
+        if (!verificacaoConcluidaComSucesso) {
+            return "A última análise não foi concluída com sucesso. Não há uma lista confirmada desta execução.";
+        }
 
-        StringBuilder out = new StringBuilder();
+        StringBuilder out = new StringBuilder("Apps acessíveis listados pelo Android (até 12):\n");
 
         try {
             List<ApplicationInfo> apps =
@@ -2287,35 +2411,38 @@ public class MainActivity extends Activity {
         return out.toString();
     }
 
-    private void executarVerificacao() {
-
-        verificacaoEncontrouSuspeito = false;
-        nomeAppSuspeito = "";
-        detalheAppSuspeito = "";
+    private void executarVerificacao(int token) {
+        boolean encontrouSuspeito = false;
+        String nomeSuspeito = "";
+        String detalheSuspeito = "";
 
         try {
-
             PackageManager pm = getPackageManager();
-
-            List<ApplicationInfo> apps =
-                    pm.getInstalledApplications(
-                            PackageManager.GET_META_DATA
-                    );
+            List<ApplicationInfo> apps = pm.getInstalledApplications(
+                    PackageManager.GET_META_DATA
+            );
+            if (apps == null) {
+                registrarFalhaVerificacao(token);
+                return;
+            }
 
             for (ApplicationInfo appInfo : apps) {
+                // Se o usuário saiu da tela, esta execução não deve modificar
+                // o resultado de uma eventual verificação mais recente.
+                if (token != verificacaoRunToken || !verificacaoEmAndamento) {
+                    return;
+                }
 
                 if (appInfo == null
                         || appInfo.packageName == null
                         || getPackageName().equals(appInfo.packageName)) {
                     continue;
                 }
-
                 if ((appInfo.flags & ApplicationInfo.FLAG_SYSTEM) != 0) {
                     continue;
                 }
 
                 String installer = "";
-
                 try {
                     if (Build.VERSION.SDK_INT >= 30) {
                         android.content.pm.InstallSourceInfo info =
@@ -2328,10 +2455,10 @@ public class MainActivity extends Activity {
                         installer = old == null ? "" : old;
                     }
                 } catch (Exception ignored) {
+                    // Uma fonte desconhecida, isoladamente, não é prova de risco.
                 }
 
                 String[] requested = new String[0];
-
                 try {
                     PackageInfo pi = pm.getPackageInfo(
                             appInfo.packageName,
@@ -2341,6 +2468,7 @@ public class MainActivity extends Activity {
                         requested = pi.requestedPermissions;
                     }
                 } catch (Exception ignored) {
+                    // Alguns pacotes não disponibilizam detalhes de permissão.
                 }
 
                 int sensiveis = 0;
@@ -2356,42 +2484,62 @@ public class MainActivity extends Activity {
                     }
                 }
 
-                // Heurística deliberadamente conservadora:
-                // origem desconhecida + várias permissões sensíveis.
-                // Isso NÃO prova que o app é malware.
+                // Heurística conservadora: origem desconhecida mais várias
+                // permissões sensíveis. Não é uma classificação de malware.
                 if (installer.isEmpty() && sensiveis >= 4) {
-
-                    verificacaoEncontrouSuspeito = true;
-
-                    CharSequence label =
-                            pm.getApplicationLabel(appInfo);
-
-                    nomeAppSuspeito =
-                            label == null
-                                    ? appInfo.packageName
-                                    : label.toString();
-
-                    detalheAppSuspeito =
-                            "Fonte: desconhecida • permissões sensíveis detectadas";
-
+                    encontrouSuspeito = true;
+                    CharSequence label = pm.getApplicationLabel(appInfo);
+                    nomeSuspeito = label == null
+                            ? appInfo.packageName
+                            : label.toString();
+                    detalheSuspeito =
+                            "Fonte desconhecida • várias permissões sensíveis declaradas";
                     break;
                 }
             }
-
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            registrarFalhaVerificacao(token);
+            return;
         }
 
+        // Verificação final antes de publicar resultado/persistir dados.
+        if (token != verificacaoRunToken || !verificacaoEmAndamento) {
+            return;
+        }
+
+        verificacaoEncontrouSuspeito = encontrouSuspeito;
+        nomeAppSuspeito = nomeSuspeito;
+        detalheAppSuspeito = detalheSuspeito;
+        verificacaoConcluidaComSucesso = true;
         ultimaVerificacao = System.currentTimeMillis();
 
         preferencias.edit()
                 .putLong("ultima_verificacao", ultimaVerificacao)
+                .putBoolean("verificacao_concluida_com_sucesso", true)
+                .putBoolean("verificacao_encontrou_suspeito", verificacaoEncontrouSuspeito)
+                .putString("verificacao_app_suspeito", nomeAppSuspeito)
+                .putString("verificacao_detalhe_app_suspeito", detalheAppSuspeito)
                 .apply();
+    }
+
+    private void registrarFalhaVerificacao(int token) {
+        if (token != verificacaoRunToken || !verificacaoEmAndamento) {
+            return;
+        }
+        verificacaoConcluidaComSucesso = false;
+        if (preferencias != null) {
+            preferencias.edit()
+                    .putBoolean("verificacao_concluida_com_sucesso", false)
+                    .apply();
+        }
     }
 
     private String textoUltimaVerificacao() {
 
         if (ultimaVerificacao == 0L) {
-            return "Verificação realizada: nunca.";
+            return verificacaoTentada
+                    ? "Nenhuma verificação foi concluída com sucesso ainda."
+                    : "Verificação realizada: nunca.";
         }
 
         String horario =
@@ -2540,202 +2688,101 @@ public class MainActivity extends Activity {
             String titulo,
             String subtitulo) {
 
-        TelaRolavelLayout layout =
-                new TelaRolavelLayout(this);
+        chatMode = false;
+        chatContainer = null;
+        chatScroll = null;
+        commandInput = null;
 
-        layout.setOrientation(
-                LinearLayout.VERTICAL
-        );
-
-        layout.setBackgroundColor(
-                Color.BLACK
-        );
-
-        layout.setPadding(
-                dp(18),
-                dp(10),
-                dp(18),
-                dp(24)
-        );
+        TelaRolavelLayout layout = new TelaRolavelLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setBackgroundColor(Color.BLACK);
+        layout.setPadding(dp(10), dp(8), dp(10), dp(14));
 
         if (Build.VERSION.SDK_INT >= 30) {
-
-            layout.setOnApplyWindowInsetsListener(
-                    (v, insets) -> {
-
-                        Insets barras =
-                                insets.getInsets(
-                                        WindowInsets.Type.statusBars()
-                                                | WindowInsets.Type.navigationBars()
-                                );
-
-                        v.setPadding(
-                                dp(18),
-                                dp(10) + barras.top,
-                                dp(18),
-                                dp(24) + barras.bottom
-                        );
-
-                        return insets;
-                    }
-            );
-
+            layout.setOnApplyWindowInsetsListener((v, insets) -> {
+                Insets barras = insets.getInsets(
+                        WindowInsets.Type.statusBars()
+                                | WindowInsets.Type.navigationBars()
+                );
+                v.setPadding(
+                        dp(10),
+                        dp(8) + barras.top,
+                        dp(10),
+                        dp(14) + barras.bottom
+                );
+                return insets;
+            });
             layout.requestApplyInsets();
         }
 
-        LinearLayout header =
-                new LinearLayout(this);
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
 
-        header.setOrientation(
-                LinearLayout.HORIZONTAL
+        ImageButton voltar = new ImageButton(this);
+        voltar.setImageResource(R.drawable.ic_jarvis_back);
+        voltar.setBackgroundColor(Color.TRANSPARENT);
+        voltar.setColorFilter(Color.WHITE);
+        voltar.setContentDescription("Voltar");
+        voltar.setOnClickListener(v -> voltarSistema());
+        header.addView(voltar, new LinearLayout.LayoutParams(dp(54), dp(54)));
+
+        LinearLayout titulos = new LinearLayout(this);
+        titulos.setOrientation(LinearLayout.VERTICAL);
+        titulos.setGravity(Gravity.CENTER_VERTICAL);
+
+        TextView tituloView = criarTexto(titulo);
+        tituloView.setTextSize(
+                titulo != null && titulo.length() > 28 ? 16
+                        : titulo != null && titulo.length() > 21 ? 18 : 20
         );
-
-        header.setGravity(
-                Gravity.CENTER_VERTICAL
-        );
-
-        ImageButton voltar =
-        new ImageButton(this);
-
-voltar.setImageResource(
-        R.drawable.ic_jarvis_back
-);
-
-voltar.setBackgroundColor(
-        Color.TRANSPARENT
-);
-
-voltar.setColorFilter(
-        Color.WHITE
-);
-
-voltar.setContentDescription(
-        "Voltar"
-);
-
-voltar.setOnClickListener(
-        v -> voltarSistema()
-);
-
-        header.addView(
-                voltar,
-                new LinearLayout.LayoutParams(
-                        dp(58),
-                        dp(48)
-                )
-        );
-
-        LinearLayout titulos =
-                new LinearLayout(this);
-
-        titulos.setOrientation(
-                LinearLayout.VERTICAL
-        );
-
-        titulos.setGravity(
-                Gravity.CENTER_VERTICAL
-        );
-
-        TextView tituloView =
-                criarTexto(titulo);
-
-        tituloView.setTextSize(20);
         tituloView.setIncludeFontPadding(true);
+        tituloView.setPadding(dp(2), dp(1), dp(2), dp(1));
         tituloView.setMaxLines(2);
-        tituloView.setEllipsize(
-                android.text.TextUtils.TruncateAt.END
-        );
-        tituloView.setGravity(
-                Gravity.CENTER_VERTICAL
-        );
-
+        tituloView.setHorizontallyScrolling(false);
+        tituloView.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        tituloView.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
         titulos.addView(
                 tituloView,
-                new LinearLayout.LayoutParams(
-                        -1,
-                        0,
-                        1
-                )
+                new LinearLayout.LayoutParams(-1, 0, 1)
         );
 
-        TextView subtituloView =
-                criarTexto(subtitulo);
-
-        subtituloView.setTextSize(11);
+        TextView subtituloView = criarTexto(subtitulo);
+        subtituloView.setTextSize(10);
         subtituloView.setTextColor(Color.GRAY);
+        subtituloView.setIncludeFontPadding(true);
+        // criarTexto() adiciona padding vertical para textos comuns; aqui
+        // removemos esse excesso para impedir o corte do subtítulo do cabeçalho.
+        subtituloView.setPadding(dp(2), 0, dp(2), 0);
         subtituloView.setSingleLine(true);
-        subtituloView.setEllipsize(
-                android.text.TextUtils.TruncateAt.END
-        );
-
+        subtituloView.setEllipsize(android.text.TextUtils.TruncateAt.END);
         titulos.addView(
                 subtituloView,
-                new LinearLayout.LayoutParams(
-                        -1,
-                        dp(24)
-                )
+                new LinearLayout.LayoutParams(-1, dp(24))
         );
 
         header.addView(
                 titulos,
-                new LinearLayout.LayoutParams(
-                        0,
-                        dp(64),
-                        1
-                )
+                new LinearLayout.LayoutParams(0, dp(68), 1)
         );
-
         layout.addView(
                 header,
-                new LinearLayout.LayoutParams(
-                        -1,
-                        dp(70)
-                )
+                new LinearLayout.LayoutParams(-1, dp(74))
         );
 
-        ScrollView scroll =
-                new ScrollView(this);
-
+        ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
         scroll.setClipToPadding(false);
         scroll.setNestedScrollingEnabled(true);
-                LinearLayout conteudo =
-                new LinearLayout(this);
 
-        conteudo.setOrientation(
-                LinearLayout.VERTICAL
-        );
+        LinearLayout conteudo = new LinearLayout(this);
+        conteudo.setOrientation(LinearLayout.VERTICAL);
+        conteudo.setPadding(0, dp(4), 0, dp(30));
+        scroll.addView(conteudo, new ScrollView.LayoutParams(-1, -2));
 
-        conteudo.setPadding(
-                0,
-                dp(4),
-                0,
-                dp(24)
-        );
-
-        scroll.addView(
-                conteudo,
-                new ScrollView.LayoutParams(
-                        -1,
-                        -2
-                )
-        );
-
-        layout.setConteudoRolavel(
-                conteudo
-        );
-
-        layout.addView(
-                scroll,
-                new LinearLayout.LayoutParams(
-                        -1,
-                        0,
-                        1
-                )
-        );
-
+        layout.setConteudoRolavel(conteudo);
+        layout.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
         layout.ativarRoteamento();
-
         return layout;
     }
 
@@ -2825,44 +2872,27 @@ voltar.setOnClickListener(
         return view;
     }
 
-    private Button criarBotao(
-        String texto) {
+    private Button criarBotao(String texto) {
+        Button button = new Button(this);
+        button.setText(texto);
+        button.setTextColor(Color.WHITE);
+        button.setTextSize(14);
+        button.setAllCaps(false);
+        button.setGravity(Gravity.CENTER);
+        button.setPadding(dp(14), dp(6), dp(14), dp(6));
+        button.setMinHeight(dp(54));
+        button.setMinWidth(0);
+        button.setSingleLine(false);
+        button.setMaxLines(2);
+        button.setHorizontallyScrolling(false);
 
-    Button button =
-            new Button(this);
-
-    button.setText(texto);
-    button.setTextColor(Color.WHITE);
-    button.setTextSize(15);
-    button.setAllCaps(false);
-
-    button.setPadding(
-            dp(18),
-            dp(12),
-            dp(18),
-            dp(12)
-    );
-
-    android.graphics.drawable.GradientDrawable fundo =
-            new android.graphics.drawable.GradientDrawable();
-
-    fundo.setColor(
-            Color.rgb(28, 30, 35)
-    );
-
-    fundo.setCornerRadius(
-            dp(18)
-    );
-
-    fundo.setStroke(
-            dp(1),
-            Color.rgb(60, 62, 68)
-    );
-
-    button.setBackground(fundo);
-
-    return button;
-                      }
+        GradientDrawable fundo = new GradientDrawable();
+        fundo.setColor(Color.rgb(28, 30, 35));
+        fundo.setCornerRadius(dp(16));
+        fundo.setStroke(dp(1), Color.rgb(60, 62, 68));
+        button.setBackground(fundo);
+        return button;
+    }
 
     private void adicionarBotaoTela(
             LinearLayout layout,
@@ -2896,17 +2926,13 @@ voltar.setOnClickListener(
     }
 
     private LinearLayout.LayoutParams parametrosBotao() {
-
         LinearLayout.LayoutParams params =
-                new LinearLayout.LayoutParams(
-                        -1,
-                        dp(50)
-                );
-
-        params.topMargin = dp(6);
-
+                new LinearLayout.LayoutParams(-1, dp(58));
+        params.topMargin = dp(8);
+        params.leftMargin = dp(4);
+        params.rightMargin = dp(4);
         return params;
-            }     private void voltarTela() {
+    }     private void voltarTela() {
         abrirTelaPrincipal();
     }
 
@@ -3003,10 +3029,10 @@ voltar.setOnClickListener(
                 if (homeDateText != null) {
                     homeDateText.setText(
                             new SimpleDateFormat(
-                                    "dd MMM",
-                                    Locale.getDefault()
+                                    "dd 'DE' MMMM",
+                                    new Locale("pt", "BR")
                             ).format(agora)
-                                    .toUpperCase(Locale.getDefault())
+                                    .toUpperCase(new Locale("pt", "BR"))
                     );
                 }
 
@@ -4774,6 +4800,10 @@ private String calcularExpressaoSimples(String texto) {
                 );
             }
         }
+
+        if (chatScroll != null) {
+            chatScroll.post(() -> chatScroll.fullScroll(View.FOCUS_DOWN));
+        }
     }
 
     private void adicionarMensagemVisual(
@@ -4820,6 +4850,9 @@ private String calcularExpressaoSimples(String texto) {
                 criarTexto(mensagem);
 
         balao.setTextSize(14);
+        balao.setMaxLines(Integer.MAX_VALUE);
+        balao.setHorizontallyScrolling(false);
+        balao.setEllipsize(null);
 
         balao.setPadding(
                 dp(14),
@@ -4850,9 +4883,10 @@ private String calcularExpressaoSimples(String texto) {
                 fundo
         );
 
+        int larguraBalao = larguraMaximaBalaoMensagem();
         LinearLayout.LayoutParams np =
                 new LinearLayout.LayoutParams(
-                        dp(280),
+                        larguraBalao,
                         -2
                 );
 
@@ -4868,7 +4902,7 @@ private String calcularExpressaoSimples(String texto) {
 
         LinearLayout.LayoutParams bp =
                 new LinearLayout.LayoutParams(
-                        dp(280),
+                        larguraBalao,
                         -2
                 );
 
@@ -5611,187 +5645,85 @@ private String calcularExpressaoSimples(String texto) {
             String autor,
             String mensagem) {
 
+        if (mensagemInvalida(autor, mensagem)) {
+            return;
+        }
+
+        // Salvar e renderizar são operações separadas: no modo reator/tela
+        // inicial pode não existir um chat visível, mas a conversa não deve sumir.
+        if (preferencias != null) {
+            preferencias.edit()
+                    .putBoolean("chat_oculto", false)
+                    .apply();
+            salvarMensagem(autor, mensagem);
+        }
+
         if (chatContainer == null) {
             return;
         }
 
-        preferencias.edit()
-                .putBoolean(
-                        "chat_oculto",
-                        false
-                )
-                .apply();
+        LinearLayout linha = new LinearLayout(this);
+        linha.setOrientation(LinearLayout.VERTICAL);
+        linha.setGravity("VOCÊ".equals(autor) ? Gravity.END : Gravity.START);
+        linha.setPadding(0, dp(4), 0, dp(4));
 
-        salvarMensagem(
-                autor,
-                mensagem
-        );
-
-        LinearLayout linha =
-                new LinearLayout(this);
-
-        linha.setOrientation(
-                LinearLayout.VERTICAL
-        );
-
-        linha.setGravity(
-                "VOCÊ".equals(autor)
-                        ? Gravity.END
-                        : Gravity.START
-        );
-
-        linha.setPadding(
-                0,
-                dp(4),
-                0,
-                dp(4)
-        );
-
-        TextView nome =
-                new TextView(this);
-
-        nome.setText(autor);
+        TextView nome = new TextView(this);
+        nome.setText(autor == null ? "" : autor);
         nome.setTextSize(10);
         nome.setTextColor(Color.GRAY);
+        nome.setMaxLines(2);
+        nome.setGravity("VOCÊ".equals(autor) ? Gravity.END : Gravity.START);
 
-        nome.setGravity(
-                "VOCÊ".equals(autor)
-                        ? Gravity.END
-                        : Gravity.START
-        );
-
-        TextView balao =
-                new TextView(this);
-
+        TextView balao = new TextView(this);
         balao.setText(mensagem);
         balao.setTextSize(14);
         balao.setTextColor(Color.WHITE);
-        balao.setGravity(
-                Gravity.CENTER_VERTICAL
-        );
+        balao.setMaxLines(Integer.MAX_VALUE);
+        balao.setHorizontallyScrolling(false);
+        balao.setEllipsize(null);
+        balao.setGravity(Gravity.CENTER_VERTICAL);
+        balao.setPadding(dp(14), dp(10), dp(14), dp(10));
 
-        balao.setPadding(
-                dp(14),
-                dp(10),
-                dp(14),
-                dp(10)
-        );
-
-        GradientDrawable fundo =
-                new GradientDrawable();
-
-        fundo.setCornerRadius(
-                dp(18)
-        );
-
+        GradientDrawable fundo = new GradientDrawable();
+        fundo.setCornerRadius(dp(18));
         fundo.setColor(
                 "VOCÊ".equals(autor)
                         ? Color.rgb(34, 34, 34)
                         : Color.rgb(18, 18, 18)
         );
+        fundo.setStroke(dp(1), Color.rgb(65, 65, 65));
+        balao.setBackground(fundo);
 
-        fundo.setStroke(
-                dp(1),
-                Color.rgb(65, 65, 65)
-        );
-
-        balao.setBackground(
-                fundo
-        );
-
+        int larguraBalao = larguraMaximaBalaoMensagem();
         LinearLayout.LayoutParams nomeParams =
-                new LinearLayout.LayoutParams(
-                        dp(260),
-                        -2
-                );
-
-        nomeParams.gravity =
-                "VOCÊ".equals(autor)
-                        ? Gravity.END
-                        : Gravity.START;
-
-        nomeParams.setMargins(
-                dp(4),
-                0,
-                dp(4),
-                dp(2)
-        );
-
-        linha.addView(
-                nome,
-                nomeParams
-        );
+                new LinearLayout.LayoutParams(larguraBalao, -2);
+        nomeParams.gravity = "VOCÊ".equals(autor) ? Gravity.END : Gravity.START;
+        nomeParams.setMargins(dp(4), 0, dp(4), dp(2));
+        linha.addView(nome, nomeParams);
 
         LinearLayout.LayoutParams balaoParams =
-                new LinearLayout.LayoutParams(
-                        dp(260),
-                        -2
-                );
-
-        balaoParams.gravity =
-                "VOCÊ".equals(autor)
-                        ? Gravity.END
-                        : Gravity.START;
-
-        balaoParams.setMargins(
-                dp(4),
-                0,
-                dp(4),
-                0
-        );
-
-        linha.addView(
-                balao,
-                balaoParams
-        );
+                new LinearLayout.LayoutParams(larguraBalao, -2);
+        balaoParams.gravity = nomeParams.gravity;
+        balaoParams.setMargins(dp(4), 0, dp(4), 0);
+        linha.addView(balao, balaoParams);
 
         chatContainer.addView(
                 linha,
-                new LinearLayout.LayoutParams(
-                        -1,
-                        -2
-                )
+                new LinearLayout.LayoutParams(-1, -2)
         );
 
-        AlphaAnimation aparecer =
-                new AlphaAnimation(
-                        0f,
-                        1f
-                );
-
+        AlphaAnimation aparecer = new AlphaAnimation(0f, 1f);
         aparecer.setDuration(220);
-
-        TranslateAnimation subir =
-                new TranslateAnimation(
-                        0,
-                        0,
-                        dp(10),
-                        0
-                );
-
+        TranslateAnimation subir = new TranslateAnimation(0, 0, dp(10), 0);
         subir.setDuration(220);
-
-        AnimationSet entradaAnimada =
-                new AnimationSet(true);
-
-        entradaAnimada.addAnimation(
-                aparecer
-        );
-
-        entradaAnimada.addAnimation(
-                subir
-        );
-
-        linha.startAnimation(
-                entradaAnimada
-        );
+        AnimationSet entradaAnimada = new AnimationSet(true);
+        entradaAnimada.addAnimation(aparecer);
+        entradaAnimada.addAnimation(subir);
+        linha.startAnimation(entradaAnimada);
 
         if (chatScroll != null) {
-
             chatScroll.postDelayed(
-                    () -> chatScroll.fullScroll(
-                            View.FOCUS_DOWN
-                    ),
+                    () -> chatScroll.fullScroll(View.FOCUS_DOWN),
                     80
             );
         }
