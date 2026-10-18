@@ -6,18 +6,25 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Coordenador dos modulos especialistas do VISION.
+ * Nucleo coordenador dos especialistas do JARVIS Lite.
  *
- * Reutiliza o motor de raciocinio, a memoria persistente
- * e a base de conhecimento ja existentes no JARVIS Lite.
+ * Responsabilidades:
+ * - reutilizar a memoria e o ContextManager existentes;
+ * - avaliar a politica de seguranca antes do encaminhamento;
+ * - classificar mensagens com o motor de raciocinio existente;
+ * - despachar para especialistas registrados;
+ * - isolar falhas e disponibilizar diagnosticos;
+ * - evitar duplicacao de memoria e armazenamento de mensagens
+ *   privadas nos diagnosticos.
  *
- * A politica de seguranca e executada antes do encaminhamento
- * de mensagens aos modulos especialistas.
- *
- * Este nucleo nao cria uma segunda base de memoria,
- * nao acessa a internet e nao executa comandos do sistema.
+ * Este nucleo nao acessa a internet, nao executa comandos do
+ * sistema e nao substitui o fluxo principal do aplicativo sozinho.
  */
 public final class JarvisVisionCore {
+
+    private static final int MAX_INPUT_LENGTH = 2000;
+    private static final int MAX_MODULES = 32;
+    private static final int MEMORY_RESULT_LIMIT = 5;
 
     private static final String SAFETY_UNAVAILABLE_MESSAGE =
             "Nao foi possivel verificar a seguranca desta "
@@ -35,9 +42,8 @@ public final class JarvisVisionCore {
             new ArrayList<>();
 
     /*
-     * Diagnostico da ultima tentativa de processamento.
-     *
-     * O diagnostico nao armazena o texto privado recebido.
+     * Diagnosticos locais desta instancia.
+     * Nenhum campo guarda o texto da mensagem do usuario.
      */
     private String lastProcessedModule = "";
     private String lastFailedModule = "";
@@ -45,14 +51,9 @@ public final class JarvisVisionCore {
     private int moduleFailureCount = 0;
 
     /**
-     * Construtor principal.
-     *
-     * Recebe o gerenciador compartilhado pelo aplicativo,
-     * permitindo reutilizar a memoria e as ferramentas existentes.
+     * Construtor principal: reutiliza o ContextManager compartilhado.
      */
-    public JarvisVisionCore(
-            JarvisContextManager contextManager
-    ) {
+    public JarvisVisionCore(JarvisContextManager contextManager) {
         if (contextManager == null) {
             throw new IllegalArgumentException(
                     "O ContextManager nao pode ser nulo."
@@ -75,15 +76,10 @@ public final class JarvisVisionCore {
     }
 
     /**
-     * Construtor de compatibilidade.
-     *
-     * Permite usar o nucleo somente com a memoria existente.
-     * Sem ContextManager, os modulos que dependem das ferramentas
-     * do aparelho nao sao registrados.
+     * Construtor de compatibilidade para projetos que fornecem
+     * somente a memoria ja existente.
      */
-    public JarvisVisionCore(
-            JarvisMemory memory
-    ) {
+    public JarvisVisionCore(JarvisMemory memory) {
         if (memory == null) {
             throw new IllegalArgumentException(
                     "A memoria nao pode ser nula."
@@ -98,81 +94,91 @@ public final class JarvisVisionCore {
     }
 
     /**
-     * Registra os especialistas ja existentes no projeto.
+     * Registra os especialistas sem apagar os que ja existem.
      *
-     * A verificacao de nomes duplicados fica centralizada
-     * no metodo registerModule().
+     * O VISION e registrado antes do FRIDAY para que possa
+     * tratar as intencoes matematicas ou desconhecidas que
+     * suportar, sem interceptar as demais intencoes.
      */
     private void registerDefaultModules() {
-
         registerModule(new JarvisEdithModule());
-
         registerModule(new JarvisKarenModule());
-
         registerModule(new JarvisUModule());
 
-        /*
-         * O DUM-E depende das ferramentas disponibilizadas
-         * pelo ContextManager.
-         */
         if (contextManager != null) {
             registerModule(new JarvisDumEModule());
         }
 
-        /*
-         * FRIDAY continua disponivel para as funcoes
-         * conversacionais e de memoria que ja implementa.
-         */
+        registerModule(new JarvisVisionReasoningModule());
         registerModule(new JarvisFridayModule());
     }
 
     /**
-     * Analisa diretamente uma entrada com o motor existente.
+     * Classifica uma entrada.
      *
-     * Este metodo nao substitui a verificacao de seguranca
-     * realizada por processModules().
+     * Este metodo nao aplica a politica de seguranca por si so.
+     * Para encaminhamento protegido, use processModules().
      */
-    public JarvisReasoningEngine.Analysis analyze(
-            String input
-    ) {
-        return reasoningEngine.analyze(input);
+    public JarvisReasoningEngine.Analysis analyze(String input) {
+        if (input == null || input.trim().isEmpty()
+                || input.length() > MAX_INPUT_LENGTH) {
+            return null;
+        }
+
+        try {
+            return reasoningEngine.analyze(input);
+        } catch (RuntimeException error) {
+            recordFailure("JarvisReasoningEngine", error);
+            return null;
+        }
     }
 
     /**
-     * Recomenda um especialista conforme o motor existente.
-     *
-     * Este metodo apenas consulta o classificador.
-     * Para processar uma entrada passando pela politica
-     * de seguranca, utilize processModules().
+     * Recomenda um especialista sem executar o pedido.
      */
     public JarvisReasoningEngine.Specialist recommendSpecialist(
             String input
     ) {
-        return reasoningEngine.recommendSpecialist(input);
+        if (input == null || input.trim().isEmpty()
+                || input.length() > MAX_INPUT_LENGTH) {
+            return null;
+        }
+
+        try {
+            return reasoningEngine.recommendSpecialist(input);
+        } catch (RuntimeException error) {
+            recordFailure("JarvisReasoningEngine", error);
+            return null;
+        }
     }
 
     /**
      * Consulta a base de conhecimento offline existente.
-     *
-     * Retorna null quando nao existe resposta cadastrada.
      */
-    public String answerFromExistingKnowledgeBase(
-            String input
-    ) {
-        return JarvisKnowledgeBase.answer(input);
+    public String answerFromExistingKnowledgeBase(String input) {
+        if (input == null || input.trim().isEmpty()
+                || input.length() > MAX_INPUT_LENGTH) {
+            return null;
+        }
+
+        try {
+            return JarvisKnowledgeBase.answer(input);
+        } catch (RuntimeException error) {
+            recordFailure("JarvisKnowledgeBase", error);
+            return null;
+        }
     }
 
     /**
      * Registra um modulo adicional.
      *
-     * Nao permite modulos nulos, nomes vazios nem dois
-     * modulos com o mesmo nome, ignorando maiusculas
-     * e minusculas.
+     * Recusa nulos, nomes vazios, duplicatas e excesso de modulos.
+     * O metodo nao permite sobrescrever um modulo ja registrado.
      */
     public synchronized boolean registerModule(
             JarvisVisionModule module
     ) {
-        if (module == null) {
+        if (module == null || modules.size() >= MAX_MODULES) {
             return false;
         }
 
@@ -181,6 +187,7 @@ public final class JarvisVisionCore {
         try {
             name = module.getName();
         } catch (RuntimeException error) {
+            recordFailure("ModuleRegistration", error);
             return false;
         }
 
@@ -191,18 +198,9 @@ public final class JarvisVisionCore {
         String normalizedName = name.trim();
 
         for (JarvisVisionModule registered : modules) {
-            String registeredName;
+            String registeredName = getSafeModuleName(registered);
 
-            try {
-                registeredName = registered.getName();
-            } catch (RuntimeException error) {
-                continue;
-            }
-
-            if (registeredName != null
-                    && registeredName.trim().equalsIgnoreCase(
-                            normalizedName
-                    )) {
+            if (registeredName.equalsIgnoreCase(normalizedName)) {
                 return false;
             }
         }
@@ -215,7 +213,6 @@ public final class JarvisVisionCore {
      * Retorna uma copia nao modificavel dos nomes registrados.
      */
     public synchronized List<String> getRegisteredModuleNames() {
-
         List<String> names = new ArrayList<>();
 
         for (JarvisVisionModule module : modules) {
@@ -226,70 +223,54 @@ public final class JarvisVisionCore {
     }
 
     /**
-     * Processa uma entrada usando a seguinte ordem:
+     * Fluxo central de processamento:
      *
-     * 1. Valida se a entrada esta vazia.
-     * 2. Avalia a entrada com JarvisSafetyPolicy.
-     * 3. Interrompe o encaminhamento se a avaliacao nao permitir.
-     * 4. Analisa a entrada com JarvisReasoningEngine.
-     * 5. Tenta os modulos registrados em ordem.
-     * 6. Isola falhas individuais dos modulos.
+     * 1. valida a entrada;
+     * 2. aplica a politica de seguranca;
+     * 3. classifica a intencao;
+     * 4. tenta os especialistas na ordem registrada;
+     * 5. isola falhas individuais;
+     * 6. retorna null se nenhum especialista responder.
      *
-     * IMPORTANTE:
-     * Esta protecao aplica-se as entradas que passam por este
-     * metodo. Ela nao protege automaticamente outros caminhos
-     * do aplicativo que nao utilizem JarvisVisionCore.
+     * A protecao so vale para chamadas que passam por este metodo.
      */
-    public synchronized String processModules(
-            String input
-    ) {
+    public synchronized String processModules(String input) {
         resetLastAttemptDiagnostics();
 
         if (input == null || input.trim().isEmpty()) {
             return null;
         }
 
+        if (input.length() > MAX_INPUT_LENGTH) {
+            lastProcessedModule = "InputValidation";
+            return "A mensagem e muito longa para ser processada "
+                    + "com seguranca. Resuma o pedido e tente novamente.";
+        }
+
         /*
          * CAMADA 1: politica de seguranca.
-         *
-         * Em caso de excecao ou avaliacao invalida, o nucleo
-         * interrompe o processamento em vez de encaminhar
-         * a entrada aos especialistas sem verificacao.
+         * Em caso de falha, o encaminhamento e interrompido.
          */
         final JarvisSafetyPolicy.Assessment assessment;
 
         try {
             assessment = JarvisSafetyPolicy.evaluate(input);
         } catch (RuntimeException error) {
-            recordFailure(
-                    "JarvisSafetyPolicy",
-                    error
-            );
-
+            recordFailure("JarvisSafetyPolicy", error);
             lastProcessedModule = "JarvisSafetyPolicy";
-
             return SAFETY_UNAVAILABLE_MESSAGE;
         }
 
-        if (assessment == null
-                || assessment.getDecision() == null) {
-
+        if (assessment == null || assessment.getDecision() == null) {
             recordFailure(
                     "JarvisSafetyPolicy",
                     "INVALID_ASSESSMENT"
             );
 
             lastProcessedModule = "JarvisSafetyPolicy";
-
             return SAFETY_UNAVAILABLE_MESSAGE;
         }
 
-        /*
-         * ALLOW permite continuar.
-         *
-         * REVIEW e REFUSE interrompem o encaminhamento.
-         * A politica pode devolver uma resposta segura ao usuario.
-         */
         if (assessment.getDecision()
                 != JarvisSafetyPolicy.Decision.ALLOW) {
 
@@ -306,42 +287,31 @@ public final class JarvisVisionCore {
         }
 
         /*
-         * CAMADA 2: motor de raciocinio.
-         *
-         * A politica permitiu que a entrada prossiga.
-         * Ainda assim, uma falha no motor deve ser isolada.
+         * CAMADA 2: classificacao.
          */
         final JarvisReasoningEngine.Analysis analysis;
 
         try {
             analysis = reasoningEngine.analyze(input);
         } catch (RuntimeException error) {
-            recordFailure(
-                    "JarvisReasoningEngine",
-                    error
-            );
-
-            return null;
+            recordFailure("JarvisReasoningEngine", error);
+            return INVALID_ANALYSIS_MESSAGE;
         }
 
-        if (analysis == null) {
+        if (analysis == null || analysis.getIntent() == null) {
             recordFailure(
                     "JarvisReasoningEngine",
-                    "NULL_ANALYSIS"
+                    "NULL_OR_INVALID_ANALYSIS"
             );
 
-            return null;
+            return INVALID_ANALYSIS_MESSAGE;
         }
 
         /*
-         * CAMADA 3: modulos especialistas.
-         *
-         * A ordem de registro continua sendo respeitada.
-         * Um modulo que nao consegue responder pode devolver
-         * null ou texto vazio para permitir outras tentativas.
+         * CAMADA 3: despacho.
+         * Cada modulo pode recusar o pedido devolvendo null ou vazio.
          */
         for (JarvisVisionModule module : modules) {
-
             String moduleName = getSafeModuleName(module);
 
             try {
@@ -357,23 +327,16 @@ public final class JarvisVisionCore {
 
                 if (response != null
                         && !response.trim().isEmpty()) {
-
                     lastProcessedModule = moduleName;
-
                     return response.trim();
                 }
 
             } catch (RuntimeException error) {
-
-                /*
-                 * Guarda apenas o nome do modulo e o tipo
-                 * da excecao, sem salvar o conteudo da entrada.
-                 */
                 recordFailure(moduleName, error);
 
                 /*
-                 * Uma falha isolada nao impede que outro
-                 * modulo registrado tente responder.
+                 * Uma falha isolada nao impede a tentativa
+                 * de outros especialistas registrados.
                  */
             }
         }
@@ -382,10 +345,8 @@ public final class JarvisVisionCore {
     }
 
     /**
-     * Limpa apenas os diagnosticos da tentativa atual.
-     *
-     * O contador total de falhas permanece acumulado
-     * durante a vida desta instancia do nucleo.
+     * Limpa os diagnosticos da tentativa atual.
+     * O contador acumulado permanece nesta instancia.
      */
     private void resetLastAttemptDiagnostics() {
         lastProcessedModule = "";
@@ -393,9 +354,6 @@ public final class JarvisVisionCore {
         lastModuleError = "";
     }
 
-    /**
-     * Registra uma falha sem armazenar a mensagem do usuario.
-     */
     private void recordFailure(
             String moduleName,
             RuntimeException error
@@ -405,25 +363,27 @@ public final class JarvisVisionCore {
                 ? "UNKNOWN_ERROR"
                 : error.getClass().getSimpleName();
 
-        moduleFailureCount++;
+        incrementFailureCount();
     }
 
-    /**
-     * Registra uma falha identificada por um codigo interno.
-     */
     private void recordFailure(
             String moduleName,
             String errorCode
     ) {
         lastFailedModule = safeDiagnosticName(moduleName);
 
-        if (errorCode == null || errorCode.trim().isEmpty()) {
-            lastModuleError = "UNKNOWN_ERROR";
-        } else {
-            lastModuleError = errorCode.trim();
-        }
+        lastModuleError =
+                errorCode == null || errorCode.trim().isEmpty()
+                        ? "UNKNOWN_ERROR"
+                        : errorCode.trim();
 
-        moduleFailureCount++;
+        incrementFailureCount();
+    }
+
+    private synchronized void incrementFailureCount() {
+        if (moduleFailureCount < Integer.MAX_VALUE) {
+            moduleFailureCount++;
+        }
     }
 
     private String safeDiagnosticName(String name) {
@@ -435,12 +395,10 @@ public final class JarvisVisionCore {
     }
 
     /**
-     * Obtem o nome de um modulo sem permitir que uma falha
-     * ao consultar esse nome interrompa o processamento.
+     * Consulta o nome de um modulo sem permitir que uma falha
+     * na propria consulta interrompa o coordenador.
      */
-    private String getSafeModuleName(
-            JarvisVisionModule module
-    ) {
+    private String getSafeModuleName(JarvisVisionModule module) {
         if (module == null) {
             return "desconhecido";
         }
@@ -451,53 +409,31 @@ public final class JarvisVisionCore {
             if (name != null && !name.trim().isEmpty()) {
                 return name.trim();
             }
-
-        } catch (RuntimeException ignored) {
+        } catch (RuntimeException error) {
             // Usa o nome da classe como alternativa.
         }
 
         return module.getClass().getSimpleName();
     }
 
-    /**
-     * Nome do ultimo modulo que produziu uma resposta.
-     *
-     * Quando a politica de seguranca fornece uma resposta,
-     * o valor sera JarvisSafetyPolicy.
-     */
     public synchronized String getLastProcessedModule() {
         return lastProcessedModule;
     }
 
-    /**
-     * Nome do ultimo modulo que apresentou uma falha.
-     */
     public synchronized String getLastFailedModule() {
         return lastFailedModule;
     }
 
-    /**
-     * Codigo ou tipo da ultima falha registrada.
-     *
-     * Uma String vazia significa que nenhuma falha foi
-     * registrada na tentativa atual.
-     */
     public synchronized String getLastModuleError() {
         return lastModuleError;
     }
 
-    /**
-     * Total de falhas registradas nesta instancia.
-     *
-     * O contador nao e persistente e nao inclui o conteudo
-     * das mensagens do usuario.
-     */
     public synchronized int getModuleFailureCount() {
         return moduleFailureCount;
     }
 
     /**
-     * Recupera informacoes relevantes da memoria existente.
+     * Recupera contexto relevante da memoria ja existente.
      */
     public String getRelevantMemory(String query) {
         if (query == null || query.trim().isEmpty()) {
@@ -505,14 +441,16 @@ public final class JarvisVisionCore {
         }
 
         try {
+            String result;
+
             if (contextManager != null) {
-                String result =
-                        contextManager.getRelevantMemory(query);
-
-                return result == null ? "" : result;
+                result = contextManager.getRelevantMemory(query);
+            } else {
+                result = memory.relevantContext(
+                        query,
+                        MEMORY_RESULT_LIMIT
+                );
             }
-
-            String result = memory.relevantContext(query, 5);
 
             return result == null ? "" : result;
 
@@ -523,7 +461,7 @@ public final class JarvisVisionCore {
     }
 
     /**
-     * Pesquisa registros na memoria existente.
+     * Pesquisa a memoria existente sem criar outro armazenamento.
      */
     public List<String> searchMemory(String query) {
         if (query == null || query.trim().isEmpty()) {
@@ -536,7 +474,10 @@ public final class JarvisVisionCore {
             if (contextManager != null) {
                 results = contextManager.searchMemory(query);
             } else {
-                results = memory.search(query, 5);
+                results = memory.search(
+                        query,
+                        MEMORY_RESULT_LIMIT
+                );
             }
 
             if (results == null) {
@@ -552,7 +493,7 @@ public final class JarvisVisionCore {
     }
 
     /**
-     * Armazena texto usando a memoria existente.
+     * Guarda texto na memoria ja existente.
      */
     public boolean remember(String text) {
         if (text == null || text.trim().isEmpty()) {
@@ -568,12 +509,9 @@ public final class JarvisVisionCore {
     }
 
     /**
-     * Armazena texto e categoria usando a memoria existente.
+     * Guarda texto e categoria na memoria ja existente.
      */
-    public boolean remember(
-            String text,
-            String category
-    ) {
+    public boolean remember(String text, String category) {
         if (text == null || text.trim().isEmpty()) {
             return false;
         }
@@ -587,8 +525,7 @@ public final class JarvisVisionCore {
     }
 
     /**
-     * Remove registros correspondentes a uma consulta,
-     * utilizando a implementacao de memoria ja existente.
+     * Remove registros usando a implementacao de memoria existente.
      */
     public int forget(String query) {
         if (query == null || query.trim().isEmpty()) {
@@ -603,10 +540,6 @@ public final class JarvisVisionCore {
         }
     }
 
-    /**
-     * Registra falha originada numa operacao de memoria.
-     * Nao armazena o texto pesquisado ou lembrado.
-     */
     private synchronized void recordMemoryFailure(
             RuntimeException error
     ) {
@@ -615,27 +548,21 @@ public final class JarvisVisionCore {
                 ? "UNKNOWN_ERROR"
                 : error.getClass().getSimpleName();
 
-        moduleFailureCount++;
+        incrementFailureCount();
     }
 
     /**
-     * Retorna a instancia de memoria ja utilizada pelo projeto.
-     * Nao cria uma nova base SQLite.
+     * Retorna a memoria compartilhada desta instancia.
+     * Nunca cria uma nova base SQLite.
      */
     public JarvisMemory getMemory() {
         return memory;
     }
 
-    /**
-     * Retorna o gerenciador compartilhado, se disponivel.
-     */
     public JarvisContextManager getContextManager() {
         return contextManager;
     }
 
-    /**
-     * Retorna o motor de raciocinio desta instancia.
-     */
     public JarvisReasoningEngine getReasoningEngine() {
         return reasoningEngine;
     }
