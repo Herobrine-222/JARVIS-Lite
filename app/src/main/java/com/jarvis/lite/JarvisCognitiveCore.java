@@ -1,17 +1,28 @@
+
 package com.jarvis.lite;
 
 /**
  * Núcleo cognitivo do JARVIS Lite.
  *
- * Coordena interpretação, contexto, raciocínio e uso opcional
- * do núcleo neural por meio de interfaces injetáveis.
+ * Responsabilidades:
+ * - Coordenar o processador de raciocínio existente.
+ * - Disponibilizar contexto opcional ao processador.
+ * - Validar respostas antes de aceitá-las.
+ * - Permitir inferência neural explicitamente solicitada.
+ * - Controlar concorrência e contabilizar resultados.
  *
- * Não substitui automaticamente JarvisCore, JarvisVisionCore,
- * JarvisAIManager ou JarvisReasoningEngine.
+ * Este componente não substitui automaticamente JarvisBrain,
+ * JarvisCore, JarvisVisionCore, JarvisAIManager ou
+ * JarvisReasoningEngine.
+ *
+ * Não realiza chamadas de rede por conta própria.
+ * Não altera nem apaga memórias.
  */
 public final class JarvisCognitiveCore {
 
     public static final int MAX_INPUT_CHARS = 4000;
+    public static final int MAX_CONTEXT_CHARS = 6000;
+    public static final int MAX_OUTPUT_CHARS = 8000;
 
     public enum Status {
         SUCCESS,
@@ -22,9 +33,10 @@ public final class JarvisCognitiveCore {
     }
 
     /**
-     * Resultado de uma etapa de processamento cognitivo.
+     * Resultado imutável de uma operação cognitiva.
      */
     public static final class ProcessingResult {
+
         private final Status status;
         private final String response;
         private final String source;
@@ -35,10 +47,14 @@ public final class JarvisCognitiveCore {
                 String response,
                 String source,
                 String message) {
-            this.status = status;
+
+            this.status = status == null
+                    ? Status.PROCESSOR_ERROR
+                    : status;
+
             this.response = response;
-            this.source = source;
-            this.message = message;
+            this.source = source == null ? "NONE" : source;
+            this.message = message == null ? "" : message;
         }
 
         public Status getStatus() {
@@ -63,25 +79,42 @@ public final class JarvisCognitiveCore {
     }
 
     /**
-     * Contrato para o raciocínio local já existente ou futuro.
+     * Contrato compatível com processadores existentes.
      *
-     * A implementação pode integrar o JarvisReasoningEngine,
-     * JarvisBrain ou outro coordenador, após a auditoria das APIs.
+     * Implementações antigas continuam podendo implementar
+     * somente process(String).
      */
     public interface CognitiveProcessor {
         ProcessingResult process(String input);
     }
 
     /**
-     * Contrato opcional para recuperar contexto relevante.
-     * Não implica gravar nem apagar memórias.
+     * Contrato opcional para processadores que sabem utilizar
+     * contexto separado da mensagem original.
+     *
+     * Evita misturar automaticamente memórias com a entrada
+     * do usuário ou modificar o comportamento dos processadores
+     * antigos.
+     */
+    public interface ContextAwareCognitiveProcessor
+            extends CognitiveProcessor {
+
+        ProcessingResult process(String input, String context);
+    }
+
+    /**
+     * Recupera contexto relevante, sem exigir gravação
+     * ou alteração da memória.
      */
     public interface ContextProvider {
         String getContext(String input);
     }
 
     /**
-     * Contrato para validar uma resposta antes de entregá-la.
+     * Verifica se uma resposta pode ser aceita.
+     *
+     * A validação é uma barreira adicional, não uma garantia
+     * absoluta de que a resposta seja verdadeira.
      */
     public interface ResponseValidator {
         boolean isAcceptable(String input, String response);
@@ -124,23 +157,16 @@ public final class JarvisCognitiveCore {
     }
 
     /**
-     * Processa uma mensagem pelo processador cognitivo local.
-     *
-     * O contexto é recuperado quando existe um provedor,
-     * mas não é anexado automaticamente à mensagem até que
-     * a estratégia de contexto seja definida pela arquitetura.
+     * Processa uma mensagem usando o processador configurado.
      */
     public ProcessingResult process(String input) {
-        if (input == null || input.trim().isEmpty()) {
-            return failure(
-                    Status.INVALID_INPUT,
-                    "A mensagem está vazia.");
-        }
 
-        if (input.length() > MAX_INPUT_CHARS) {
+        final String normalizedInput = normalizeInput(input);
+
+        if (normalizedInput == null) {
             return failure(
                     Status.INVALID_INPUT,
-                    "A mensagem excede o limite permitido.");
+                    "A mensagem está vazia ou excede o limite permitido.");
         }
 
         final CognitiveProcessor selectedProcessor;
@@ -148,69 +174,92 @@ public final class JarvisCognitiveCore {
         final ResponseValidator selectedValidator;
 
         synchronized (this) {
+
             if (processing) {
                 return failure(
                         Status.PROCESSOR_ERROR,
                         "Já existe um processamento cognitivo em andamento.");
             }
 
-            selectedProcessor = processor;
-            selectedContextProvider = contextProvider;
-            selectedValidator = responseValidator;
-
-            if (selectedProcessor == null) {
+            if (processor == null) {
                 return failure(
                         Status.NO_PROCESSOR,
                         "Nenhum processador cognitivo foi conectado.");
             }
 
+            selectedProcessor = processor;
+            selectedContextProvider = contextProvider;
+            selectedValidator = responseValidator;
+
             processing = true;
         }
 
         try {
-            /*
-             * Etapa de contexto:
-             * a recuperação pode ajudar o processador,
-             * mas ainda não altera nem persiste a memória.
-             */
-            String context = null;
+            String context = "";
 
+            /*
+             * A falha ao recuperar contexto não impede que
+             * o processador principal tente responder.
+             */
             if (selectedContextProvider != null) {
                 try {
-                    context = selectedContextProvider.getContext(input);
-                } catch (RuntimeException ignored) {
-                    // A falha de contexto não deve derrubar o núcleo.
-                    context = null;
+                    context = normalizeContext(
+                            selectedContextProvider.getContext(
+                                    normalizedInput));
+                } catch (RuntimeException exception) {
+                    context = "";
                 }
             }
+
+            ProcessingResult result;
 
             /*
-             * A interface atual mantém o processador desacoplado.
-             * A integração de contexto será feita quando o contrato
-             * comum dos módulos de raciocínio estiver definido.
+             * Processadores compatíveis com contexto recebem
+             * a mensagem e o contexto em parâmetros separados.
+             *
+             * Processadores antigos continuam usando
+             * process(String), sem alterações no contrato.
              */
-            ProcessingResult result = selectedProcessor.process(input);
+            if (selectedProcessor
+                    instanceof ContextAwareCognitiveProcessor) {
 
-            if (result == null || !result.isSuccess()) {
-                synchronized (this) {
-                    failureCount++;
-                }
+                ContextAwareCognitiveProcessor contextProcessor =
+                        (ContextAwareCognitiveProcessor)
+                                selectedProcessor;
 
-                if (result == null) {
-                    return failure(
-                            Status.PROCESSOR_ERROR,
-                            "O processador não retornou um resultado.");
-                }
-
-                return result;
+                result = contextProcessor.process(
+                        normalizedInput,
+                        context);
+            } else {
+                result = selectedProcessor.process(normalizedInput);
             }
 
-            String response = result.getResponse();
-
-            if (response == null || response.trim().isEmpty()) {
+            if (result == null) {
                 return failure(
                         Status.PROCESSOR_ERROR,
-                        "O processador retornou uma resposta vazia.");
+                        "O processador não retornou um resultado.");
+            }
+
+            if (!result.isSuccess()) {
+                recordFailure();
+
+                return new ProcessingResult(
+                        result.getStatus(),
+                        null,
+                        result.getSource(),
+                        safeMessage(
+                                result.getMessage(),
+                                500));
+            }
+
+            String response = normalizeOutput(
+                    result.getResponse());
+
+            if (response == null) {
+                return failure(
+                        Status.PROCESSOR_ERROR,
+                        "O processador retornou uma resposta vazia "
+                                + "ou acima do limite permitido.");
             }
 
             if (selectedValidator != null) {
@@ -218,8 +267,14 @@ public final class JarvisCognitiveCore {
 
                 try {
                     acceptable = selectedValidator.isAcceptable(
-                            input, response);
+                            normalizedInput,
+                            response);
                 } catch (RuntimeException exception) {
+                    /*
+                     * Falha na validação: comportamento seguro.
+                     * Não entregar uma resposta que não pôde
+                     * passar pelo validador configurado.
+                     */
                     acceptable = false;
                 }
 
@@ -237,19 +292,17 @@ public final class JarvisCognitiveCore {
             return new ProcessingResult(
                     Status.SUCCESS,
                     response,
-                    result.getSource(),
+                    safeSource(result.getSource()),
                     "Processamento cognitivo concluído.");
 
         } catch (RuntimeException exception) {
-            synchronized (this) {
-                failureCount++;
-            }
 
             return failure(
                     Status.PROCESSOR_ERROR,
                     "Ocorreu uma falha no processamento cognitivo.");
 
         } finally {
+
             synchronized (this) {
                 processing = false;
             }
@@ -258,25 +311,25 @@ public final class JarvisCognitiveCore {
 
     /**
      * Solicita inferência neural explicitamente.
-     * Não é acionada automaticamente nesta primeira versão.
+     *
+     * Esta operação não é acionada automaticamente por process().
      */
     public ProcessingResult requestNeuralInference(String input) {
-        if (input == null || input.trim().isEmpty()) {
+
+        final String normalizedInput = normalizeInput(input);
+
+        if (normalizedInput == null) {
             return failure(
                     Status.INVALID_INPUT,
-                    "A entrada neural está vazia.");
+                    "A entrada neural está vazia ou excede o limite.");
         }
 
-        if (input.length() > MAX_INPUT_CHARS) {
-            return failure(
-                    Status.INVALID_INPUT,
-                    "A entrada neural excede o limite permitido.");
-        }
-
-        JarvisNeuralCore selectedNeuralCore;
+        final JarvisNeuralCore selectedNeuralCore;
+        final ResponseValidator selectedValidator;
 
         synchronized (this) {
             selectedNeuralCore = neuralCore;
+            selectedValidator = responseValidator;
         }
 
         if (selectedNeuralCore == null) {
@@ -285,24 +338,155 @@ public final class JarvisCognitiveCore {
                     "O núcleo neural ainda não foi conectado.");
         }
 
-        JarvisNeuralCore.InferenceResult result =
-                selectedNeuralCore.infer(input);
+        try {
+            JarvisNeuralCore.InferenceResult neuralResult =
+                    selectedNeuralCore.infer(normalizedInput);
 
-        if (result == null || !result.isSuccess()) {
+            if (neuralResult == null || !neuralResult.isSuccess()) {
+                return failure(
+                        Status.NEURAL_UNAVAILABLE,
+                        neuralResult == null
+                                ? "O núcleo neural não retornou resultado."
+                                : safeMessage(
+                                        neuralResult.getMessage(),
+                                        500));
+            }
+
+            String response = normalizeOutput(
+                    neuralResult.getText());
+
+            if (response == null) {
+                return failure(
+                        Status.NEURAL_UNAVAILABLE,
+                        "A resposta neural está vazia ou excede "
+                                + "o limite permitido.");
+            }
+
+            if (selectedValidator != null) {
+                boolean acceptable;
+
+                try {
+                    acceptable = selectedValidator.isAcceptable(
+                            normalizedInput,
+                            response);
+                } catch (RuntimeException exception) {
+                    acceptable = false;
+                }
+
+                if (!acceptable) {
+                    return failure(
+                            Status.NEURAL_UNAVAILABLE,
+                            "A resposta neural não passou pela validação.");
+                }
+            }
+
+            return new ProcessingResult(
+                    Status.SUCCESS,
+                    response,
+                    "NEURAL",
+                    "Inferência neural concluída.");
+
+        } catch (RuntimeException exception) {
+
             return failure(
                     Status.NEURAL_UNAVAILABLE,
-                    result == null
-                            ? "Não houve resultado neural."
-                            : result.getMessage());
+                    "Não foi possível concluir a inferência neural.");
         }
-
-        return new ProcessingResult(
-                Status.SUCCESS,
-                result.getText(),
-                "NEURAL",
-                "Inferência neural concluída.");
     }
 
+    /**
+     * Remove espaços externos e verifica o limite da entrada.
+     * Retorna null quando a entrada não é válida.
+     */
+    private String normalizeInput(String input) {
+
+        if (input == null) {
+            return null;
+        }
+
+        String normalized = input.trim();
+
+        if (normalized.isEmpty()
+                || normalized.length() > MAX_INPUT_CHARS) {
+            return null;
+        }
+
+        return normalized;
+    }
+
+    /**
+     * Limita o contexto sem modificar a memória original.
+     */
+    private String normalizeContext(String context) {
+
+        if (context == null) {
+            return "";
+        }
+
+        String normalized = context.trim();
+
+        if (normalized.length() > MAX_CONTEXT_CHARS) {
+            normalized = normalized.substring(
+                    0,
+                    MAX_CONTEXT_CHARS);
+        }
+
+        return normalized;
+    }
+
+    /**
+     * Valida e normaliza a resposta antes da entrega.
+     */
+    private String normalizeOutput(String output) {
+
+        if (output == null) {
+            return null;
+        }
+
+        String normalized = output.trim();
+
+        if (normalized.isEmpty()
+                || normalized.length() > MAX_OUTPUT_CHARS) {
+            return null;
+        }
+
+        return normalized;
+    }
+
+    private String safeSource(String source) {
+
+        if (source == null || source.trim().isEmpty()) {
+            return "COGNITIVE";
+        }
+
+        String normalized = source.trim();
+
+        if (normalized.length() > 100) {
+            return normalized.substring(0, 100);
+        }
+
+        return normalized;
+    }
+
+    private String safeMessage(String message, int maxChars) {
+
+        if (message == null || message.trim().isEmpty()) {
+            return "Não foi possível concluir o processamento.";
+        }
+
+        String normalized = message.trim();
+
+        if (normalized.length() > maxChars) {
+            return normalized.substring(0, maxChars);
+        }
+
+        return normalized;
+    }
+
+    /**
+     * Centraliza a contabilização de falhas para evitar
+     * incrementos duplicados no mesmo caminho de execução.
+     */
     private synchronized ProcessingResult failure(
             Status status,
             String message) {
@@ -319,6 +503,10 @@ public final class JarvisCognitiveCore {
                 message);
     }
 
+    private synchronized void recordFailure() {
+        failureCount++;
+    }
+
     public synchronized long getProcessedCount() {
         return processedCount;
     }
@@ -333,6 +521,14 @@ public final class JarvisCognitiveCore {
 
     public synchronized boolean hasProcessor() {
         return processor != null;
+    }
+
+    public synchronized boolean hasContextProvider() {
+        return contextProvider != null;
+    }
+
+    public synchronized boolean hasResponseValidator() {
+        return responseValidator != null;
     }
 
     public synchronized boolean hasNeuralCore() {
