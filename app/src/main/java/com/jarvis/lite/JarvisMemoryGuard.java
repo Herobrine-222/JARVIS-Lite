@@ -1,23 +1,27 @@
 
 package com.jarvis.lite;
 
-import java.text.Normalizer;
-import java.util.Locale;
-
 /**
- * Verificacoes locais para proteger operacoes solicitadas
- * sobre a memoria do JARVIS.
+ * JARVIS Lite — verificacao preliminar de operacoes de memoria.
  *
- * Este modulo nao acessa o banco de dados, nao grava,
- * nao apaga e nao altera memorias por conta propria.
+ * Este modulo:
+ * - valida operacoes e limites de entrada;
+ * - distingue operacoes de leitura e alteracao;
+ * - solicita confirmacao para operacoes sensiveis;
+ * - exige revisao para operacoes destrutivas ambiguas;
+ * - nao acessa nem modifica o banco SQLite.
  *
- * A decisao e uma verificacao preliminar, nao uma
- * garantia completa de seguranca ou privacidade.
+ * IMPORTANTE:
+ * Uma decisao ALLOW nao garante que a operacao seja segura.
+ * O componente responsavel ainda precisa validar o alvo,
+ * as permissoes, o estado do banco e a autorizacao real.
  */
 public final class JarvisMemoryGuard {
 
     private static final int MAX_INPUT_LENGTH = 12000;
     private static final int MAX_MEMORY_LENGTH = 4000;
+    private static final int MAX_MESSAGE_LENGTH = 500;
+    private static final int MAX_REASON_CODE_LENGTH = 100;
 
     private JarvisMemoryGuard() {
         // Classe utilitaria.
@@ -40,7 +44,11 @@ public final class JarvisMemoryGuard {
         REQUIRE_REVIEW
     }
 
+    /**
+     * Resultado imutavel da verificacao.
+     */
     public static final class Result {
+
         private final Operation operation;
         private final Decision decision;
         private final String reasonCode;
@@ -51,10 +59,24 @@ public final class JarvisMemoryGuard {
                 Decision decision,
                 String reasonCode,
                 String message) {
+
             this.operation = operation;
-            this.decision = decision;
-            this.reasonCode = reasonCode;
-            this.message = message;
+
+            this.decision = decision == null
+                    ? Decision.REQUIRE_REVIEW
+                    : decision;
+
+            this.reasonCode = safeText(
+                    reasonCode,
+                    MAX_REASON_CODE_LENGTH,
+                    "UNSPECIFIED"
+            );
+
+            this.message = safeText(
+                    message,
+                    MAX_MESSAGE_LENGTH,
+                    "A verificacao nao forneceu detalhes."
+            );
         }
 
         public Operation getOperation() {
@@ -84,14 +106,27 @@ public final class JarvisMemoryGuard {
         public boolean requiresReview() {
             return decision == Decision.REQUIRE_REVIEW;
         }
+
+        public boolean isRejected() {
+            return decision == Decision.REJECT;
+        }
+
+        @Override
+        public String toString() {
+            return "Result{"
+                    + "operation=" + operation
+                    + ", decision=" + decision
+                    + ", reasonCode='" + reasonCode + '\''
+                    + '}';
+        }
     }
 
     /**
-     * Avalia uma operacao antes de encaminha-la ao sistema
-     * real de memoria.
+     * API original mantida para compatibilidade.
      *
-     * confirmed deve representar uma confirmacao explicita
-     * do usuario, nao apenas uma palavra encontrada no texto.
+     * confirmed representa uma confirmacao informada pelo
+     * chamador. Este metodo nao consegue provar que a
+     * confirmacao foi obtida de uma interface confiavel.
      */
     public static Result check(
             Operation operation,
@@ -116,16 +151,20 @@ public final class JarvisMemoryGuard {
             );
         }
 
+        /*
+         * Verifica o tamanho antes de executar outras analises
+         * sobre o conteudo.
+         */
         if (content.length() > MAX_INPUT_LENGTH) {
             return result(
                     operation,
                     Decision.REJECT,
                     "INPUT_TOO_LONG",
-                    "O conteudo excede o limite permitido para esta verificacao."
+                    "O conteudo excede o limite desta verificacao."
             );
         }
 
-        if (containsControlCharacters(content)) {
+        if (containsDisallowedControlCharacters(content)) {
             return result(
                     operation,
                     Decision.REJECT,
@@ -135,97 +174,209 @@ public final class JarvisMemoryGuard {
         }
 
         switch (operation) {
+
             case READ:
-            case SEARCH:
                 return result(
                         operation,
                         Decision.ALLOW,
                         "READ_ALLOWED",
-                        "A verificacao preliminar permite consultar a memoria."
+                        "A verificacao preliminar permite solicitar a leitura."
                 );
 
-            case WRITE:
+            case SEARCH:
                 if (content.trim().isEmpty()) {
                     return result(
                             operation,
                             Decision.REJECT,
-                            "EMPTY_MEMORY",
-                            "Nao e possivel guardar uma memoria vazia."
-                    );
-                }
-
-                if (content.length() > MAX_MEMORY_LENGTH) {
-                    return result(
-                            operation,
-                            Decision.REJECT,
-                            "MEMORY_TOO_LONG",
-                            "O texto excede o limite permitido para uma memoria."
+                            "EMPTY_SEARCH",
+                            "Informe um termo para pesquisar na memoria."
                     );
                 }
 
                 return result(
                         operation,
                         Decision.ALLOW,
-                        "WRITE_ALLOWED",
-                        "A verificacao preliminar permite solicitar a gravacao."
+                        "SEARCH_ALLOWED",
+                        "A verificacao preliminar permite solicitar a pesquisa."
                 );
+
+            case WRITE:
+                return checkWrite(operation, content);
 
             case IMPORT:
-                if (content.trim().isEmpty()) {
-                    return result(
-                            operation,
-                            Decision.REJECT,
-                            "EMPTY_IMPORT",
-                            "O conteudo de importacao esta vazio."
-                    );
-                }
-
-                return result(
-                        operation,
-                        Decision.REQUIRE_CONFIRMATION,
-                        "IMPORT_CONFIRMATION_REQUIRED",
-                        "Revise a origem e confirme a importacao antes de executa-la."
-                );
+                return checkImport(operation, content, confirmed);
 
             case EXPORT:
-                return result(
-                        operation,
-                        Decision.REQUIRE_CONFIRMATION,
-                        "EXPORT_CONFIRMATION_REQUIRED",
-                        "Confirme a exportacao e verifique onde o arquivo sera salvo."
-                );
+                return checkExport(operation, confirmed);
 
             case DELETE:
-                return result(
-                        operation,
-                        confirmed
-                                ? Decision.REQUIRE_REVIEW
-                                : Decision.REQUIRE_CONFIRMATION,
-                        confirmed
-                                ? "DELETE_REVIEW_REQUIRED"
-                                : "DELETE_CONFIRMATION_REQUIRED",
-                        "A exclusao exige confirmacao explicita e verificacao do alvo."
-                );
+                return checkDelete(operation, content, confirmed);
 
             case CLEAR_ALL:
-                return result(
-                        operation,
-                        Decision.REQUIRE_CONFIRMATION,
-                        "CLEAR_ALL_CONFIRMATION_REQUIRED",
-                        "Limpar toda a memoria e uma operacao destrutiva e exige confirmacao especifica."
-                );
+                return checkClearAll(operation, confirmed);
 
             default:
                 return result(
                         operation,
                         Decision.REQUIRE_REVIEW,
                         "UNKNOWN_OPERATION",
-                        "A operacao precisa ser revisada."
+                        "A operacao precisa ser revisada antes de prosseguir."
                 );
         }
     }
 
-    private static boolean containsControlCharacters(String value) {
+    private static Result checkWrite(
+            Operation operation,
+            String content) {
+
+        if (content.trim().isEmpty()) {
+            return result(
+                    operation,
+                    Decision.REJECT,
+                    "EMPTY_MEMORY",
+                    "Nao e permitido solicitar a gravacao de uma memoria vazia."
+            );
+        }
+
+        if (content.length() > MAX_MEMORY_LENGTH) {
+            return result(
+                    operation,
+                    Decision.REJECT,
+                    "MEMORY_TOO_LONG",
+                    "O texto excede o limite permitido para uma memoria."
+            );
+        }
+
+        return result(
+                operation,
+                Decision.ALLOW,
+                "WRITE_ALLOWED",
+                "A verificacao preliminar permite solicitar a gravacao; valide duplicatas, privacidade e estado do banco."
+        );
+    }
+
+    private static Result checkImport(
+            Operation operation,
+            String content,
+            boolean confirmed) {
+
+        if (content.trim().isEmpty()) {
+            return result(
+                    operation,
+                    Decision.REJECT,
+                    "EMPTY_IMPORT",
+                    "O conteudo de importacao esta vazio."
+            );
+        }
+
+        if (!confirmed) {
+            return result(
+                    operation,
+                    Decision.REQUIRE_CONFIRMATION,
+                    "IMPORT_CONFIRMATION_REQUIRED",
+                    "Revise a origem, o conteudo e o destino antes de confirmar a importacao."
+            );
+        }
+
+        return result(
+                operation,
+                Decision.REQUIRE_REVIEW,
+                "IMPORT_VALIDATION_REQUIRED",
+                "A confirmacao foi informada; valide o formato, os limites, a origem e a integridade antes de importar."
+        );
+    }
+
+    private static Result checkExport(
+            Operation operation,
+            boolean confirmed) {
+
+        if (!confirmed) {
+            return result(
+                    operation,
+                    Decision.REQUIRE_CONFIRMATION,
+                    "EXPORT_CONFIRMATION_REQUIRED",
+                    "Confirme a exportacao e verifique onde os dados serao salvos."
+            );
+        }
+
+        return result(
+                operation,
+                Decision.REQUIRE_REVIEW,
+                "EXPORT_DESTINATION_REVIEW_REQUIRED",
+                "A confirmacao foi informada; valide o destino e a privacidade dos dados antes de exportar."
+        );
+    }
+
+    private static Result checkDelete(
+            Operation operation,
+            String content,
+            boolean confirmed) {
+
+        if (content.trim().isEmpty()) {
+            return result(
+                    operation,
+                    Decision.REJECT,
+                    "DELETE_TARGET_MISSING",
+                    "Identifique a memoria exata que deseja excluir."
+            );
+        }
+
+        if (!confirmed) {
+            return result(
+                    operation,
+                    Decision.REQUIRE_CONFIRMATION,
+                    "DELETE_CONFIRMATION_REQUIRED",
+                    "A exclusao exige confirmacao explicita do alvo especifico."
+            );
+        }
+
+        /*
+         * A confirmacao isolada nao identifica com seguranca
+         * o registro real no banco. O modulo responsavel deve
+         * resolver e validar o alvo antes de qualquer exclusao.
+         */
+        return result(
+                operation,
+                Decision.REQUIRE_REVIEW,
+                "DELETE_TARGET_REVIEW_REQUIRED",
+                "Confirme a identidade do registro e valide o alvo no banco antes de excluir."
+        );
+    }
+
+    private static Result checkClearAll(
+            Operation operation,
+            boolean confirmed) {
+
+        if (!confirmed) {
+            return result(
+                    operation,
+                    Decision.REQUIRE_CONFIRMATION,
+                    "CLEAR_ALL_CONFIRMATION_REQUIRED",
+                    "Limpar toda a memoria exige uma confirmacao explicita e especifica."
+            );
+        }
+
+        /*
+         * Nao liberamos uma operacao destrutiva global apenas
+         * com um booleano. O fluxo real precisa verificar
+         * o escopo e a autorizacao especifica da acao.
+         */
+        return result(
+                operation,
+                Decision.REQUIRE_REVIEW,
+                "CLEAR_ALL_REVIEW_REQUIRED",
+                "A confirmacao foi informada; a operacao global continua bloqueada ate uma revisao especifica do escopo."
+        );
+    }
+
+    /**
+     * Rejeita caracteres de controle inesperados.
+     * Tabulacao e quebras de linha sao aceitas para permitir
+     * texto normal e dados estruturados.
+     */
+    private static boolean containsDisallowedControlCharacters(
+            String value) {
+
         for (int i = 0; i < value.length(); i++) {
             char c = value.charAt(i);
 
@@ -240,16 +391,43 @@ public final class JarvisMemoryGuard {
         return false;
     }
 
+    /**
+     * Verifica se um resultado pode prosseguir segundo
+     * este guard local. Nao executa a operacao.
+     */
+    public static boolean isAllowed(Result result) {
+        return result != null && result.isAllowed();
+    }
+
     private static Result result(
             Operation operation,
             Decision decision,
             String reasonCode,
             String message) {
+
         return new Result(
                 operation,
                 decision,
                 reasonCode,
                 message
         );
+    }
+
+    private static String safeText(
+            String value,
+            int maxLength,
+            String fallback) {
+
+        if (value == null || value.trim().isEmpty()) {
+            return fallback;
+        }
+
+        String cleaned = value.trim();
+
+        if (cleaned.length() > maxLength) {
+            return cleaned.substring(0, maxLength);
+        }
+
+        return cleaned;
     }
 }
