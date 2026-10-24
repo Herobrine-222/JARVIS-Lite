@@ -35,7 +35,10 @@ object JarvisPhysicsKnowledgeBase {
         "funcionamento", "funcionou", "significa",
         "significado", "defina", "definicao", "descreva",
         "descrever", "explana", "ciencia", "caderno",
-        "volume", "tema", "assunto", "conceito"
+        "volume", "tema", "assunto", "conceito",
+        "calcular", "calcule", "calculo", "converter", "converta",
+        "resolver", "resolva", "formula", "formulas", "determine",
+        "determinar", "encontrar", "obter"
     )
 
     private val lock = Any()
