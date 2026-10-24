@@ -997,6 +997,7 @@ Eles satisfazem [a,a†]=1. O Hamiltoniano pode ser escrito Ĥ=ℏω(a†a+½), 
 O operador a reduz o número quântico por uma unidade e a† o aumenta, com fatores de normalização apropriados. Esses operadores são chamados de aniquilação e criação no problema do oscilador; a nomenclatura também surge na teoria quântica de campos, onde o contexto físico é diferente.
 
 O estado fundamental satisfaz a|0⟩=0. A escada de estados é construída aplicando a† repetidamente ao estado fundamental e normalizando cada resultado.
+
 ## Tunelamento quântico e barreiras
 
 Para uma partícula clássica com energia E abaixo da altura de uma barreira U₀, a partícula não atravessaria a região da barreira se essa fosse uma proibição energética absoluta do modelo clássico.
