@@ -25,7 +25,7 @@ object JarvisPortugueseKnowledgeBase {
         "em", "no", "nos", "na", "nas",
         "um", "uma", "uns", "umas",
         "e", "ou", "por", "para", "com", "sem",
-        "como", "qual", "quais", "quando", "onde", "lingua", "linguas", "portugues", "portuguesa", "portugueses", "brasileiro", "brasileira", "idioma", "idiomas", "gramatica",
+        "como", "qual", "quais", "quando", "onde", "lingua", "linguas", "portugues", "portuguesa", "portugueses", "idioma", "idiomas", "gramatica", "usar", "utilizar", "resolver", "aprende", "aprender", "aprendizado", "diferenca", "entre", "identifique", "identificar", "analise",
         "quem", "que", "porque", "explique",
         "explicar", "explicacao", "fale", "falar", "diga",
         "mostrar", "mostre", "me", "voce", "seu", "sua",
