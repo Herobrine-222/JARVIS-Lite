@@ -127,12 +127,14 @@ object JarvisPortugueseKnowledgeBase {
             for (passage in passages) {
                 var score = 0
                 var matchedTerms = 0
+                var matchedHeadingTerm = false
 
                 for (term in terms) {
                     val inHeading = containsWord(passage.headingTokens, term)
                     val inBody = containsWord(passage.bodyTokens, term)
 
                     if (inHeading || inBody) matchedTerms++
+                    if (inHeading) matchedHeadingTerm = true
 
                     val frequency = documentFrequencies[term] ?: 0
                     val weight = when {
@@ -145,7 +147,7 @@ object JarvisPortugueseKnowledgeBase {
                     if (inBody) score += weight
                 }
 
-                if (matchedTerms > 0 && score >= 4) {
+                if (matchedHeadingTerm && matchedTerms > 0 && score >= 2) {
                     matches.add(ScoredPassage(passage, score))
                 }
             }
