@@ -8,7 +8,7 @@ import java.util.Locale
  * Base de conhecimentos offline do JARVIS Lite.
  *
  * Mantém as respostas curtas já existentes e encaminha perguntas
- * científicas para o caderno quântico empacotado no aplicativo.
+ * científicas para os cadernos locais de matemática e ciência quântica.
  * Não acessa a internet.
  */
 object JarvisKnowledgeBase {
@@ -20,6 +20,8 @@ object JarvisKnowledgeBase {
     fun answer(context: Context?, input: String?): String? {
         val existing = answer(input)
         if (existing != null) return existing
+        val mathematics = JarvisMathKnowledgeBase.answer(context, input)
+        if (mathematics != null) return mathematics
         return JarvisQuantumKnowledgeBase.answer(context, input)
     }
 
