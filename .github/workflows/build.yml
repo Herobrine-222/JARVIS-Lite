@@ -4,6 +4,9 @@ on:
   workflow_dispatch:
   push:
     branches:
+      - feature/memoria-sqlite
+  push:
+    branches:
       - feature/quantum-knowledge-migration-2026-10-24
 
 jobs:
