@@ -2,6 +2,9 @@ name: Construir JARVIS Lite
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feature/quantum-knowledge-migration-2026-10-24
 
 jobs:
   build:
