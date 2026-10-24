@@ -26,7 +26,7 @@ object JarvisMathKnowledgeBase {
         "um", "uma", "uns", "umas",
         "e", "ou", "por", "para", "com", "sem",
         "como", "qual", "quais", "quando", "onde", "matematica", "matematico", "matematicas",
-        "quem", "que", "porque", "por", "explique",
+        "quem", "que", "porque", "explique",
         "explicar", "explicacao", "fale", "falar", "diga",
         "mostrar", "mostre", "me", "voce", "seu", "sua",
         "seus", "suas", "eu", "quero", "gostaria",
@@ -126,7 +126,7 @@ object JarvisMathKnowledgeBase {
         val bestScore = matches.first().score
         val response = StringBuilder(
             "Encontrei estas passagens no caderno offline de matemática " +
-                "Volume I):\n\n"
+                "(Volume I):\n\n"
         )
 
         var included = 0
