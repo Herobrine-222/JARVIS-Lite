@@ -49,7 +49,7 @@ public final class JarvisQuantumKnowledgeBase {
                     "funciona", "funcionam", "funcionamento", "funcionou",
                     "significa", "significado", "defina", "definicao",
                     "descreva", "descrever", "explana", "explique",
-                    "ciencia", "quantica", "quantico", "caderno",
+                    "ciencia", "caderno",
                     "volume", "tema", "assunto", "conceito"
             )));
 
