@@ -279,19 +279,34 @@ object JarvisMathKnowledgeBase {
     private fun containsWord(words: Set<String>, queryWord: String): Boolean {
         if (queryWord in words) return true
 
-        if (queryWord == "emaranhamento" &&
-            words.any {
-                it == "emaranhado" || it == "emaranhados" ||
-                    it == "emaranhada" || it == "emaranhadas"
-            }
-        ) return true
-
-        if (queryWord == "emaranhado" &&
-            ("emaranhamento" in words || "emaranhamentos" in words)
-        ) return true
-
         if (queryWord.length > 4 && queryWord.endsWith("s") &&
             queryWord.dropLast(1) in words
+        ) return true
+
+        // Flexões frequentes do português: equação/equações,
+        // matriz/matrizes e porcentagem/porcentagens.
+        if (queryWord.endsWith("ção") &&
+            (queryWord.dropLast(3) + "ções") in words
+        ) return true
+
+        if (queryWord.endsWith("ções") &&
+            (queryWord.dropLast(4) + "ção") in words
+        ) return true
+
+        if (queryWord.endsWith("iz") &&
+            (queryWord.dropLast(2) + "izes") in words
+        ) return true
+
+        if (queryWord.endsWith("izes") &&
+            (queryWord.dropLast(4) + "iz") in words
+        ) return true
+
+        if (queryWord.endsWith("gem") &&
+            (queryWord.dropLast(1) + "ns") in words
+        ) return true
+
+        if (queryWord.endsWith("gens") &&
+            (queryWord.dropLast(4) + "gem") in words
         ) return true
 
         return queryWord.length > 4 && (queryWord + "s") in words
