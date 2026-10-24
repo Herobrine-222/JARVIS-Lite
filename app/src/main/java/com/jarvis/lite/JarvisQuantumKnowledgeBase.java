@@ -46,6 +46,9 @@ public final class JarvisQuantumKnowledgeBase {
                     "me", "voce", "seu", "sua", "seus", "suas",
                     "eu", "quero", "gostaria", "poderia", "pode",
                     "saber", "sobre", "isso", "isto", "aqui",
+                    "funciona", "funcionam", "funcionamento", "funcionou",
+                    "significa", "significado", "defina", "definicao",
+                    "descreva", "descrever", "explana", "explique",
                     "ciencia", "quantica", "quantico", "caderno",
                     "volume", "tema", "assunto", "conceito"
             )));
@@ -119,18 +122,35 @@ public final class JarvisQuantumKnowledgeBase {
                     matchedTerms++;
                 }
 
+                // Termos raros como "Born" ou "Schrödinger" pesam mais
+                // que palavras frequentes como "energia" ou "regra".
+                int documentFrequency = countMatchingPassages(passages, term);
+                int weight = documentFrequency <= 3
+                        ? 5
+                        : documentFrequency <= 10 ? 3 : 1;
+
                 if (inHeading) {
-                    score += 4;
+                    score += weight * 2;
                 }
 
                 if (inBody) {
-                    score += 2;
+                    score += weight;
                 }
 
                 // Consultas de uma única palavra útil ainda podem recuperar
                 // um parágrafo que não tenha esse termo no título.
                 if (terms.size() == 1 && inBody) {
                     score += 2;
+                }
+            }
+
+            // Prefere passagens que correspondam a todos os termos da pergunta
+            // e penaliza resultados que só acertam uma palavra genérica.
+            if (terms.size() > 1) {
+                if (matchedTerms == terms.size()) {
+                    score += matchedTerms * 4;
+                } else {
+                    score -= (terms.size() - matchedTerms) * 3;
                 }
             }
 
@@ -343,6 +363,20 @@ public final class JarvisQuantumKnowledgeBase {
         }
 
         return queryWord.length() > 4 && words.contains(queryWord + "s");
+    }
+
+    private static int countMatchingPassages(
+            List<Passage> passages,
+            String term
+    ) {
+        int count = 0;
+        for (Passage passage : passages) {
+            if (containsWord(passage.headingTokens, term)
+                    || containsWord(passage.bodyTokens, term)) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private static Set<String> tokensOf(String text) {
