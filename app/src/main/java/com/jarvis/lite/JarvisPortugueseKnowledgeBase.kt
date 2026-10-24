@@ -125,8 +125,7 @@ object JarvisPortugueseKnowledgeBase {
 
         val bestScore = matches.first().score
         val response = StringBuilder(
-            "Encontrei estas passagens no caderno offline de matemática " +
-                "(Volume I):\n\n"
+            "Encontrei estas passagens no caderno offline de Língua Portuguesa:\n\n"
         )
 
         var included = 0
