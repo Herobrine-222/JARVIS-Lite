@@ -5,10 +5,7 @@ on:
   push:
     branches:
       - feature/memoria-sqlite
-  push:
-    branches:
       - feature/quantum-knowledge-migration-2026-10-24
-
 jobs:
   build:
     runs-on: ubuntu-latest
