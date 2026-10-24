@@ -294,7 +294,7 @@ object JarvisQuantumKnowledgeBase {
             queryWord.dropLast(1) in words
         ) return true
 
-        return queryWord.length > 4 && "$queryWord" + "s" in words
+        return queryWord.length > 4 && (queryWord + "s") in words
     }
 
     private fun countMatchingPassages(
