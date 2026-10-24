@@ -62,7 +62,7 @@ Notação científica: a×10ⁿ, com 1≤|a|<10 e n inteiro. Exemplos: 45 000 00
 
 Razão compara quantidades por divisão. Proporção a/b=c/d implica ad=bc, desde que os denominadores sejam não nulos. Proporcionalidade direta pode ser modelada por y=kx; inversa por xy=k, dentro das condições do modelo.
 
-Porcentagem: p%=p/100. Exemplo: 15% de 240 é 0,15×240=36. Desconto de 20% em R$150 resulta em 150×0,8=R$120. Aumento de 10% seguido de desconto de 10% dá 1,10×0,90=0,99: o valor final fica 1% abaixo do inicial.
+Porcentagem: p%=p/100. Para calcular uma porcentagem, multiplique o valor por p/100. Exemplo: 15% de 240 é 0,15×240=36. Desconto de 20% em R$150 resulta em 150×0,8=R$120. Aumento de 10% seguido de desconto de 10% dá 1,10×0,90=0,99: o valor final fica 1% abaixo do inicial.
 
 Juros simples: J=Cit e M=C(1+it). Juros compostos: M=C(1+i)^t. C é capital, i taxa por período e t número de períodos; taxa e tempo precisam usar o mesmo período. Exemplo: R$1.000 a 2% por mês durante 3 meses: M=1000(1,02)³≈R$1.061,21.
 
