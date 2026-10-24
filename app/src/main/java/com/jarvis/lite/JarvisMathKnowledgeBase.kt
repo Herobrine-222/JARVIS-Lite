@@ -8,7 +8,7 @@ import java.util.Locale
 /**
  * Recuperador local do Caderno de Matemática — do Básico às Áreas Avançadas.
  *
- * O conteúdo integral é empacotado em app/src/main/assets/quantum/.
+ * O caderno de matemática é empacotado em app/src/main/assets/math/.
  * A consulta ocorre somente no APK: sem internet, sem alteração da
  * memória SQLite e sem execução de comandos do dispositivo.
  */
@@ -25,7 +25,7 @@ object JarvisMathKnowledgeBase {
         "em", "no", "nos", "na", "nas",
         "um", "uma", "uns", "umas",
         "e", "ou", "por", "para", "com", "sem",
-        "como", "qual", "quais", "quando", "onde",
+        "como", "qual", "quais", "quando", "onde", "matematica", "matematico", "matematica",
         "quem", "que", "porque", "por", "explique",
         "explicar", "explicacao", "fale", "falar", "diga",
         "mostrar", "mostre", "me", "voce", "seu", "sua",
@@ -126,7 +126,7 @@ object JarvisMathKnowledgeBase {
         val bestScore = matches.first().score
         val response = StringBuilder(
             "Encontrei estas passagens no caderno offline de matemática " +
-                "quântica (Volume I):\n\n"
+                "Volume I):\n\n"
         )
 
         var included = 0
