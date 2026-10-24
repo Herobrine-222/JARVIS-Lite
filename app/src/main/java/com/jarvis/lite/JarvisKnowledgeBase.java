@@ -1,6 +1,8 @@
 
 package com.jarvis.lite;
 
+import android.content.Context;
+
 import java.text.Normalizer;
 import java.util.Locale;
 
@@ -11,6 +13,19 @@ import java.util.Locale;
 public final class JarvisKnowledgeBase {
 
     private JarvisKnowledgeBase() {
+    }
+
+    /**
+     * Consulta primeiro as respostas curtas já existentes e, em seguida,
+     * o caderno científico empacotado no aplicativo.
+     */
+    public static String answer(Context context, String input) {
+        String existing = answer(input);
+        if (existing != null) {
+            return existing;
+        }
+
+        return JarvisQuantumKnowledgeBase.answer(context, input);
     }
 
     public static String answer(String input) {

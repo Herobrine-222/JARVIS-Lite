@@ -35,6 +35,7 @@ public final class JarvisBrain {
 
     private final Deque<Turn> turns = new ArrayDeque<>();
     private final JarvisContextManager contextManager;
+    private final Context appContext;
 
     public JarvisBrain(Context context) {
         if (context == null) {
@@ -43,9 +44,8 @@ public final class JarvisBrain {
             );
         }
 
-        contextManager = new JarvisContextManager(
-                context.getApplicationContext()
-        );
+        appContext = context.getApplicationContext();
+        contextManager = new JarvisContextManager(appContext);
     }
 
     /**
@@ -53,6 +53,7 @@ public final class JarvisBrain {
      * Sem Context, memória avançada não fica disponível.
      */
     public JarvisBrain() {
+        appContext = null;
         contextManager = null;
     }
 
@@ -243,7 +244,7 @@ public final class JarvisBrain {
 
         // BASE DE CONHECIMENTO OFFLINE
         } else if ((result =
-                JarvisKnowledgeBase.answer(original)) != null) {
+                JarvisKnowledgeBase.answer(appContext, original)) != null) {
 
             // A resposta veio da base de conhecimento local.
 
