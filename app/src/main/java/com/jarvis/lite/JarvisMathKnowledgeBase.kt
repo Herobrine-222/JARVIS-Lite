@@ -25,7 +25,7 @@ object JarvisMathKnowledgeBase {
         "em", "no", "nos", "na", "nas",
         "um", "uma", "uns", "umas",
         "e", "ou", "por", "para", "com", "sem",
-        "como", "qual", "quais", "quando", "onde", "matematica", "matematico", "matematica",
+        "como", "qual", "quais", "quando", "onde", "matematica", "matematico", "matematicas",
         "quem", "que", "porque", "por", "explique",
         "explicar", "explicacao", "fale", "falar", "diga",
         "mostrar", "mostre", "me", "voce", "seu", "sua",
