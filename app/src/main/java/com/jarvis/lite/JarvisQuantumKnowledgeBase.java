@@ -368,6 +368,21 @@ public final class JarvisQuantumKnowledgeBase {
             return true;
         }
 
+        // Reconhece formas usadas no próprio caderno, sem modelo externo.
+        if ("emaranhamento".equals(queryWord)
+                && (words.contains("emaranhado")
+                || words.contains("emaranhados")
+                || words.contains("emaranhada")
+                || words.contains("emaranhadas"))) {
+            return true;
+        }
+
+        if ("emaranhado".equals(queryWord)
+                && (words.contains("emaranhamento")
+                || words.contains("emaranhamentos"))) {
+            return true;
+        }
+
         // Normaliza diferenças simples entre singular e plural em português.
         if (queryWord.length() > 4 && queryWord.endsWith("s")
                 && words.contains(queryWord.substring(0, queryWord.length() - 1))) {
