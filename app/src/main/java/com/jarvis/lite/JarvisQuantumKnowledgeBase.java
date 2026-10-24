@@ -12,9 +12,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -48,7 +50,7 @@ public final class JarvisQuantumKnowledgeBase {
                     "saber", "sobre", "isso", "isto", "aqui",
                     "funciona", "funcionam", "funcionamento", "funcionou",
                     "significa", "significado", "defina", "definicao",
-                    "descreva", "descrever", "explana", "explique",
+                    "descreva", "descrever", "explana",
                     "ciencia", "caderno",
                     "volume", "tema", "assunto", "conceito"
             )));
@@ -104,6 +106,16 @@ public final class JarvisQuantumKnowledgeBase {
             return null;
         }
 
+        // Calcula a frequência documental uma única vez por termo.
+        // Evita repetir uma varredura completa da base para cada passagem.
+        Map<String, Integer> documentFrequencies = new HashMap<>();
+        for (String term : terms) {
+            documentFrequencies.put(
+                    term,
+                    countMatchingPassages(passages, term)
+            );
+        }
+
         List<ScoredPassage> matches = new ArrayList<>();
 
         for (Passage passage : passages) {
@@ -124,7 +136,7 @@ public final class JarvisQuantumKnowledgeBase {
 
                 // Termos raros como "Born" ou "Schrödinger" pesam mais
                 // que palavras frequentes como "energia" ou "regra".
-                int documentFrequency = countMatchingPassages(passages, term);
+                int documentFrequency = documentFrequencies.get(term);
                 int weight = documentFrequency <= 3
                         ? 5
                         : documentFrequency <= 10 ? 3 : 1;
