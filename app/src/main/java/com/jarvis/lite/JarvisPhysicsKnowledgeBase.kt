@@ -118,7 +118,7 @@ object JarvisPhysicsKnowledgeBase {
                 }
             }
 
-            if (matchedTerms > 0 && score >= 4) {
+            if (matchedTerms > 0 && (score >= 4 || (terms.size == 1 && score >= 3))) {
                 matches.add(ScoredPassage(passage, score))
             }
         }
@@ -308,6 +308,9 @@ object JarvisPhysicsKnowledgeBase {
                 unique.add(token)
             }
         }
+        // Em perguntas com vários termos, "física" é contexto geral;
+        // removê-la do ranqueamento evita que a introdução vença o tema específico.
+        if (unique.size > 1) unique.remove("fisica")
         return unique.toList()
     }
 
