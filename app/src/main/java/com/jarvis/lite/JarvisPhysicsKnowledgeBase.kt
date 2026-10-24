@@ -120,6 +120,39 @@ object JarvisPhysicsKnowledgeBase {
             }
         }
 
+        // Segunda tentativa para perguntas naturais que usam palavras diferentes
+        // das fórmulas do caderno. Prioriza títulos e exige ao menos dois termos
+        // relacionados no texto quando nenhum título coincide.
+        if (matches.isEmpty() && terms.size > 1) {
+            for (passage in passages) {
+                var score = 0
+                var matchedTerms = 0
+                var matchedHeadingTerm = false
+
+                for (term in terms) {
+                    val inHeading = containsWord(passage.headingTokens, term)
+                    val inBody = containsWord(passage.bodyTokens, term)
+
+                    if (inHeading || inBody) matchedTerms++
+                    if (inHeading) matchedHeadingTerm = true
+
+                    val frequency = documentFrequencies[term] ?: 0
+                    val weight = when {
+                        frequency <= 3 -> 5
+                        frequency <= 10 -> 3
+                        else -> 1
+                    }
+
+                    if (inHeading) score += weight * 2
+                    if (inBody) score += weight
+                }
+
+                if (score >= 2 && (matchedHeadingTerm || matchedTerms >= 2)) {
+                    matches.add(ScoredPassage(passage, score))
+                }
+            }
+        }
+
         if (matches.isEmpty()) return null
         matches.sortByDescending { it.score }
 
