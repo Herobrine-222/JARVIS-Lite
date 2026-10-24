@@ -120,6 +120,37 @@ object JarvisPortugueseKnowledgeBase {
             }
         }
 
+        // Segunda tentativa: se a pergunta combinar termos de forma muito específica,
+        // aceita passagens que correspondam a pelo menos um termo relevante. Isso
+        // ajuda consultas amplas como "literatura brasileira" sem inventar conteúdo.
+        if (matches.isEmpty() && terms.size > 1) {
+            for (passage in passages) {
+                var score = 0
+                var matchedTerms = 0
+
+                for (term in terms) {
+                    val inHeading = containsWord(passage.headingTokens, term)
+                    val inBody = containsWord(passage.bodyTokens, term)
+
+                    if (inHeading || inBody) matchedTerms++
+
+                    val frequency = documentFrequencies[term] ?: 0
+                    val weight = when {
+                        frequency <= 3 -> 5
+                        frequency <= 10 -> 3
+                        else -> 1
+                    }
+
+                    if (inHeading) score += weight * 2
+                    if (inBody) score += weight
+                }
+
+                if (matchedTerms > 0 && score >= 4) {
+                    matches.add(ScoredPassage(passage, score))
+                }
+            }
+        }
+
         if (matches.isEmpty()) return null
         matches.sortByDescending { it.score }
 
