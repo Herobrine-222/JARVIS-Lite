@@ -52,6 +52,21 @@ public final class JarvisQuantumKnowledgeBase {
 
     private static volatile List<Passage> cachedPassages;
     private static volatile boolean loadAttempted;
+    private static volatile Context applicationContext;
+
+    /**
+     * Inicializa o recurso com o contexto da aplicação sem reter a Activity.
+     * É usado porque o MainActivity também mantém um JarvisBrain de
+     * compatibilidade construído sem parâmetros.
+     */
+    public static void initialize(Context context) {
+        if (context == null) {
+            return;
+        }
+
+        Context app = context.getApplicationContext();
+        applicationContext = app != null ? app : context;
+    }
 
     private JarvisQuantumKnowledgeBase() {
     }
@@ -61,7 +76,17 @@ public final class JarvisQuantumKnowledgeBase {
      * suficientemente representado no caderno.
      */
     public static String answer(Context context, String question) {
-        if (context == null || question == null
+        Context resolvedContext = context;
+        if (resolvedContext != null) {
+            Context app = resolvedContext.getApplicationContext();
+            if (app != null) {
+                resolvedContext = app;
+            }
+        } else {
+            resolvedContext = applicationContext;
+        }
+
+        if (resolvedContext == null || question == null
                 || question.trim().isEmpty()) {
             return null;
         }
@@ -71,9 +96,7 @@ public final class JarvisQuantumKnowledgeBase {
             return null;
         }
 
-        List<Passage> passages = getPassages(
-                context.getApplicationContext()
-        );
+        List<Passage> passages = getPassages(resolvedContext);
         if (passages == null || passages.isEmpty()) {
             return null;
         }
