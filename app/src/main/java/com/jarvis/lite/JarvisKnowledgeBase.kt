@@ -24,6 +24,8 @@ object JarvisKnowledgeBase {
         if (portuguese != null) return portuguese
         val mathematics = JarvisMathKnowledgeBase.answer(context, input)
         if (mathematics != null) return mathematics
+        val physics = JarvisPhysicsKnowledgeBase.answer(context, input)
+        if (physics != null) return physics
         return JarvisQuantumKnowledgeBase.answer(context, input)
     }
 
