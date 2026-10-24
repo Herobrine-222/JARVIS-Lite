@@ -96,7 +96,7 @@ Identidades: a²−b²=(a−b)(a+b); x²−9=(x−3)(x+3); x²+5x+6=(x+2)(x+3); 
 
 ## 12. Equação do segundo grau
 
-Forma ax²+bx+c=0, com a≠0. Discriminante Δ=b²−4ac. Fórmula: x=(−b±√Δ)/(2a). Se Δ>0, há duas raízes reais distintas; se Δ=0, há uma raiz real dupla; se Δ<0, não há raízes reais, embora existam raízes complexas.
+Forma ax²+bx+c=0, com a≠0. Discriminante Δ=b²−4ac. Fórmula resolvente, também conhecida no Brasil como fórmula de Bhaskara: x=(−b±√Δ)/(2a). Se Δ>0, há duas raízes reais distintas; se Δ=0, há uma raiz real dupla; se Δ<0, não há raízes reais, embora existam raízes complexas.
 
 Exemplo: x²−5x+6=0; (x−2)(x−3)=0; x=2 ou x=3. A parábola tem vértice em x=−b/(2a), com y=f(−b/(2a)); abre para cima se a>0 e para baixo se a<0.
 
