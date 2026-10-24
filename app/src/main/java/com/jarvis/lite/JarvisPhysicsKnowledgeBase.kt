@@ -165,6 +165,7 @@ object JarvisPhysicsKnowledgeBase {
         )
 
         var included = 0
+        val includedHeadings = HashSet<String>()
 
         for (match in matches) {
             if (included >= MAX_PASSAGES || match.score < bestScore - 2) {
@@ -173,7 +174,7 @@ object JarvisPhysicsKnowledgeBase {
 
             val heading = match.passage.heading.trim()
             val body = match.passage.body.trim()
-            if (body.isEmpty()) continue
+            if (body.isEmpty() || !includedHeadings.add(heading)) continue
 
             val block = "$heading\n$body\n\n"
             val available = MAX_RESPONSE_CHARS - response.length
