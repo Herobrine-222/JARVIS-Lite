@@ -8,7 +8,8 @@ import java.util.Locale
  * Base de conhecimentos offline do JARVIS Lite.
  *
  * Mantém as respostas curtas já existentes e encaminha perguntas
- * científicas para os cadernos locais de matemática e ciência quântica.
+ * para os cadernos locais de Língua Portuguesa, matemática, Física
+ * e ciência quântica.
  * Não acessa a internet.
  */
 object JarvisKnowledgeBase {
