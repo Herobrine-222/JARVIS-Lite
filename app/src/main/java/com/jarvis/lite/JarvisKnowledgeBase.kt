@@ -20,6 +20,8 @@ object JarvisKnowledgeBase {
     fun answer(context: Context?, input: String?): String? {
         val existing = answer(input)
         if (existing != null) return existing
+        val portuguese = JarvisPortugueseKnowledgeBase.answer(context, input)
+        if (portuguese != null) return portuguese
         val mathematics = JarvisMathKnowledgeBase.answer(context, input)
         if (mathematics != null) return mathematics
         return JarvisQuantumKnowledgeBase.answer(context, input)
